@@ -8,6 +8,7 @@
 
 ---
 
+
  **Core Idea:**
 Develop a system that simulates a mini data center using VirtualBox. Each virtual machine acts as a "server" with specific roles (e.g., SMTP server, DNS server, NTP server, Web server, etc.). Students will create Python-based agents that:
 
@@ -16,6 +17,10 @@ Develop a system that simulates a mini data center using VirtualBox. Each virtua
 * Manage processes
 * Send error alerts
 * Perform basic network queries
+
+![mermaid-diagram-2025-05-16-204338](https://github.com/user-attachments/assets/3003eaa3-bdf9-47a4-8277-7909b10e5a62)
+
+---
 
 **Technical Objectives:**
 

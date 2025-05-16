@@ -2,11 +2,51 @@
 
 <a href="https://softserve.academy/"><img src="https://s.057.ua/section/newsInternalIcon/upload/images/news/icon/000/050/792/vnutr_5ce4f980ef15f.jpg" title="SoftServe IT Academy" alt="SoftServe IT Academy"></a>
 
-***INSERT GRAPHIC HERE (include hyperlink in image)***
 
 # PyDataCenter5000
 > PyDataCenter: Smart Monitoring and Remote Ops
 
+---
+
+ **Core Idea:**
+Develop a system that simulates a mini data center using VirtualBox. Each virtual machine acts as a "server" with specific roles (e.g., SMTP server, DNS server, NTP server, Web server, etc.). Students will create Python-based agents that:
+
+* Connect via SSH
+* Monitor logs
+* Manage processes
+* Send error alerts
+* Perform basic network queries
+
+**Technical Objectives:**
+
+| Technology                       | Task Description                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------------------- |
+| Python 2.6 / 3.8                 | Support both versions (agent in 2.6, client in 3.8)                                |
+| Networking (Sockets)             | TCP/UDP connections between agents, network data collection                        |
+| SMTP                             | Send email alerts when errors are detected                                         |
+| Aqarium                          | Visualize server status (via web interface or logical console dashboard)           |
+| Sockets                          | Implement a custom protocol between agents and the central monitor                 |
+| Unix / FreeBSD                   | Set up VMs with different operating systems                                        |
+| Multiprocessing / Multithreading | Parallel data collection from multiple servers                                     |
+| VirtualBox                       | Deploy infrastructure with 3–4 virtual machines                                    |
+| Logging / Log Files              | Collect and analyze system/webserver logs in real time                             |
+| Core Python                      | Create a CLI tool for system management                                            |
+| NTP / DNS / HTTP/HTTPS / SSH     | Interact with relevant services: pinging, requests, connections, attack simulation |
+
+**Bonus Features:**
+
+* Automatic agent deployment via SSH
+* Easy integration with Telegram or Discord for alerts
+* Interactive admin console
+
+**Project Structure:**
+
+* `agent/` — Python agent for server-side monitoring
+* `controller/` — Central monitoring station (GUI or CLI)
+* `docs/` — Installation and configuration documentation
+* `vagrant/` — Scripts for setting up the infrastructure
+
+---
 
 **Badges will go here**
 

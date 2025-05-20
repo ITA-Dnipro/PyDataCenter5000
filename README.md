@@ -107,6 +107,56 @@ Develop a system that simulates a mini data center using VirtualBox. Each virtua
 * [Python 3.8](https://www.python.org/downloads/release/python-3810/)
 * PostgreSQL 14
 
+### Database Setup
+
+#### Option 1: Using Command Line
+1. Install PostgreSQL 14 from the official website
+2. Open terminal/command prompt and connect to PostgreSQL:
+```bash
+# Connect as postgres user
+psql -U postgres
+
+# Create database
+CREATE DATABASE your_db_name;
+
+# Create user (replace with your desired username and password)
+CREATE USER your_db_user WITH PASSWORD 'your_db_password';
+
+# Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE your_db_name TO your_db_user;
+
+# Connect to the new database
+\c your_db_name
+
+# Grant schema privileges
+GRANT ALL ON SCHEMA public TO your_db_user;
+```
+
+#### Option 2: Using pgAdmin
+1. Install [pgAdmin 4](https://www.pgadmin.org/download/)
+2. Open pgAdmin 4
+3. Right-click on "Servers" → "Create" → "Server"
+4. In the "General" tab:
+   - Name: Give your server a name
+5. In the "Connection" tab:
+   - Host: localhost
+   - Port: 5432
+   - Username: postgres
+   - Password: (your postgres user password)
+6. Click "Save"
+7. Right-click on "Databases" → "Create" → "Database"
+8. Enter database name and owner
+9. Click "Save"
+
+After setting up the database, update your `.env` file with the correct credentials:
+```properties
+DB_NAME=your_db_name
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_HOST=localhost
+DB_PORT=5432
+```
+
 
 ### Environment
 

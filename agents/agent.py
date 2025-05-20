@@ -1,7 +1,7 @@
 import platform
 import socket
 import json
-import time
+import datetime
 
 
 def get_hostname():
@@ -30,6 +30,10 @@ def get_uptime(os_type):
     return "UNKNOWN"
 
 
+def get_timestamp():
+    return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+
 class ServerAgent(object):
 
     def __init__(self, logfile):
@@ -40,7 +44,8 @@ class ServerAgent(object):
         self.hostname = get_hostname()
         self.ip = get_ip(self.hostname)
 
-        self.uptime = self.get_uptime()
+        self.uptime = get_uptime(self.os_type)
+        self.timestamp = get_timestamp()
 
     def to_dict(self):
         return {
@@ -48,6 +53,7 @@ class ServerAgent(object):
             "hostname": self.hostname,
             "ip": self.ip,
             "uptime": self.uptime,
+            "timestamp": self.timestamp,
         }
 
     def to_json(self):

@@ -104,12 +104,9 @@ Develop a system that simulates a mini data center using VirtualBox. Each virtua
 - Images of what it should look like
 
 ### Required to install
-* Python 3.8
+* [Python 3.8](https://www.python.org/downloads/release/python-3810/)
 * PostgreSQL 14
 
-```shell
-$ pip install -r requirements.txt
-```
 
 ### Environment
 
@@ -118,8 +115,10 @@ Django
 
 ```properties
 DEBUG=True or False #Django backend debug mode
+DJANGO_ALLOWED_HOSTS= #e.g. localhost,127.0.0.1
+API_PREFIX= # e.g. api/v1
 
-db details
+# db details
 SECRET_KEY= key ... # Use rules for hashed data
 PG_DB= Database name
 PG_USER= Database user
@@ -127,7 +126,7 @@ PG_PASSWORD= Database user password
 DB_HOST=sample filling => localhost or '127.0.0.1' # Database host
 DB_PORT=sample filling => 5432 # Database port
 
-Used by Docker
+# Used by Docker
 PGADMIN_DEFAULT_PASSWORD= key ... #Use rules for hashed data. Used by Docker
 PGADMIN_DEFAULT_EMAIL= "user login" sample filling admin@admin.com . Used by Docker
 POSTGRES_DB= database name
@@ -148,12 +147,18 @@ REACT_APP_PUBLIC_URL= sample filling => http://localhost:8080 #Path to the front
 
 - If you want more syntax highlighting, format your code like this:
 - Localhost
+> create virtual environment
+```shell
+py -3.8 -m venv venv38
+```
+or whatever uses python3.8 version installed
 
 > update and install this package first
 
 ```shell
 $ pip install -r requirements.txt
 ```
+
 
 > now install npm and bower packages
 

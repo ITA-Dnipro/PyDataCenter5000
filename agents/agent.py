@@ -1,6 +1,33 @@
+import platform
 import socket
 import json
 import time
+
+
+def get_hostname():
+    try:
+        return socket.gethostname()
+    except socket.error:
+        return "UNKNOWN"
+
+
+def get_ip(hostname):
+    try:
+        return socket.gethostbyname(hostname)
+    except (socket.gaierror, socket.error):
+        return "UNKNOWN"
+
+
+def get_linux_uptime():
+    with open("/proc/uptime", "r") as f:
+        return float(f.readline().split()[0])
+
+
+def get_uptime(os_type):
+    if "Linux" in os_type:
+        return get_linux_uptime()
+
+    return "UNKNOWN"
 
 
 class ServerAgent(object):
@@ -8,19 +35,19 @@ class ServerAgent(object):
     def __init__(self, logfile):
         self.logfile = logfile
 
-        self.hostname = self.get_hostname()
-        self.ip = self.get_ip()
+        self.os_type = platform.system() or "UNKNOWN"
 
-    def get_hostname(self):
-        return socket.gethostname()
+        self.hostname = get_hostname()
+        self.ip = get_ip(self.hostname)
 
-    def get_ip(self):
-        return socket.gethostbyname(self.hostname)
+        self.uptime = self.get_uptime()
 
     def to_dict(self):
         return {
+            "os": self.os_type,
             "hostname": self.hostname,
             "ip": self.ip,
+            "uptime": self.uptime,
         }
 
     def to_json(self):

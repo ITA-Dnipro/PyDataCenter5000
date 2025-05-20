@@ -35,6 +35,10 @@ def get_timestamp():
 
 
 class ServerAgent(object):
+    """
+    Base class for all agents. Handles operations common for all
+    servers, such as getting server metadata and writing it to logfile.
+    """
 
     def __init__(self, logfile):
         self.logfile = logfile

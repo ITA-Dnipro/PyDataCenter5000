@@ -124,6 +124,6 @@ class ServerAgent(object):
         try:
             with open(self.logfile, "w") as f:
                 for k, v in data.items():
-                    f.write("%s: %s\n" % (k, v)).encode("utf-8")
+                    f.write((u"%s: %s\n" % (k, v)).encode("utf-8"))
         except (IOError, OSError) as e:
             logger.error("Error writing to %s: %s" % (self.logfile, e))

@@ -57,6 +57,11 @@ class ServerAgent(object):
         self.port = -1
 
     def port_open(self):
+        if self.port == -1:
+            raise ValueError(
+                "Port not set: server agent must assign a valid port number"
+            )
+
         # Set a TCP/IP socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 

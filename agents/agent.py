@@ -57,6 +57,15 @@ class ServerAgent(object):
         self.port = -1
 
     def port_open(self):
+        """
+        Check if the port is open.
+
+        Returns:
+            bool: Port status.
+
+        Raises:
+            ValueError: If the port not assigned a valid number.
+        """
         if self.port == -1:
             raise ValueError(
                 "Port not set: server agent must assign a valid port number"
@@ -97,10 +106,12 @@ class ServerAgent(object):
         }
 
     def to_json(self):
+        """Dump host metadata to json file."""
         with open(self.logfile, "w") as f:
             json.dump(self.to_dict(), f)
 
     def to_txt(self):
+        """Dump host metadata to txt file as key-value pairs."""
         data = self.to_dict()
 
         with open(self.logfile, "w") as f:

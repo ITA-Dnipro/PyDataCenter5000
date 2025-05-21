@@ -4,6 +4,7 @@ import socket
 import json
 import datetime
 import logging
+from logging.handlers import TimedRotatingFileHandler
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
@@ -46,8 +47,8 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, logfile):
-        self.logfile = logfile
+    def __init__(self, logger):
+        self.logger = logger
 
         self.os_type = platform.system() or "UNKNOWN"
 
@@ -59,6 +60,46 @@ class ServerAgent(object):
 
         # Subclass must set port
         self.port = -1
+
+    @classmethod
+    def with_rotating_logger(
+        cls,
+        logfile,
+        name=None,
+        formatter=None,
+        when="midnight",
+        interval=1,
+        count=7,
+    ):
+        """
+        Factory method to instantiate the agent with a timed rotating
+        logger.
+
+        Parameters:
+            logfile (str): Name of the base log file.
+            name (str): Name of the logger. If none is given, the name
+                will be the same as that of the agent class.
+            formatter (Formatter): Logging formatter. Default is None.
+            when (str): When to rotate the log file. Default is
+                'midnight' - a new timestamped log file will is created
+                at midnight.
+            interval (int): Periodicity which determines how often to
+                rotate log files. Default is 1.
+            count (int): Number of old log files to keep. Default is 7.
+        """
+        logger = logging.getLogger(name or cls.__name__)
+        logger.setLevel(logging.INFO)
+
+        handler = TimedRotatingFileHandler(
+            logfile, when=when, interval=interval, backupCount=count
+        )
+
+        formatter = formatter or logging.Formatter("%(message)s")
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
+
+        return cls(logger)
 
     def port_open(self):
         """
@@ -112,8 +153,8 @@ class ServerAgent(object):
     def to_json(self):
         """Dump host metadata to json file."""
         try:
-            with open(self.logfile, "w") as f:
-                json.dump(self.to_dict(), f)
+            msg = json.dumps(self.to_dict())
+            self.logger.info(msg)
         except (IOError, OSError) as e:
             logger.error("Error writing to %s: %s" % (self.logfile, e))
 
@@ -122,8 +163,8 @@ class ServerAgent(object):
         data = self.to_dict()
 
         try:
-            with open(self.logfile, "w") as f:
-                for k, v in data.items():
-                    f.write((u"%s: %s\n" % (k, v)).encode("utf-8"))
+            for k, v in data.items():
+                msg = u"%s: %s" % (k, v)
+                self.logger.info(msg.encode("utf-8"))
         except (IOError, OSError) as e:
             logger.error("Error writing to %s: %s" % (self.logfile, e))

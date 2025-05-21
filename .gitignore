@@ -132,6 +132,8 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv38/
+venv26/
 ENV/
 env.bak/
 venv.bak/

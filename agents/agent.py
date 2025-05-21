@@ -5,9 +5,7 @@ import json
 import datetime
 import logging
 from logging.handlers import TimedRotatingFileHandler
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
+from .logtools import get_fallback_logger
 
 
 def get_hostname():
@@ -156,7 +154,13 @@ class ServerAgent(object):
             msg = json.dumps(self.to_dict())
             self.logger.info(msg)
         except (IOError, OSError) as e:
-            logger.error("Error writing to %s: %s" % (self.logfile, e))
+            error_message = "Error logging to file: %s" % e
+
+            try:
+                self.logger.error(error_message)
+            except:
+                get_fallback_logger().error(error_message)
+
 
     def to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
@@ -167,4 +171,9 @@ class ServerAgent(object):
                 msg = u"%s: %s" % (k, v)
                 self.logger.info(msg.encode("utf-8"))
         except (IOError, OSError) as e:
-            logger.error("Error writing to %s: %s" % (self.logfile, e))
+            error_message = "Error logging to file: %s" % e
+
+            try:
+                self.logger.error(error_message)
+            except:
+                get_fallback_logger().error(error_message)

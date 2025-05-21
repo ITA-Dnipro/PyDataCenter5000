@@ -14,6 +14,7 @@ class SMTPAgent(ServerAgent):
             output = subprocess.Popen(
                 ["ps", "aux"], stdout=subprocess.PIPE
             ).communicate()[0]
+            output = output.lower()
 
             return (
                 self.port_open()

@@ -1,3 +1,4 @@
+import abc
 import platform
 import socket
 import json
@@ -39,6 +40,7 @@ class ServerAgent(object):
     Base class for all agents. Handles operations common for all
     servers, such as getting server metadata and writing it to logfile.
     """
+    __metaclass__ = abc.ABCMeta
 
     def __init__(self, logfile):
         self.logfile = logfile
@@ -51,6 +53,34 @@ class ServerAgent(object):
         self.uptime = get_uptime(self.os_type)
         self.timestamp = get_timestamp()
 
+        # Subclass must set port
+        self.port = -1
+
+    def port_open(self):
+        # Set a TCP/IP socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        try:
+            s.settimeout(2)
+            s.connect((
+                self.hostname if self.hostname != "UNKNOWN" else "localhost",
+                self.port,
+            ))
+        except socket.error:
+            return False
+        finally:
+            s.close()
+
+        return True
+
+    @abc.abstractmethod
+    def service_healthy(self):
+        """
+        Check if the specific service (SMTP, DNS, etc.) is running and
+        healthy.
+        """
+        pass
+
     def to_dict(self):
         return {
             "os": self.os_type,
@@ -58,6 +88,7 @@ class ServerAgent(object):
             "ip": self.ip,
             "uptime": self.uptime,
             "timestamp": self.timestamp,
+            "healthy": self.service_healthy(),
         }
 
     def to_json(self):

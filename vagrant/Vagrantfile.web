@@ -4,7 +4,7 @@ Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/jammy64"
   config.vm.network "public_network",
     ip: ENV_WEB["IP"],
-    netmask: ENV_WEB["NETMASK"],
+    netmask: ENV_WEB["NETMASK"]
 
   config.vm.provider ENV_WEB["PROVIDER"] do |vb|
     vb.name = ENV_WEB["VM_NAME"]

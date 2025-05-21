@@ -3,6 +3,10 @@ import platform
 import socket
 import json
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
 
 
 def get_hostname():
@@ -107,13 +111,19 @@ class ServerAgent(object):
 
     def to_json(self):
         """Dump host metadata to json file."""
-        with open(self.logfile, "w") as f:
-            json.dump(self.to_dict(), f)
+        try:
+            with open(self.logfile, "w") as f:
+                json.dump(self.to_dict(), f)
+        except (IOError, OSError) as e:
+            logger.error("Error writing to %s: %s" % (self.logfile, e))
 
     def to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
         data = self.to_dict()
 
-        with open(self.logfile, "w") as f:
-            for k, v in data.items():
-                f.write("%s: %s\n" % (k, v)).encode("utf-8")
+        try:
+            with open(self.logfile, "w") as f:
+                for k, v in data.items():
+                    f.write("%s: %s\n" % (k, v)).encode("utf-8")
+        except (IOError, OSError) as e:
+            logger.error("Error writing to %s: %s" % (self.logfile, e))

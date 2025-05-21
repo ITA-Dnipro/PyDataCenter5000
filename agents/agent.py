@@ -92,7 +92,12 @@ class ServerAgent(object):
             logfile, when=when, interval=interval, backupCount=count
         )
 
-        formatter = formatter or logging.Formatter("%(message)s")
+        formatter = (
+            formatter
+            or logging.Formatter(
+                "%(name)s - %(asctime)s - %(levelname)s - %(message)s"
+            )
+        )
         handler.setFormatter(formatter)
 
         logger.addHandler(handler)
@@ -159,7 +164,9 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                get_fallback_logger().error(error_message)
+                get_fallback_logger(
+                    self.logger.name + "Fallback"
+                ).error(error_message)
 
 
     def to_txt(self):
@@ -176,4 +183,6 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                get_fallback_logger().error(error_message)
+                get_fallback_logger(
+                    self.logger.name + "Fallback"
+                ).error(error_message)

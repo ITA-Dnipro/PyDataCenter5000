@@ -23,13 +23,15 @@ Vagrant.configure("2") do |config|
                         libnss3-dev libssl-dev libreadline-dev libffi-dev wget \
                         libsqlite3-dev
 
-    cd /usr/src
-    sudo wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
-    sudo tar xzf Python-2.6.9.tgz
-    cd Python-2.6.9
-    sudo ./configure --prefix=/opt/python2.6
-    sudo make
-    sudo make install
+    if ! /opt/python2.6/bin/python2.6 --version > /dev/null 2>&1; then
+      cd /usr/src
+      sudo wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
+      sudo tar xzf Python-2.6.9.tgz
+      cd Python-2.6.9
+      sudo ./configure --prefix=/opt/python2.6
+      sudo make
+      sudo make install
+    fi
 
     /opt/python2.6/bin/python2.6 --version
     sudo ln -s /opt/python2.6/bin/python2.6 /usr/local/bin/python2

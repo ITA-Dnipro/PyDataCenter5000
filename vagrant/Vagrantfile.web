@@ -13,6 +13,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -e
     sudo apt update
     sudo apt install -y nginx openssh-server
 

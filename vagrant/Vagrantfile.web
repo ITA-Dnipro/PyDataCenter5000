@@ -31,6 +31,8 @@ Vagrant.configure("2") do |config|
       sudo ./configure --prefix=/opt/python2.6
       sudo make
       sudo make install
+      cd ..
+      sudo rm -rf Python-2.6.9 Python-2.6.9.tgz
     fi
 
     /opt/python2.6/bin/python2.6 --version

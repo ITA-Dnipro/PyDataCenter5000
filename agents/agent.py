@@ -45,6 +45,7 @@ class ServerAgent(object):
     __metaclass__ = abc.ABCMeta
 
     server = None
+    port = -1
 
     def __init__(self):
         self.os_type = platform.system() or "UNKNOWN"
@@ -54,9 +55,6 @@ class ServerAgent(object):
 
         self.uptime = get_uptime(self.os_type)
         self.timestamp = get_timestamp()
-
-        # Subclass must set port
-        self.port = -1
 
         # Setup logging
         logging.config.fileConfig(

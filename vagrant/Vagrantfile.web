@@ -32,6 +32,6 @@ Vagrant.configure("2") do |config|
     sudo make install
 
     /opt/python2.6/bin/python2.6 --version
-    sudo ln -s /opt/python2.6/bin/python2.6 /usr/local/bin/python
+    sudo ln -s /opt/python2.6/bin/python2.6 /usr/local/bin/python2
   SHELL
 end

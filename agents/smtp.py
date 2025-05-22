@@ -1,4 +1,5 @@
 import subprocess
+import logging
 from .agent import ServerAgent
 
 
@@ -22,5 +23,14 @@ class SMTPAgent(ServerAgent):
                 self.port_open()
                 and any(proc in output for proc in self.processes)
             )
-        except Exception:
+        except OSError as e:
+            error_message = "SMTP check failed: %s" % str(e)
+
+            try:
+                self.logger.error(error_message)
+            except:
+                logging.getLogger(
+                    self.server + "_fallback"
+                ).error(error_message)
+
             return False

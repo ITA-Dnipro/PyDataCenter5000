@@ -119,7 +119,7 @@ class ServerAgent(object):
             msg = json.dumps(self.to_dict())
             self.logger.info(msg)
         except (IOError, OSError) as e:
-            error_message = "Error logging to file: %s" % e
+            error_message = "Error logging to file: %s" % str(e)
 
             try:
                 self.logger.error(error_message)
@@ -138,7 +138,7 @@ class ServerAgent(object):
                 msg = u"%s: %s" % (k, v)
                 self.logger.info(msg.encode("utf-8"))
         except (IOError, OSError) as e:
-            error_message = "Error logging to file: %s" % e
+            error_message = "Error logging to file: %s" % str(e)
 
             try:
                 self.logger.error(error_message)

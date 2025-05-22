@@ -6,46 +6,7 @@ import json
 import datetime
 import logging
 
-
-logging_config = {
-    "version": 1,
-    "formatters": {
-        "default": {
-            "format": "%(name)s - %(asctime)s - %(levelname)s - %(message)s"
-        },
-    },
-    "handlers": {
-        "fallback": {
-            "class": "logging.StreamHandler",
-            "level": "ERROR",
-            "formatter": "default",
-        },
-        "rotating": {
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            "level": "INFO",
-            "formatter": "default",
-            "filename": "agent.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 7,
-        },
-    },
-    "loggers": {
-        "default": {
-            "handlers": ["rotating"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "fallback": {
-            "handlers": ["fallback"],
-            "level": "ERROR",
-            "propagate": False,
-        }
-    },
-}
-
-logging.config.dictConfig(logging_config)
-
+logging.config.fileConfig("agents/logconfig/logconfig.ini")
 
 def get_hostname():
     try:
@@ -97,7 +58,7 @@ class ServerAgent(object):
         self.port = -1
 
         # Setup logger
-        self.logger = logging.getLogger("default")
+        self.logger = logging.getLogger("agent")
 
     def port_open(self):
         """

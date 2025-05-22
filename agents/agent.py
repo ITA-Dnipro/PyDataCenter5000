@@ -1,10 +1,15 @@
 import abc
+import pkg_resources
 import logging.config
 import platform
 import socket
 import json
 import datetime
 import logging
+
+log_config_path = pkg_resources.resource_filename(
+    "agents.logconfig", "logconfig.ini"
+)
 
 
 def get_hostname():
@@ -58,7 +63,7 @@ class ServerAgent(object):
 
         # Setup logging
         logging.config.fileConfig(
-            "agents/logconfig/logconfig.ini",
+            log_config_path,
             defaults={"agent_name": self.server},
         )
 

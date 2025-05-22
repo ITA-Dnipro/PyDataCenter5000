@@ -90,7 +90,7 @@ class ServerAgent(object):
         try:
             s.settimeout(2)
             s.connect((
-                self.hostname if self.hostname != "UNKNOWN" else "localhost",
+                self.ip if self.ip != "UNKNOWN" else "localhost",
                 self.port,
             ))
         except socket.error:

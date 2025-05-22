@@ -1,11 +1,50 @@
 import abc
+import logging.config
 import platform
 import socket
 import json
 import datetime
 import logging
-from logging.handlers import TimedRotatingFileHandler
-from .logtools import get_fallback_logger
+
+
+logging_config = {
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "%(name)s - %(asctime)s - %(levelname)s - %(message)s"
+        },
+    },
+    "handlers": {
+        "fallback": {
+            "class": "logging.StreamHandler",
+            "level": "ERROR",
+            "formatter": "default",
+        },
+        "rotating": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "level": "INFO",
+            "formatter": "default",
+            "filename": "agent.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 7,
+        },
+    },
+    "loggers": {
+        "default": {
+            "handlers": ["rotating"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "fallback": {
+            "handlers": ["fallback"],
+            "level": "ERROR",
+            "propagate": False,
+        }
+    },
+}
+
+logging.config.dictConfig(logging_config)
 
 
 def get_hostname():
@@ -45,9 +84,7 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, logger):
-        self.logger = logger
-
+    def __init__(self):
         self.os_type = platform.system() or "UNKNOWN"
 
         self.hostname = get_hostname()
@@ -59,50 +96,8 @@ class ServerAgent(object):
         # Subclass must set port
         self.port = -1
 
-    @classmethod
-    def with_rotating_logger(
-        cls,
-        logfile,
-        name=None,
-        formatter=None,
-        when="midnight",
-        interval=1,
-        count=7,
-    ):
-        """
-        Factory method to instantiate the agent with a timed rotating
-        logger.
-
-        Parameters:
-            logfile (str): Name of the base log file.
-            name (str): Name of the logger. If none is given, the name
-                will be the same as that of the agent class.
-            formatter (Formatter): Logging formatter. Default is None.
-            when (str): When to rotate the log file. Default is
-                'midnight' - a new timestamped log file will is created
-                at midnight.
-            interval (int): Periodicity which determines how often to
-                rotate log files. Default is 1.
-            count (int): Number of old log files to keep. Default is 7.
-        """
-        logger = logging.getLogger(name or cls.__name__)
-        logger.setLevel(logging.INFO)
-
-        handler = TimedRotatingFileHandler(
-            logfile, when=when, interval=interval, backupCount=count
-        )
-
-        formatter = (
-            formatter
-            or logging.Formatter(
-                "%(name)s - %(asctime)s - %(levelname)s - %(message)s"
-            )
-        )
-        handler.setFormatter(formatter)
-
-        logger.addHandler(handler)
-
-        return cls(logger)
+        # Setup logger
+        self.logger = logging.getLogger("default")
 
     def port_open(self):
         """
@@ -164,9 +159,7 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                get_fallback_logger(
-                    self.logger.name + "Fallback"
-                ).error(error_message)
+                logging.getLogger("fallback").error(error_message)
 
 
     def to_txt(self):
@@ -183,6 +176,4 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                get_fallback_logger(
-                    self.logger.name + "Fallback"
-                ).error(error_message)
+                logging.getLogger("fallback").error(error_message)

@@ -4,8 +4,8 @@ from .agent import ServerAgent
 
 class SMTPAgent(ServerAgent):
 
-    def __init__(self, logfile):
-        super(SMTPAgent, self).__init__(logfile)
+    def __init__(self):
+        super(SMTPAgent, self).__init__()
 
         self.port = 25
 

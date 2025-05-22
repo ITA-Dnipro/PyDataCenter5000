@@ -3,6 +3,7 @@ from .agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
+    server = "smtp"
 
     def __init__(self, smtp_processes=None):
         super(SMTPAgent, self).__init__()

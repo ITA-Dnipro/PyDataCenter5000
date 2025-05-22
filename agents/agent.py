@@ -6,7 +6,6 @@ import json
 import datetime
 import logging
 
-logging.config.fileConfig("agents/logconfig/logconfig.ini")
 
 def get_hostname():
     try:
@@ -45,6 +44,8 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    server = None
+
     def __init__(self):
         self.os_type = platform.system() or "UNKNOWN"
 
@@ -57,8 +58,13 @@ class ServerAgent(object):
         # Subclass must set port
         self.port = -1
 
-        # Setup logger
-        self.logger = logging.getLogger("agent")
+        # Setup logging
+        logging.config.fileConfig(
+            "agents/logconfig/logconfig.ini",
+            defaults={"agent_name": self.server},
+        )
+
+        self.logger = logging.getLogger(self.server)
 
     def port_open(self):
         """
@@ -120,7 +126,9 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                logging.getLogger("fallback").error(error_message)
+                logging.getLogger(
+                    self.server + "_fallback"
+                ).error(error_message)
 
 
     def to_txt(self):
@@ -137,4 +145,6 @@ class ServerAgent(object):
             try:
                 self.logger.error(error_message)
             except:
-                logging.getLogger("fallback").error(error_message)
+                logging.getLogger(
+                    self.server + "_fallback"
+                ).error(error_message)

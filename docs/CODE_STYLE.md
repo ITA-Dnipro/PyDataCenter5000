@@ -13,3 +13,11 @@ Below is a list of hooks that are automatically run before each commit to help m
 - **check-yaml** — Validates YAML files for syntax correctness.
 - **check-merge-conflict** — Detects leftover merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
 - **debug-statements** — Prevents accidental commits of `print()` or `pdb` statements.
+
+### Run Pre-commit Hooks Manually
+
+To run all configured pre-commit hooks manually on all files, use:
+
+```bash
+pre-commit run --all-files
+```

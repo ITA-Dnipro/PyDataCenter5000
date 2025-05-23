@@ -20,7 +20,6 @@ def health_check(request):
         # Check database connection
         db_conn = connections['default']
         db_conn.ensure_connection()
-        raise OperationalError("bruh")
         
         return Response({
             'status': 'healthy',

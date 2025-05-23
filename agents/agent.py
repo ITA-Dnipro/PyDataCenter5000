@@ -140,8 +140,7 @@ class ServerAgent(object):
 
         try:
             for k, v in data.items():
-                msg = u"%s: %s" % (k, v)
-                self.logger.info(msg.encode("utf-8"))
+                self.logger.info(u"%s: %s" % (k, v))
         except (IOError, OSError) as e:
             error_message = "Error logging to file: %s" % str(e)
 

@@ -28,7 +28,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError(
-        'DJANGO_SECRET_KEY environment variable is not set. Please set it in your .env file.'
+        'DJANGO_SECRET_KEY environment variable is not set.'
+        'Please set it in your .env file.'
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -111,7 +112,8 @@ DATABASES = {
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'django.contrib.auth.password_validation.'
+        'UserAttributeSimilarityValidator',
     },
     {
         'NAME':

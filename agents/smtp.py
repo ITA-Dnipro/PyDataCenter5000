@@ -4,7 +4,7 @@ from .agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
-    server = "smtp"
+    server_name = "smtp"
     port = 25
 
     def __init__(self, smtp_processes=None):
@@ -33,7 +33,7 @@ class SMTPAgent(ServerAgent):
                 self.logger.error(error_message)
             except:
                 logging.getLogger(
-                    self.server + "_fallback"
+                    self.server_name + "_fallback"
                 ).error(error_message)
 
             return False

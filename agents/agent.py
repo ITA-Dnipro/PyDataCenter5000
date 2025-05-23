@@ -49,7 +49,7 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    server = None
+    server_name = None
     port = -1
 
     def __init__(self):
@@ -64,10 +64,10 @@ class ServerAgent(object):
         # Setup logging
         logging.config.fileConfig(
             log_config_path,
-            defaults={"agent_name": self.server},
+            defaults={"agent_name": self.server_name},
         )
 
-        self.logger = logging.getLogger(self.server)
+        self.logger = logging.getLogger(self.server_name)
 
     def port_open(self):
         """
@@ -113,6 +113,7 @@ class ServerAgent(object):
             "os": self.os_type,
             "hostname": self.hostname,
             "ip": self.ip,
+            "server_name": self.server_name,
             "uptime": self.uptime,
             "timestamp": self.timestamp,
             "healthy": self.service_healthy(),
@@ -130,7 +131,7 @@ class ServerAgent(object):
                 self.logger.error(error_message)
             except:
                 logging.getLogger(
-                    self.server + "_fallback"
+                    self.server_name + "_fallback"
                 ).error(error_message)
 
 
@@ -148,5 +149,5 @@ class ServerAgent(object):
                 self.logger.error(error_message)
             except:
                 logging.getLogger(
-                    self.server + "_fallback"
+                    self.server_name + "_fallback"
                 ).error(error_message)

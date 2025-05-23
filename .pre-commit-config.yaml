@@ -1,8 +1,10 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 24.3.0
+  - repo: https://github.com/google/yapf
+    rev: v0.31.0
     hooks:
-      - id: black
+      - id: yapf
+        name: "yapf"
+    args: [--style=.style.yapf]
 
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.10.1
@@ -18,3 +20,4 @@ repos:
       - id: check-yaml
       - id: check-merge-conflict
       - id: debug-statements
+      - id: double-quote-string-fixer

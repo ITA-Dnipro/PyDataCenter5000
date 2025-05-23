@@ -22,7 +22,10 @@ from django.urls import include, path
 from .health import health_check
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path(f"{settings.API_PREFIX}/", include("monitoring.urls", namespace="monitoring")),
-    path("health/", health_check, name="health_check"),
+    path('admin/', admin.site.urls),
+    path(
+        f'{settings.API_PREFIX}/',
+        include('monitoring.urls', namespace='monitoring')
+    ),
+    path('health/', health_check, name='health_check'),
 ]

@@ -10,7 +10,7 @@ class SMTPAgent(ServerAgent):
     def __init__(self, smtp_processes=None):
         super(SMTPAgent, self).__init__()
 
-        self.processes = smtp_processes or ["postfix", "exim", "sendmail"]
+        self.processes = smtp_processes or ["postfix", "exim", "sendmail", "master"]
 
     def service_healthy(self):
         try:

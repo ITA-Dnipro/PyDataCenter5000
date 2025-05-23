@@ -17,6 +17,9 @@ class SMTPAgent(ServerAgent):
             output = subprocess.Popen(
                 ["ps", "aux"], stdout=subprocess.PIPE
             ).communicate()[0]
+
+            if hasattr(output, "decode"):
+                output = output.decode("utf-8")
             output = output.lower()
 
             return (

@@ -132,15 +132,15 @@ class ServerAgent(object):
                 'Port not set: server agent must assign a valid port number'
             )
 
+        if not self.ip:
+            return False
+
         # Set a TCP/IP socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             s.settimeout(2)
-            s.connect((
-                self.ip if self.ip != 'UNKNOWN' else 'localhost',
-                self.port,
-            ))
+            s.connect((self.ip, self.port))
         except socket.error:
             return False
         finally:

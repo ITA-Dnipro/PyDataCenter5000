@@ -34,7 +34,7 @@ class SMTPAgent(ServerAgent):
             maybe_log_error(
                 'SMTP check failed: %s' % str(e),
                 self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                self.fallback_logger,
             )
 
             return False

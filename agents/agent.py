@@ -50,6 +50,9 @@ class ServerAgent(object):
         )
 
         self.logger = logging.getLogger(self.server_name)
+        self.fallback_logger = logging.getLogger(
+            self.server_name + '_fallback'
+        )
 
         self.set_server_metadata(netiface)
 
@@ -57,9 +60,7 @@ class ServerAgent(object):
         system = platform.system()
         if not system:
             maybe_log_error(
-                'Could not deduce OS type',
-                self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                'Could not deduce OS type', self.logger, self.fallback_logger
             )
 
         self.os_type = system.lower() or 'unknown'
@@ -72,7 +73,7 @@ class ServerAgent(object):
             maybe_log_error(
                 'Could not get hostname: %s' % str(e),
                 self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                self.fallback_logger,
             )
 
         self.ip = None
@@ -87,7 +88,7 @@ class ServerAgent(object):
                         '%s: %s' % netiface, str(e)
                     ),
                     self.logger,
-                    logging.getLogger(self.server_name + '_fallback'),
+                    self.fallback_logger,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
@@ -97,7 +98,7 @@ class ServerAgent(object):
                 maybe_log_error(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    logging.getLogger(self.server_name + '_fallback'),
+                    self.fallback_logger,
                 )
 
         self.uptime = -1
@@ -109,7 +110,7 @@ class ServerAgent(object):
             maybe_log_error(
                 "Could not get system's uptime",
                 self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                self.fallback_logger,
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -175,7 +176,7 @@ class ServerAgent(object):
             maybe_log_error(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                self.fallback_logger,
             )
 
     def to_txt(self):
@@ -189,5 +190,5 @@ class ServerAgent(object):
             maybe_log_error(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                logging.getLogger(self.server_name + '_fallback'),
+                self.fallback_logger,
             )

@@ -1,0 +1,42 @@
+load File.expand_path("../env.rb", __FILE__)
+
+Vagrant.configure("2") do |config|
+  config.vm.box = ENV_WEB["OS"]
+  config.vm.network "public_network",
+    ip: ENV_WEB["IP"],
+    netmask: ENV_WEB["NETMASK"]
+
+  config.vm.provider ENV_WEB["PROVIDER"] do |vb|
+    vb.name = ENV_WEB["VM_NAME"]
+    vb.memory = ENV_WEB["VM_MEMORY"]
+    vb.cpus = ENV_WEB["VM_CPUS"]
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    sudo apt update
+    sudo apt install -y nginx openssh-server
+
+    sudo systemctl enable ssh
+    sudo systemctl start ssh
+
+    sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev \
+                        libnss3-dev libssl-dev libreadline-dev libffi-dev wget \
+                        libsqlite3-dev
+
+    if ! /opt/python2.6/bin/python2.6 --version > /dev/null 2>&1; then
+      cd /usr/src
+      sudo wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
+      sudo tar xzf Python-2.6.9.tgz
+      cd Python-2.6.9
+      sudo ./configure --prefix=/opt/python2.6
+      sudo make
+      sudo make install
+      cd ..
+      sudo rm -rf Python-2.6.9 Python-2.6.9.tgz
+    fi
+
+    /opt/python2.6/bin/python2.6 --version
+    sudo ln -s /opt/python2.6/bin/python2.6 /usr/local/bin/python2
+  SHELL
+end

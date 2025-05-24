@@ -104,12 +104,59 @@ Develop a system that simulates a mini data center using VirtualBox. Each virtua
 - Images of what it should look like
 
 ### Required to install
-* Python 3.8
+* [Python 3.8](https://www.python.org/downloads/release/python-3810/)
 * PostgreSQL 14
 
-```shell
-$ pip install -r requirements.txt
+### Database Setup
+
+#### Option 1: Using Command Line
+1. Install PostgreSQL 14 from the official website
+2. Open terminal/command prompt and connect to PostgreSQL:
+```bash
+# Connect as postgres user
+psql -U postgres
+
+# Create database
+CREATE DATABASE your_db_name;
+
+# Create user (replace with your desired username and password)
+CREATE USER your_db_user WITH PASSWORD 'your_db_password';
+
+# Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE your_db_name TO your_db_user;
+
+# Connect to the new database
+\c your_db_name
+
+# Grant schema privileges
+GRANT ALL ON SCHEMA public TO your_db_user;
 ```
+
+#### Option 2: Using pgAdmin
+1. Install [pgAdmin 4](https://www.pgadmin.org/download/)
+2. Open pgAdmin 4
+3. Right-click on "Servers" → "Create" → "Server"
+4. In the "General" tab:
+   - Name: Give your server a name
+5. In the "Connection" tab:
+   - Host: localhost
+   - Port: 5432
+   - Username: postgres
+   - Password: (your postgres user password)
+6. Click "Save"
+7. Right-click on "Databases" → "Create" → "Database"
+8. Enter database name and owner
+9. Click "Save"
+
+After setting up the database, update your `.env` file with the correct credentials:
+```properties
+DB_NAME=your_db_name
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_HOST=localhost
+DB_PORT=5432
+```
+
 
 ### Environment
 
@@ -118,8 +165,10 @@ Django
 
 ```properties
 DEBUG=True or False #Django backend debug mode
+DJANGO_ALLOWED_HOSTS= #e.g. localhost,127.0.0.1
+API_PREFIX= # e.g. api/v1
 
-db details
+# db details
 SECRET_KEY= key ... # Use rules for hashed data
 PG_DB= Database name
 PG_USER= Database user
@@ -127,7 +176,7 @@ PG_PASSWORD= Database user password
 DB_HOST=sample filling => localhost or '127.0.0.1' # Database host
 DB_PORT=sample filling => 5432 # Database port
 
-Used by Docker
+# Used by Docker
 PGADMIN_DEFAULT_PASSWORD= key ... #Use rules for hashed data. Used by Docker
 PGADMIN_DEFAULT_EMAIL= "user login" sample filling admin@admin.com . Used by Docker
 POSTGRES_DB= database name
@@ -148,12 +197,18 @@ REACT_APP_PUBLIC_URL= sample filling => http://localhost:8080 #Path to the front
 
 - If you want more syntax highlighting, format your code like this:
 - Localhost
+> create virtual environment
+```shell
+py -3.8 -m venv venv38
+```
+or whatever uses python3.8 version installed
 
 > update and install this package first
 
 ```shell
 $ pip install -r requirements.txt
 ```
+
 
 > now install npm and bower packages
 
@@ -180,7 +235,7 @@ DB_PORT=  sample filling => 5432
 PGADMIN_DEFAULT_PASSWORD= 'key ...'
 PGADMIN_DEFAULT_EMAIL=  sample filling => admin@admin.com
 
-DEBUG=True or False  
+DEBUG=True or False
 ENGINE= # docker-compose.dev.yml
 POSTGRES_DB= sample filling =>  forum  # docker-compose
 ALLOWED_ENV_HOST=sample filling => "http://localhost:8080" # docker-compose and settings.py
@@ -199,12 +254,12 @@ Correct application operation (in terms of moderation autoapprove functionality,
 
 Docker will automatically download the image and run the Redis server with the ports exposed. Redis will be available at 127.0.0.1:6379. You should place this host and port in the environment variable REDIS_URL, which Celery uses through Django's settings.py.
 
-Don't forget to install Celery via pip.  
+Don't forget to install Celery via pip.
 ```instal
 pip install -r requirements.txt
 ```
 Add in BackEnd .env
-```.env 
+```.env
 REDIS_URL= redis://localhost:6379/0
 ```
 
@@ -225,7 +280,7 @@ REACT_APP_BASE_API_URL= sample filling => http://localhost:8000 # Path to the ba
 REACT_APP_PUBLIC_URL= sample filling => http://localhost:8080 # Path to the frontend visualization
 ```
 
-- User, run the local server on port localhost:8080 
+- User, run the local server on port localhost:8080
 ``` shell
 PORT=8080 npm start
 or
@@ -234,7 +289,7 @@ PORT=8080 npm restart
 
 ### How to run Docker
 
-- Setup Docker  
+- Setup Docker
 > Setup .env
 ``` shell
 
@@ -311,6 +366,3 @@ Reach out to me at one of the following places!
 
 - **[MIT license](http://opensource.org/licenses/mit-license.php)**
 - Copyright 2020 © <a href="https://softserve.academy/" target="_blank"> SoftServe IT Academy</a>.
-
-
-

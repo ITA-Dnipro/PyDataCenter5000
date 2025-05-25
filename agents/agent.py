@@ -5,6 +5,7 @@ import logging
 import logging.config
 import platform
 import socket
+import subprocess
 
 import pkg_resources
 
@@ -51,6 +52,7 @@ class ServerAgent(object):
     __metaclass__ = abc.ABCMeta
 
     server_name = None
+    processes = []
     port = -1
 
     def __init__(self):
@@ -70,7 +72,7 @@ class ServerAgent(object):
 
         self.logger = logging.getLogger(self.server_name)
 
-    def port_open(self):
+    def _is_port_open(self):
         """
         Check if the port is open.
 
@@ -101,13 +103,34 @@ class ServerAgent(object):
 
         return True
 
-    @abc.abstractmethod
+    def _is_process_running(self):
+        try:
+            output = subprocess.Popen(
+                ['ps', 'aux'], stdout=subprocess.PIPE
+            ).communicate()[0]
+
+            if hasattr(output, 'decode'):
+                output = output.decode('utf-8')
+            output = output.lower()
+
+            return any(proc in output for proc in self.processes)
+        except OSError as e:
+            try:
+                self.logger.error(
+                    'Process check failed: %s' % e, exc_info=True
+                )
+            except Exception:
+                logging.getLogger(
+                    self.server_name + '_fallback'
+                ).error('Process check failed: %s' % e, exc_info=True)
+            return False
+
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        pass
+        return self._is_port_open() and self._is_process_running()
 
     def to_dict(self):
         return {

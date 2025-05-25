@@ -1,11 +1,12 @@
 from django.db import models
 
+
 class ServerStatus(models.Model):
     class Meta:
         indexes = [
-        models.Index(fields=['hostname', 'timestamp']),
-    ]
-        
+            models.Index(fields=['hostname', 'timestamp']),
+        ]
+
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
     uptime = models.FloatField()

@@ -10,26 +10,12 @@ import ConfigParser
 import pkg_resources
 import psutil
 
+from .utils.helpers import get_config_option
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
-
-
-def get_config_option(
-    config, section, option, default=None, logger=None, fallback_logger=None
-):
-    try:
-        return config.get(section, option)
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
-        maybe_log_message(
-            'Config not found [%s] %s: %s' % (section, option, str(e)),
-            logger,
-            fallback_logger=fallback_logger,
-            level=logging.WARNING,
-        )
-    return default
 
 
 def get_ip_from_interface(interface):

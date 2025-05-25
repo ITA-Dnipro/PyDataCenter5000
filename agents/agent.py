@@ -19,6 +19,16 @@ log_config_path = pkg_resources.resource_filename(
 
 
 def get_ip_from_interface(interface):
+    """
+    Attempt getting server's primary IP address associated with a given
+    interface name.
+
+    Parameters:
+        interface (str): Interface name.
+
+    Returns:
+        str: On success, IP address is returned.
+    """
     addresses = psutil.net_if_addrs()[interface]
 
     for address in addresses:
@@ -30,6 +40,7 @@ def get_ip_from_interface(interface):
 
 
 def get_linux_uptime():
+    """Get uptime on Linux OS."""
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
 
@@ -57,11 +68,12 @@ class ServerAgent(object):
             '_'.join([self.server_name, 'fallback'])
         )
 
-        self.parse_config_file()
+        self._parse_config_file()
 
-        self.set_server_metadata()
+        self._set_server_metadata()
 
-    def parse_config_file(self):
+    def _parse_config_file(self):
+        """Parse server's config file using ConfigParser."""
         config = ConfigParser.ConfigParser()
 
         if self.config_file:
@@ -76,7 +88,11 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                 )
 
-    def set_server_metadata(self):
+    def _set_server_metadata(self):
+        """
+        Attempt setting server metadata such as the hostname, IP address,
+        uptime, and timestamp.
+        """
         system = platform.system()
         if not system:
             maybe_log_message(

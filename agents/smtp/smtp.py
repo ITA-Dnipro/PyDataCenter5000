@@ -3,7 +3,7 @@ import subprocess
 import pkg_resources
 
 from ..agent import ServerAgent
-from ..utils.logtools import maybe_log_error
+from ..utils.logtools import maybe_log_message
 
 
 class SMTPAgent(ServerAgent):
@@ -33,10 +33,10 @@ class SMTPAgent(ServerAgent):
                 and any(proc in output for proc in self.processes)
             )
         except OSError as e:
-            maybe_log_error(
+            maybe_log_message(
                 'SMTP check failed: %s' % str(e),
                 self.logger,
-                self.fallback_logger,
+                fallback_logger=self.fallback_logger,
             )
 
             return False

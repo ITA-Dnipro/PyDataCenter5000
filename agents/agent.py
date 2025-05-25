@@ -10,7 +10,7 @@ import ConfigParser
 import pkg_resources
 import psutil
 
-from .utils.logtools import maybe_log_error
+from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -23,10 +23,11 @@ def get_config_option(
     try:
         return config.get(section, option)
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
-        maybe_log_error(
+        maybe_log_message(
             'Config not found [%s] %s: %s' % (section, option, str(e)),
             logger,
-            fallback_logger,
+            fallback_logger=fallback_logger,
+            level=logging.WARNING,
         )
     return default
 
@@ -67,7 +68,7 @@ class ServerAgent(object):
 
         self.logger = logging.getLogger(self.server_name)
         self.fallback_logger = logging.getLogger(
-            self.server_name + '_fallback'
+            '_'.join([self.server_name, 'fallback'])
         )
 
         self.parse_config_file()
@@ -92,7 +93,7 @@ class ServerAgent(object):
     def set_server_metadata(self):
         system = platform.system()
         if not system:
-            maybe_log_error(
+            maybe_log_message(
                 'Could not deduce OS type', self.logger, self.fallback_logger
             )
 
@@ -103,10 +104,10 @@ class ServerAgent(object):
         except socket.error as e:
             self.hostname = 'unknown'
 
-            maybe_log_error(
+            maybe_log_message(
                 'Could not get hostname: %s' % str(e),
                 self.logger,
-                self.fallback_logger,
+                fallback_logger=self.fallback_logger,
             )
 
         self.ip = None
@@ -115,23 +116,23 @@ class ServerAgent(object):
             try:
                 self.ip = get_ip_from_interface(self.interface)
             except (KeyError, AttributeError) as e:
-                maybe_log_error(
+                maybe_log_message(
                     (
                         'Could not deduce IP address from interface '
                         '%s: %s' % self.interface, str(e)
                     ),
                     self.logger,
-                    self.fallback_logger,
+                    fallback_logger=self.fallback_logger,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
             try:
                 self.ip = socket.gethostbyname(self.hostname)
             except (socket.gaierror, socket.error) as e:
-                maybe_log_error(
+                maybe_log_message(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    self.fallback_logger,
+                    fallback_logger=self.fallback_logger,
                 )
 
         self.uptime = -1
@@ -140,10 +141,10 @@ class ServerAgent(object):
             self.uptime = get_linux_uptime()
 
         if self.uptime < 0:
-            maybe_log_error(
+            maybe_log_message(
                 "Could not get system's uptime",
                 self.logger,
-                self.fallback_logger,
+                fallback_logger=self.fallback_logger,
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -206,10 +207,10 @@ class ServerAgent(object):
             msg = json.dumps(self.to_dict())
             self.logger.info(msg)
         except (IOError, OSError) as e:
-            maybe_log_error(
+            maybe_log_message(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                self.fallback_logger,
+                fallback_logger=self.fallback_logger,
             )
 
     def to_txt(self):
@@ -220,8 +221,8 @@ class ServerAgent(object):
             for k, v in data.items():
                 self.logger.info(u'%s: %s' % (k, v))
         except (IOError, OSError) as e:
-            maybe_log_error(
+            maybe_log_message(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                self.fallback_logger,
+                fallback_logger=self.fallback_logger,
             )

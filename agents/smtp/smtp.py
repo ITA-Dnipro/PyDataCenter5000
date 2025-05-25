@@ -1,7 +1,7 @@
 import subprocess
 
-from .agent import ServerAgent
-from .utils.logtools import maybe_log_error
+from ..agent import ServerAgent
+from ..utils.logtools import maybe_log_error
 
 
 class SMTPAgent(ServerAgent):

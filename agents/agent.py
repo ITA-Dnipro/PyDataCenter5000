@@ -6,6 +6,7 @@ import logging.config
 import platform
 import socket
 
+import ConfigParser
 import pkg_resources
 import psutil
 
@@ -16,8 +17,22 @@ log_config_path = pkg_resources.resource_filename(
 )
 
 
-def get_ip_from_interface(netiface):
-    addresses = psutil.net_if_addrs()[netiface]
+def get_config_option(
+    config, section, option, default=None, logger=None, fallback_logger=None
+):
+    try:
+        return config.get(section, option)
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
+        maybe_log_error(
+            'Config not found [%s] %s: %s' % (section, option, str(e)),
+            logger,
+            fallback_logger,
+        )
+    return default
+
+
+def get_ip_from_interface(interface):
+    addresses = psutil.net_if_addrs()[interface]
 
     for address in addresses:
         if address.address.startswith('127.'):
@@ -39,10 +54,11 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    config_file = None
     server_name = None
     port = -1
 
-    def __init__(self, netiface=None):
+    def __init__(self):
         # Setup logging
         logging.config.fileConfig(
             log_config_path,
@@ -54,9 +70,26 @@ class ServerAgent(object):
             self.server_name + '_fallback'
         )
 
-        self.set_server_metadata(netiface)
+        self.parse_config_file()
 
-    def set_server_metadata(self, netiface=None):
+        self.set_server_metadata()
+
+    def parse_config_file(self):
+        config = ConfigParser.ConfigParser()
+
+        if self.config_file:
+            config.read(self.config_file)
+
+            if config.sections():
+                self.interface = get_config_option(
+                    config,
+                    'server',
+                    'interface',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+    def set_server_metadata(self):
         system = platform.system()
         if not system:
             maybe_log_error(
@@ -78,14 +111,14 @@ class ServerAgent(object):
 
         self.ip = None
 
-        if netiface:
+        if self.interface:
             try:
-                self.ip = get_ip_from_interface(netiface)
+                self.ip = get_ip_from_interface(self.interface)
             except (KeyError, AttributeError) as e:
                 maybe_log_error(
                     (
                         'Could not deduce IP address from interface '
-                        '%s: %s' % netiface, str(e)
+                        '%s: %s' % self.interface, str(e)
                     ),
                     self.logger,
                     self.fallback_logger,

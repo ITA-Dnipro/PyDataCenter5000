@@ -1,15 +1,18 @@
 import subprocess
 
+import pkg_resources
+
 from ..agent import ServerAgent
 from ..utils.logtools import maybe_log_error
 
 
 class SMTPAgent(ServerAgent):
+    config_file = pkg_resources.resource_filename(__name__, 'config.ini')
     server_name = 'smtp'
     port = 25
 
-    def __init__(self, netiface=None, smtp_processes=None):
-        super(SMTPAgent, self).__init__(netiface)
+    def __init__(self, smtp_processes=None):
+        super(SMTPAgent, self).__init__()
 
         self.processes = (
             smtp_processes or ['postfix', 'exim', 'sendmail', 'master']

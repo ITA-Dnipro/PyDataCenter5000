@@ -7,14 +7,21 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
             name='ServerStatus',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                (
+                    'id',
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID'
+                    )
+                ),
                 ('hostname', models.CharField(max_length=100)),
                 ('ip', models.GenericIPAddressField()),
                 ('uptime', models.CharField(max_length=100)),
@@ -25,7 +32,12 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'indexes': [models.Index(fields=['hostname', 'timestamp'], name='monitoring__hostnam_ed6649_idx')],
+                'indexes': [
+                    models.Index(
+                        fields=['hostname', 'timestamp'],
+                        name='monitoring__hostnam_ed6649_idx'
+                    ),
+                ],
             },
         ),
     ]

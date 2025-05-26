@@ -1,6 +1,7 @@
 module VagrantCommon
   def self.configure_box(config, env)
     config.vm.box = env["OS"]
+    config.vm.synced_folder "agents", "/home/vagrant/agents"
     config.vm.provider env["PROVIDER"] do |vb|
       vb.name   = env["VM_NAME"]
       vb.memory = env["VM_MEMORY"]

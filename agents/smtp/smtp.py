@@ -8,6 +8,7 @@ from ..utils.logtools import maybe_log_message
 
 class SMTPAgent(ServerAgent):
     config_file = pkg_resources.resource_filename(__name__, 'config.ini')
+    log_dir = pkg_resources.resource_filename(__name__, 'logs')
     server_name = 'smtp'
     port = 25
 

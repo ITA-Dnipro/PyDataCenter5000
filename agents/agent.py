@@ -53,6 +53,7 @@ class ServerAgent(object):
     __metaclass__ = abc.ABCMeta
 
     config_file = None
+    log_dir = None
     server_name = None
     port = -1
 
@@ -60,7 +61,7 @@ class ServerAgent(object):
         # Setup logging
         logging.config.fileConfig(
             log_config_path,
-            defaults={'agent_name': self.server_name},
+            defaults={'agent_name': self.server_name, 'log_dir': self.log_dir},
         )
 
         self.logger = logging.getLogger(self.server_name)

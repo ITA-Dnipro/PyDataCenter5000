@@ -180,4 +180,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# other logs
 status_log.txt
+
+# VSCode and other IDE-related ignores
+.vscode

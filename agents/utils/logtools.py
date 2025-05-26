@@ -27,6 +27,7 @@ def maybe_log_message(
 
 
 def maybe_make_dir(path):
+    """Create parent directory for path if it doesn't exist"""
     dirpath = os.path.dirname(path)
 
     if dirpath and not os.path.exists(dirpath):

@@ -27,13 +27,9 @@ def run_remote_health_check(vm_ip, username, password=None):
         output = stdout.read().decode().strip()
         error = stderr.read().decode().strip()
         ssh.close()
-        print(1)
-        print("Output:", output)
-        print(2)
-        print(3)
+        print(output)
         if error:
             print("SSH Error:", error)
-        print("Output2", output)
         return output
     except Exception as e:
         print("SSH Exception:", e)

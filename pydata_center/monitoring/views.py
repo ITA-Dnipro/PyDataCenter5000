@@ -1,3 +1,4 @@
+import json
 import os
 from time import timezone
 from rest_framework.decorators import api_view
@@ -8,36 +9,30 @@ from .utils import run_remote_health_check
 from drf_spectacular.utils import extend_schema
 
 
-@extend_schema(
-    request=ServerStatusRequestSerializer,
-    responses=ServerStatusResponseSerializer,
-    summary="Receive server status",
-    description="Accepts a server status payload and stores it in the database.",
-)
 @api_view(['POST'])
 def receive_status(request):
-    serializer = ServerStatusRequestSerializer(data=request.data)
-    if serializer.is_valid():
-        data = serializer.validated_data
 
-        vm_ip = os.getenv("VM_SMTP_IP")
-        username = os.getenv("VM_USERNAME")
-        password = os.getenv("VM_PASSWORD")
+    vm_ip = os.getenv("VM_SMTP_IP")
+    username = os.getenv("VM_USERNAME")
+    password = os.getenv("VM_PASSWORD")
 
-        healthy = run_remote_health_check(vm_ip, username=username, password=password)
-        print(healthy)
-        status = ServerStatus.objects.create(
-            hostname=data['hostname'],
-            ip=vm_ip,
-            uptime=data['uptime'],
-            os=data['os'],
-            server_name=data['server_name'],
-            timestamp=timezone.now(),
-            healthy=healthy,
-        )
+    raw_data = run_remote_health_check(vm_ip, username=username, password=password)
+    print("Raw data: ", raw_data)
+    try:
+        data = json.loads(raw_data)
+    except json.JSONDecodeError:
+        print("Invalid JSON received:", raw_data)
+        return Response({'error': 'Invalid response from remote agent'}, status=500)
 
-        response_serializer = ServerStatusResponseSerializer(status)
-        return Response(response_serializer.data, status=201)
+    status = ServerStatus.objects.create(
+        hostname=data['hostname'],
+        ip=data['ip'],
+        uptime=data['uptime'],
+        os=data['os'],
+        server_name=data['server_name'],
+        timestamp=data['timestamp'],
+        healthy=data['healthy'],
+    )
 
-    return Response(serializer.errors, status=400)
-
+    response_serializer = ServerStatusResponseSerializer(status)
+    return Response(response_serializer.data, status=201)

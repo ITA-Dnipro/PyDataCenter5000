@@ -1,7 +1,6 @@
 from smtp import SMTPAgent
+import json
 
 agent = SMTPAgent()
-if agent.service_healthy():
-    print("healthy")
-else:
-    print("unhealthy")
+data = json.dumps(agent.to_dict())
+print(data)

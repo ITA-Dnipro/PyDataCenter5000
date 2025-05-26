@@ -1,6 +1,6 @@
 import subprocess
 import logging
-from .agent import ServerAgent
+from agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):

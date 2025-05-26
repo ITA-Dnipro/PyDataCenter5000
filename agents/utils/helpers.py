@@ -24,6 +24,10 @@ def get_config_option(
 
     Returns:
         Any: Option value.
+
+    Notes:
+        Note that by default, section names are case-sensitive, whereas
+        option-names are case-insensitive.
     """
     try:
         return config.get(section, option)

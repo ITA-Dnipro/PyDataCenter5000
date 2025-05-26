@@ -18,8 +18,9 @@ Including another URLconf
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
-
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from .health import health_check
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,4 +29,13 @@ urlpatterns = [
         include('monitoring.urls', namespace='monitoring')
     ),
     path('health/', health_check, name='health_check'),
+
+    # Schema in JSON format
+    path(f'{settings.API_PREFIX}/schema/', SpectacularAPIView.as_view(), name='schema'),
+
+    # Swagger UI
+    path(f'{settings.API_PREFIX}/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+
+    # Redoc UI
+    path(f'{settings.API_PREFIX}/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]

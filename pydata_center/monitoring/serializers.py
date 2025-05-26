@@ -10,6 +10,5 @@ class ServerStatusResponseSerializer(serializers.ModelSerializer):
 
 class ServerStatusRequestSerializer(serializers.Serializer):
     hostname = serializers.CharField(max_length=100)
-    ip = serializers.IPAddressField()
     server_name = serializers.CharField(max_length=50)
 

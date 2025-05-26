@@ -121,7 +121,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     (
                         'Could not deduce IP address from interface '
-                        '%s: %s' % self.interface, str(e)
+                        '%s: %s' % (self.interface, str(e))
                     ),
                     self.logger,
                     fallback_logger=self.fallback_logger,

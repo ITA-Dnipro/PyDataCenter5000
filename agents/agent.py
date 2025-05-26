@@ -1,45 +1,49 @@
 import abc
-import pkg_resources
+import datetime
+import json
+import logging
 import logging.config
 import platform
 import socket
-import json
-import datetime
-import logging
+import subprocess
+
+import ConfigParser
+import pkg_resources
+import psutil
+
+from .utils.helpers import get_config_option
+from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
-    "agents.logconfig", "logconfig.ini"
+    'agents.utils.logtools', 'logconfig.ini'
 )
 
 
-def get_hostname():
-    try:
-        return socket.gethostname()
-    except socket.error:
-        return "UNKNOWN"
+def get_ip_from_interface(interface):
+    """
+    Attempt getting server's primary IP address associated with a given
+    interface name.
 
+    Parameters:
+        interface (str): Interface name.
 
-def get_ip(hostname):
-    try:
-        return socket.gethostbyname(hostname)
-    except (socket.gaierror, socket.error):
-        return "UNKNOWN"
+    Returns:
+        str: On success, IP address is returned.
+    """
+    addresses = psutil.net_if_addrs()[interface]
+
+    for address in addresses:
+        if address.address.startswith('127.'):
+            continue
+
+        if address.family == socket.AF_INET:
+            return address.address
 
 
 def get_linux_uptime():
-    with open("/proc/uptime", "r") as f:
+    """Get uptime on Linux OS."""
+    with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
-
-
-def get_uptime(os_type):
-    if "Linux" in os_type:
-        return get_linux_uptime()
-
-    return "UNKNOWN"
-
-
-def get_timestamp():
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 
 class ServerAgent(object):
@@ -49,27 +53,110 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    config_file = None
+    log_dir = None
     server_name = None
+    processes = []
     port = -1
 
     def __init__(self):
-        self.os_type = platform.system() or "UNKNOWN"
-
-        self.hostname = get_hostname()
-        self.ip = get_ip(self.hostname)
-
-        self.uptime = get_uptime(self.os_type)
-        self.timestamp = get_timestamp()
-
         # Setup logging
         logging.config.fileConfig(
             log_config_path,
-            defaults={"agent_name": self.server_name},
+            defaults={'agent_name': self.server_name, 'log_dir': self.log_dir},
         )
 
         self.logger = logging.getLogger(self.server_name)
+        self.fallback_logger = logging.getLogger(
+            '_'.join([self.server_name, 'fallback'])
+        )
 
-    def port_open(self):
+        self._parse_config_file()
+
+        self._set_server_metadata()
+
+    def _parse_config_file(self):
+        """Parse server's config file using ConfigParser."""
+        config = ConfigParser.ConfigParser()
+
+        if self.config_file:
+            config.read(self.config_file)
+
+            if config.sections():
+                self.interface = get_config_option(
+                    config,
+                    'server',
+                    'interface',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+    def _set_server_metadata(self):
+        """
+        Attempt setting server metadata such as the hostname, IP address,
+        uptime, and timestamp.
+        """
+        system = platform.system()
+        if not system:
+            maybe_log_message(
+                'Could not deduce OS type', self.logger, self.fallback_logger
+            )
+
+        self.os_type = system.lower() or 'unknown'
+
+        try:
+            self.hostname = socket.gethostname()
+        except socket.error as e:
+            self.hostname = 'unknown'
+
+            maybe_log_message(
+                'Could not get hostname: %s' % str(e),
+                self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+        self.ip = None
+
+        if self.interface:
+            try:
+                self.ip = get_ip_from_interface(self.interface)
+            except (KeyError, AttributeError) as e:
+                maybe_log_message(
+                    (
+                        'Could not deduce IP address from interface '
+                        '%s: %s' % (self.interface, str(e))
+                    ),
+                    self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+        if not self.ip and self.hostname != 'UNKNOWN':
+            try:
+                self.ip = socket.gethostbyname(self.hostname)
+            except (socket.gaierror, socket.error) as e:
+                maybe_log_message(
+                    'Could not deduce IP address from hostname: %s' % str(e),
+                    self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+        self.uptime = -1
+
+        if 'linux' in self.os_type:
+            self.uptime = get_linux_uptime()
+
+        if self.uptime < 0:
+            maybe_log_message(
+                "Could not get system's uptime",
+                self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+        self.timestamp = datetime.datetime.utcnow().strftime(
+            '%Y-%m-%d %H:%M:%S'
+        )
+
+    def _is_port_open(self):
         """
         Check if the port is open.
 
@@ -81,18 +168,18 @@ class ServerAgent(object):
         """
         if self.port == -1:
             raise ValueError(
-                "Port not set: server agent must assign a valid port number"
+                'Port not set: server agent must assign a valid port number'
             )
+
+        if not self.ip:
+            return False
 
         # Set a TCP/IP socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             s.settimeout(2)
-            s.connect((
-                self.ip if self.ip != "UNKNOWN" else "localhost",
-                self.port,
-            ))
+            s.connect((self.ip, self.port))
         except socket.error:
             return False
         finally:
@@ -100,23 +187,43 @@ class ServerAgent(object):
 
         return True
 
-    @abc.abstractmethod
+    def _is_process_running(self):
+        try:
+            output = subprocess.Popen(
+                ['ps', 'aux'], stdout=subprocess.PIPE
+            ).communicate()[0]
+
+            if hasattr(output, 'decode'):
+                output = output.decode('utf-8')
+            output = output.lower()
+
+            return any(proc in output for proc in self.processes)
+        except OSError as e:
+            maybe_log_message(
+                'Process check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+
+            return False
+
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        pass
+        return self._is_port_open() and self._is_process_running()
 
     def to_dict(self):
         return {
-            "os": self.os_type,
-            "hostname": self.hostname,
-            "ip": self.ip,
-            "server_name": self.server_name,
-            "uptime": self.uptime,
-            "timestamp": self.timestamp,
-            "healthy": self.service_healthy(),
+            'os': self.os_type,
+            'hostname': self.hostname,
+            'ip': self.ip,
+            'server_name': self.server_name,
+            'uptime': self.uptime,
+            'timestamp': self.timestamp,
+            'healthy': self.service_healthy(),
         }
 
     def to_json(self):
@@ -125,15 +232,11 @@ class ServerAgent(object):
             msg = json.dumps(self.to_dict())
             self.logger.info(msg)
         except (IOError, OSError) as e:
-            error_message = "Error logging to file: %s" % str(e)
-
-            try:
-                self.logger.error(error_message)
-            except:
-                logging.getLogger(
-                    self.server_name + "_fallback"
-                ).error(error_message)
-
+            maybe_log_message(
+                'Error logging to file: %s' % str(e),
+                self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
     def to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
@@ -141,13 +244,10 @@ class ServerAgent(object):
 
         try:
             for k, v in data.items():
-                self.logger.info(u"%s: %s" % (k, v))
+                self.logger.info(u'%s: %s' % (k, v))
         except (IOError, OSError) as e:
-            error_message = "Error logging to file: %s" % str(e)
-
-            try:
-                self.logger.error(error_message)
-            except:
-                logging.getLogger(
-                    self.server_name + "_fallback"
-                ).error(error_message)
+            maybe_log_message(
+                'Error logging to file: %s' % str(e),
+                self.logger,
+                fallback_logger=self.fallback_logger,
+            )

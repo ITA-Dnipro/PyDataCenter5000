@@ -203,6 +203,7 @@ class ServerAgent(object):
                 'Process check failed: %s' % e,
                 self.logger,
                 fallback_logger=self.fallback_logger,
+                exc_info=True,
             )
 
             return False

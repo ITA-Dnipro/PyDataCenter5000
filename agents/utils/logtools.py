@@ -5,7 +5,7 @@ from logging.handlers import TimedRotatingFileHandler
 
 
 def maybe_log_message(
-    message, logger, fallback_logger=None, level=logging.ERROR,
+    message, logger, fallback_logger=None, level=logging.ERROR, **kwargs
 ):
     """
     Helper function allowing to log a message with fallback behaviour.
@@ -20,10 +20,10 @@ def maybe_log_message(
         level (int): Log level. Default is logging.ERROR.
     """
     try:
-        logger.log(level, message)
+        logger.log(level, message, **kwargs)
     except Exception:
         if fallback_logger:
-            fallback_logger.log(level, message)
+            fallback_logger.log(level, message, **kwargs)
 
 
 def maybe_make_dir(path):

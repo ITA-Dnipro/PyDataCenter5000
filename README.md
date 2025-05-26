@@ -235,7 +235,7 @@ DB_PORT=  sample filling => 5432
 PGADMIN_DEFAULT_PASSWORD= 'key ...'
 PGADMIN_DEFAULT_EMAIL=  sample filling => admin@admin.com
 
-DEBUG=True or False  
+DEBUG=True or False
 ENGINE= # docker-compose.dev.yml
 POSTGRES_DB= sample filling =>  forum  # docker-compose
 ALLOWED_ENV_HOST=sample filling => "http://localhost:8080" # docker-compose and settings.py
@@ -254,12 +254,12 @@ Correct application operation (in terms of moderation autoapprove functionality,
 
 Docker will automatically download the image and run the Redis server with the ports exposed. Redis will be available at 127.0.0.1:6379. You should place this host and port in the environment variable REDIS_URL, which Celery uses through Django's settings.py.
 
-Don't forget to install Celery via pip.  
+Don't forget to install Celery via pip.
 ```instal
 pip install -r requirements.txt
 ```
 Add in BackEnd .env
-```.env 
+```.env
 REDIS_URL= redis://localhost:6379/0
 ```
 
@@ -280,7 +280,7 @@ REACT_APP_BASE_API_URL= sample filling => http://localhost:8000 # Path to the ba
 REACT_APP_PUBLIC_URL= sample filling => http://localhost:8080 # Path to the frontend visualization
 ```
 
-- User, run the local server on port localhost:8080 
+- User, run the local server on port localhost:8080
 ``` shell
 PORT=8080 npm start
 or
@@ -289,7 +289,7 @@ PORT=8080 npm restart
 
 ### How to run Docker
 
-- Setup Docker  
+- Setup Docker
 > Setup .env
 ``` shell
 
@@ -366,6 +366,3 @@ Reach out to me at one of the following places!
 
 - **[MIT license](http://opensource.org/licenses/mit-license.php)**
 - Copyright 2020 © <a href="https://softserve.academy/" target="_blank"> SoftServe IT Academy</a>.
-
-
-

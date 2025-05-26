@@ -199,14 +199,12 @@ class ServerAgent(object):
 
             return any(proc in output for proc in self.processes)
         except OSError as e:
-            try:
-                self.logger.error(
-                    'Process check failed: %s' % e, exc_info=True
-                )
-            except Exception:
-                logging.getLogger(
-                    self.server_name + '_fallback'
-                ).error('Process check failed: %s' % e, exc_info=True)
+            maybe_log_message(
+                'Process check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
 
     def service_healthy(self):
@@ -245,7 +243,6 @@ class ServerAgent(object):
 
         try:
             for k, v in data.items():
-                self.logger.info(u'%s: %s' % (k, v))
                 self.logger.info(u'%s: %s' % (k, v))
         except (IOError, OSError) as e:
             maybe_log_message(

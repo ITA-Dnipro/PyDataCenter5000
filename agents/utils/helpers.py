@@ -27,6 +27,12 @@ def get_config_option(
         logger (logging.Logger): Primary logger. Default is None (no logging).
         fallback_logger (logging.Logger): Fallback logger. Default is
             None.
+        cast (Callable): Callable to convert the option value to a required
+            type or form. For example, use `int` for integers and `float`
+            for floats. To implement custom logic, a lambda-function
+            should be passed. On cast failure or if cast function is not
+            provided, the original string returned by ConfigParser will
+            be returned. Default is None.
 
     Returns:
         Any: Option value.

@@ -57,6 +57,7 @@ class ServerAgent(object):
     log_dir = None
     server_name = None
     port = -1
+    controller_url = None
 
     def __init__(self):
         # Setup logging
@@ -88,6 +89,14 @@ class ServerAgent(object):
                     config,
                     'server',
                     'interface',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+                self.controller_url = get_config_option(
+                    config,
+                    'controller',
+                    'url',
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                 )

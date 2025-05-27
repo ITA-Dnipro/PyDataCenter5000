@@ -39,7 +39,7 @@ def maybe_make_dir(path):
                 raise
 
 
-class CustomTimedRotatingHandler(TimedRotatingFileHandler):
+class CustomTimedRotatingHandler(TimedRotatingFileHandler, object):
 
     def __init__(
         self,

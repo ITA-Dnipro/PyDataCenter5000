@@ -242,14 +242,37 @@ class ServerAgent(object):
             'healthy': self.service_healthy(),
         }
 
-    def status_to_json(self):
-        """Dump host metadata to json file."""
+    def status_to_json(self, log=False):
+        """
+        Dump host metadata to json file.
+
+        Parameters:
+            log (bool): Whether to log JSON status string to the logfile.
+                Default is False.
+
+        Returns:
+            str: JSON status string.
+        """
         try:
-            msg = json.dumps(self.to_dict())
-            self.logger.info(msg)
-        except (IOError, OSError) as e:
+            status = json.dumps(self.to_dict())
+
+            if log:
+                try:
+                    self.logger.info(status)
+                except (IOError, OSError) as e:
+                    maybe_log_message(
+                        'Error logging to file: %s' % str(e),
+                        self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+                finally:
+                    return status
+        except TypeError as e:
             maybe_log_message(
-                'Error logging to file: %s' % str(e),
+                (
+                    'JSON serialization of status failed '
+                    'due to error: %s' % str(e)
+                ),
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )
@@ -285,7 +308,7 @@ class ServerAgent(object):
 
             return
 
-        payload = json.dumps(self.status_to_dict())
+        payload = self.status_to_json(log=False)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:

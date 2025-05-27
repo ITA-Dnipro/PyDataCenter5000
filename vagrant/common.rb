@@ -48,6 +48,13 @@ module VagrantCommon
       wget https://bootstrap.pypa.io/ez_setup.py
       sudo python2 ez_setup.py
 
+      # Instaling psutil
+      git clone https://github.com/giampaolo/psutil.git
+      cd psutil
+      git checkout release-5.7.0
+      sudo python2 setup.py install
+      cd ..
+
     SHELL
   end
 end

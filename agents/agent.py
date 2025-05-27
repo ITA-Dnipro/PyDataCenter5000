@@ -254,7 +254,7 @@ class ServerAgent(object):
             str: JSON status string.
         """
         try:
-            status = json.dumps(self.to_dict())
+            status = json.dumps(self.status_to_dict())
 
             if log:
                 try:

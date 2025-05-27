@@ -284,7 +284,7 @@ class ServerAgent(object):
 
             return
 
-        payload = json.dumps(self.to_dict())
+        payload = json.dumps(self.status_to_dict())
         headers = {'Content-Type': 'application/json'}
 
         request = urllib2.Request(

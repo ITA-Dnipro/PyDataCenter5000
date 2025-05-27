@@ -268,12 +268,13 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_controller(self, timeout=5):
+    def status_to_controller(self, timeout=5, api_key=None):
         """
         Send system's metadata to controller.
 
         Parameters:
             timeout (int): POST request timeout in seconds. Default is 5.
+            api_key (str): Authentication API key. Default is None.
         """
         if not self.controller_url:
             maybe_log_message(
@@ -285,7 +286,10 @@ class ServerAgent(object):
             return
 
         payload = json.dumps(self.status_to_dict())
+
         headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update({'X-API-Key': api_key})
 
         request = urllib2.Request(
             self.controller_url, payload, headers=headers

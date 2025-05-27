@@ -19,8 +19,8 @@ class Migration(migrations.Migration):
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
-                    ),
+                        verbose_name='ID'
+                    )
                 ),
                 ('hostname', models.CharField(max_length=100)),
                 ('ip', models.GenericIPAddressField()),
@@ -35,8 +35,8 @@ class Migration(migrations.Migration):
                 'indexes': [
                     models.Index(
                         fields=['hostname', 'timestamp'],
-                        name='monitoring__hostnam_ed6649_idx',
-                    )
+                        name='monitoring__hostnam_ed6649_idx'
+                    ),
                 ],
             },
         ),

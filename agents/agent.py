@@ -10,6 +10,7 @@ import subprocess
 import ConfigParser
 import pkg_resources
 import psutil
+import urllib2
 
 from .utils.helpers import get_config_option
 from .utils.logtools import maybe_log_message
@@ -261,3 +262,43 @@ class ServerAgent(object):
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )
+
+    def to_controller(self, timeout=5):
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            return
+
+        payload = json.dumps(self.to_dict())
+        headers = {'Content-Type': 'application/json'}
+
+        request = urllib2.Request(
+            self.controller_url, payload, headers=headers
+        )
+
+        status_code = None
+
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+            status_code = response.getcode()
+        except (urllib2.URLError, urllib2.HTTPError) as e:
+            status_code = getattr(e, 'code', None)
+
+            maybe_log_message(
+                'POST request to controller failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+        finally:
+            if status_code:
+                maybe_log_message(
+                    'POST request status: %s' % str(status_code),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )

@@ -269,6 +269,12 @@ class ServerAgent(object):
             )
 
     def to_controller(self, timeout=5):
+        """
+        Send system's metadata to controller.
+
+        Parameters:
+            timeout (int): POST request timeout in seconds. Default is 5.
+        """
         if not self.controller_url:
             maybe_log_message(
                 "Couldn't send status update: controller URL is not set",

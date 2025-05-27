@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import receive_status
 
+from .views import receive_status
 
 app_name = 'monitoring'
 

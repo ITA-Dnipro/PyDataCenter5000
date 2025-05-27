@@ -11,11 +11,6 @@ repos:
     hooks:
       - id: isort
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
-        args: ["--extend-ignore=F401"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0

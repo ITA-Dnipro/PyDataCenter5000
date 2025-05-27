@@ -1,27 +1,27 @@
 import json
 import os
-from time import timezone
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
 from .models import ServerStatus
-from .serializers import ServerStatusResponseSerializer, ServerStatusRequestSerializer
+from .serializers import ServerStatusResponseSerializer
 from .utils import run_remote_health_check
-from drf_spectacular.utils import extend_schema
 
 
 @api_view(['POST'])
 def receive_status(request):
 
-    vm_ip = os.getenv("VM_SMTP_IP")
-    username = os.getenv("VM_USERNAME")
-    password = os.getenv("VM_PASSWORD")
+    vm_ip = os.getenv('VM_SMTP_IP')
+    username = os.getenv('VM_USERNAME')
+    password = os.getenv('VM_PASSWORD')
 
     raw_data = run_remote_health_check(vm_ip, username=username, password=password)
-    print("Raw data: ", raw_data)
+    print('Raw data: ', raw_data)
     try:
         data = json.loads(raw_data)
     except json.JSONDecodeError:
-        print("Invalid JSON received:", raw_data)
+        print('Invalid JSON received:', raw_data)
         return Response({'error': 'Invalid response from remote agent'}, status=500)
 
     status = ServerStatus.objects.create(

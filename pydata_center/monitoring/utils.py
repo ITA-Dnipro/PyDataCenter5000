@@ -1,4 +1,5 @@
 import socket
+
 import paramiko
 
 
@@ -13,7 +14,7 @@ def ping_vm_tcp(ip, port=22, timeout=3):
 def run_remote_health_check(vm_ip, username, password=None):
     try:
         if not ping_vm_tcp(vm_ip):
-            print("VM not reachable via TCP/SSH")
+            print('VM not reachable via TCP/SSH')
             return False
 
         ssh = paramiko.SSHClient()
@@ -22,15 +23,15 @@ def run_remote_health_check(vm_ip, username, password=None):
         ssh.connect(vm_ip, username=username, password=password)
 
         stdin, stdout, stderr = ssh.exec_command(
-            '~/python2.6/bin/python ~/PyDataCenter5000/agents/check_smtp_health.py'
+            'cd ~/PyDataCenter5000 && ~/python2.6/bin/python -m agents.smtp.check_smtp_health'
         )
         output = stdout.read().decode().strip()
         error = stderr.read().decode().strip()
         ssh.close()
         print(output)
         if error:
-            print("SSH Error:", error)
+            print('SSH Error:', error)
         return output
     except Exception as e:
-        print("SSH Exception:", e)
+        print('SSH Exception:', e)
         return False

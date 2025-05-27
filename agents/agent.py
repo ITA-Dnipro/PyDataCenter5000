@@ -56,7 +56,6 @@ class ServerAgent(object):
     config_file = None
     log_dir = None
     server_name = None
-    processes = []
     port = -1
 
     def __init__(self):
@@ -70,6 +69,8 @@ class ServerAgent(object):
         self.fallback_logger = logging.getLogger(
             '_'.join([self.server_name, 'fallback'])
         )
+
+        self.processes = []
 
         self._parse_config_file()
 

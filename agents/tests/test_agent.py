@@ -17,7 +17,7 @@ def test_to_controller_success():
         agent.controller_url = 'mock/api/status/'
 
         with mock.patch('urllib2.urlopen', mock_urlopen):
-            agent.to_controller()
+            agent.status_to_controller()
 
         tmp.seek(0)
         contents = tmp.read()

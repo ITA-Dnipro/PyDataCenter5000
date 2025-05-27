@@ -231,7 +231,7 @@ class ServerAgent(object):
         """
         return self._is_port_open() and self._is_process_running()
 
-    def to_dict(self):
+    def status_to_dict(self):
         return {
             'os': self.os_type,
             'hostname': self.hostname,
@@ -242,7 +242,7 @@ class ServerAgent(object):
             'healthy': self.service_healthy(),
         }
 
-    def to_json(self):
+    def status_to_json(self):
         """Dump host metadata to json file."""
         try:
             msg = json.dumps(self.to_dict())
@@ -254,7 +254,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def to_txt(self):
+    def status_to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
         data = self.to_dict()
 
@@ -268,7 +268,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def to_controller(self, timeout=5):
+    def status_to_controller(self, timeout=5):
         """
         Send system's metadata to controller.
 

@@ -5,7 +5,7 @@ import mock
 from agents.smtp import smtp
 
 
-def test_to_controller_success():
+def test_status_to_controller_success():
     def mock_urlopen(request, timeout=5):
         class MockResponse(object):
             def getcode(self):

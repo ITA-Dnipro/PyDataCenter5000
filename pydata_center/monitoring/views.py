@@ -1,6 +1,7 @@
 import json
 import os
 
+from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -16,15 +17,20 @@ def receive_status(request):
     username = os.getenv('VM_USERNAME')
     password = os.getenv('VM_PASSWORD')
 
-    raw_data = run_remote_health_check(vm_ip, username=username, password=password)
-    print('Raw data: ', raw_data)
+    raw_data = run_remote_health_check(
+        vm_ip,
+        username=username,
+        password=password
+    )
     try:
         data = json.loads(raw_data)
     except json.JSONDecodeError:
-        print('Invalid JSON received:', raw_data)
-        return Response({'error': 'Invalid response from remote agent'}, status=500)
+        return Response(
+            {'error': 'Invalid response from remote agent'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-    status = ServerStatus.objects.create(
+    server_status = ServerStatus.objects.create(
         hostname=data['hostname'],
         ip=data['ip'],
         uptime=data['uptime'],
@@ -34,5 +40,5 @@ def receive_status(request):
         healthy=data['healthy'],
     )
 
-    response_serializer = ServerStatusResponseSerializer(status)
-    return Response(response_serializer.data, status=201)
+    response_serializer = ServerStatusResponseSerializer(server_status)
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)

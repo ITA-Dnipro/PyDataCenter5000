@@ -41,6 +41,10 @@ def health_check(request):
     except Exception as e:
         logger.error(f'Unexpected error in health check: {e}', exc_info=True)
         return Response(
-            {'status': 'unhealthy', 'error': str(e), 'timestamp': now().isoformat()},
+            {
+                'status': 'unhealthy',
+                'error': str(e),
+                'timestamp': now().isoformat()
+            },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )

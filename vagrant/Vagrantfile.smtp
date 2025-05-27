@@ -1,0 +1,9 @@
+load File.expand_path("../env.rb", __FILE__)
+require_relative "common"
+
+Vagrant.configure("2") do |config|
+  VagrantCommon.configure_box(config, ENV_SMTP)
+
+  config.vm.provision "shell", inline: VagrantCommon.base_provision
+
+end

@@ -1,6 +1,7 @@
 module VagrantCommon
   def self.configure_box(config, env)
     config.vm.box = env["OS"]
+    config.vm.hostname = env["HOSTNAME"]
     config.vm.synced_folder "agents", "/home/vagrant/agents"
     config.vm.provider env["PROVIDER"] do |vb|
       vb.name   = env["VM_NAME"]
@@ -27,7 +28,11 @@ module VagrantCommon
         cd /usr/src
         sudo wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
         sudo tar xzf Python-2.6.9.tgz
-        cd Python-2.6.9
+        # Instaling zlib
+        cd Python-2.6.9/Modules
+        sudo cp Setup.dist Setup
+        sudo sed -i '/zlibmodule\.c/ s/^# *//' Setup
+        cd ..
         sudo ./configure --prefix=/opt/python2.6
         sudo make
         sudo make install
@@ -38,6 +43,18 @@ module VagrantCommon
       echo "Python 2.6 version:"
       /opt/python2.6/bin/python2.6 --version
       sudo ln -sf /opt/python2.6/bin/python2.6 /usr/local/bin/python2
+
+      # Instaling setuptools
+      wget https://bootstrap.pypa.io/ez_setup.py
+      sudo python2 ez_setup.py
+
+      # Instaling psutil
+      git clone https://github.com/giampaolo/psutil.git
+      cd psutil
+      git checkout release-5.7.0
+      sudo python2 setup.py install
+      cd ..
+
     SHELL
   end
 end

@@ -1,4 +1,4 @@
 setuptools==33.1.1
-psutil==6.1.1
+psutil==5.7.0
 pytest==3.2.5
 mock==2.0.0

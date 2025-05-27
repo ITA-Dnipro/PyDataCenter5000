@@ -39,7 +39,19 @@ def get_config_option(
         value = config.get(section, option)
 
         if cast:
-            value = cast(value)
+            try:
+                value = cast(value)
+            except (TypeError, ValueError) as e:
+                maybe_log_message(
+                    (
+                        'Could not cast option value '
+                        '%s due to error: %s' % (value, str(e))
+                    ),
+                    logger,
+                    fallback_logger=fallback_logger,
+                )
+                return value
+
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
             maybe_log_message(

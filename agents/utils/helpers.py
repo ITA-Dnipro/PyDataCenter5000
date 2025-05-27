@@ -6,7 +6,13 @@ from .logtools import maybe_log_message
 
 
 def get_config_option(
-    config, section, option, default=None, logger=None, fallback_logger=None
+    config,
+    section,
+    option,
+    default=None,
+    logger=None,
+    fallback_logger=None,
+    cast=None,
 ):
     """
     Helper function to get a config option from a config parser falling
@@ -30,7 +36,10 @@ def get_config_option(
         option-names are case-insensitive.
     """
     try:
-        return config.get(section, option)
+        value = config.get(section, option)
+
+        if cast:
+            value = cast(value)
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
             maybe_log_message(
@@ -39,4 +48,4 @@ def get_config_option(
                 fallback_logger=fallback_logger,
                 level=logging.WARNING,
             )
-    return default
+    return value or default

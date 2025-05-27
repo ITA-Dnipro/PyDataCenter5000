@@ -54,13 +54,35 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    config_file = None
-    log_path = None
     server_name = None
     port = -1
+    processes = []
     controller_url = None
+    config_file = None
+    log_path = None
 
-    def __init__(self, log_path=None):
+    def __init__(
+        self,
+        server_name=None,
+        port=None,
+        processes=None,
+        controller_url=None,
+        config_file=None,
+        log_path=None,
+    ):
+        if server_name:
+            self.server_name = server_name
+        if port:
+            self.port = port
+        if processes:
+            self.processes = processes
+
+        if controller_url:
+            self.controller_url = controller_url
+
+        if config_file:
+            self.config_file = config_file
+
         # Setup logging
         if log_path:
             self.log_path = log_path
@@ -77,8 +99,6 @@ class ServerAgent(object):
             '_'.join([self.server_name, 'fallback'])
         )
 
-        self.processes = []
-
         self._parse_config_file()
 
         self._set_server_metadata()
@@ -91,6 +111,39 @@ class ServerAgent(object):
             config.read(self.config_file)
 
             if config.sections():
+                self.server_name = get_config_option(
+                    config,
+                    'server',
+                    'name',
+                    default=self.server_name,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+
+                self.port = get_config_option(
+                    config,
+                    'server',
+                    'port',
+                    default=self.port,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    cast=int,
+                )
+
+                self.processes = get_config_option(
+                    config,
+                    'server',
+                    'processes',
+                    default=self.processes,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    cast=(
+                        lambda procs: [
+                            proc.strip() for proc in procs.split(',')
+                        ]
+                    ),
+                )
+
                 self.interface = get_config_option(
                     config,
                     'server',
@@ -103,6 +156,7 @@ class ServerAgent(object):
                     config,
                     'controller',
                     'url',
+                    self.controller_url,
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                 )
@@ -279,7 +333,7 @@ class ServerAgent(object):
 
     def status_to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
-        data = self.to_dict()
+        data = self.status_to_dict()
 
         try:
             for k, v in data.items():

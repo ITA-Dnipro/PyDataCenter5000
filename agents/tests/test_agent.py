@@ -2,7 +2,26 @@ import tempfile
 
 import mock
 
-from agents.smtp import smtp
+from agents.agent import ServerAgent
+
+
+class MockAgent(ServerAgent):
+
+    def __init__(
+        self,
+        server_name='mock',
+        port=None,
+        processes=None,
+        controller_url=None,
+        config_file=None,
+    ):
+        super(MockAgent, self).__init__(
+            server_name, port, processes, controller_url, config_file
+        )
+
+
+# def test_agent_type_checks():
+#     ...
 
 
 def test_status_to_controller_success():
@@ -13,8 +32,11 @@ def test_status_to_controller_success():
         return MockResponse()
 
     with tempfile.NamedTemporaryFile() as tmp:
-        agent = smtp.SMTPAgent(log_path=tmp.name)
-        agent.controller_url = 'mock/api/status/'
+        agent = MockAgent(port=12345)
+        agent.setup_logging(tmp.name)
+        agent.collect_server_metadata()
+
+        agent.controller_url = 'http://mock/api/status/'
 
         with mock.patch('urllib2.urlopen', mock_urlopen):
             agent.status_to_controller()

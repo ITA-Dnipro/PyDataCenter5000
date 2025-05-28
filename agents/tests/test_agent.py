@@ -1,6 +1,7 @@
 import tempfile
 
 import mock
+import pytest
 
 from agents.agent import ServerAgent
 
@@ -20,8 +21,21 @@ class MockAgent(ServerAgent):
         )
 
 
-# def test_agent_type_checks():
-#     ...
+def test_type_checks_on_init():
+    with pytest.raises(TypeError):
+        MockAgent(port='invalid')
+
+    with pytest.raises(TypeError):
+        MockAgent(processes=0)
+
+
+def test_type_checks_on_config_parse():
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write('[server]\nname=mock\nport=invalid\nprocesses=proc1')
+        tmp.flush()
+
+        with pytest.raises(TypeError):
+            MockAgent.from_config_file(tmp.name)
 
 
 def test_status_to_controller_success():

@@ -6,6 +6,7 @@ import logging.config
 import platform
 import socket
 import subprocess
+from collections import Sequence
 
 import ConfigParser
 import pkg_resources
@@ -54,13 +55,6 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    server_name = None
-    port = -1
-    processes = []
-    controller_url = None
-    config_file = None
-    log_path = None
-
     def __init__(
         self,
         server_name=None,
@@ -68,40 +62,80 @@ class ServerAgent(object):
         processes=None,
         controller_url=None,
         config_file=None,
-        log_path=None,
     ):
-        if server_name:
-            self.server_name = server_name
-        if port:
-            self.port = port
-        if processes:
-            self.processes = processes
+        self.server_name = server_name
+        self.port = port or self.port
+        self.processes = processes or self.processes
 
-        if controller_url:
-            self.controller_url = controller_url
+        self.controller_url = controller_url
 
-        if config_file:
-            self.config_file = config_file
+        self.config_file = config_file
 
-        # Setup logging
-        if log_path:
-            self.log_path = log_path
+    @classmethod
+    def from_config_file(cls, filename=None, log_path=None):
+        """
+        Create an agent from a configuration (.ini) file.
+
+        Parameters:
+            filename (str): Path to configuration file. Default is None.
+            log_path (str): Path to where the log files will be stored.
+                Default is None.
+
+        Returns:
+            ServerAgent: Child instance of ServerAgent.
+        """
+        agent = cls(config_file=filename)
+
+        agent.setup_logging(path=log_path)
+        agent._parse_config_file()
+
+        agent.collect_server_metadata()
+
+        return agent
+
+    @property
+    def port(self):
+        return getattr(self, '_port', -1)
+
+    @port.setter
+    def port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('Port number must be an integer')
+        self._port = value
+
+    @property
+    def processes(self):
+        return getattr(self, '_processes', [])
+
+    @processes.setter
+    def processes(self, value):
+        if not isinstance(value, Sequence):
+            raise TypeError(
+                (
+                    'Process names must be provided as a sequence '
+                    '(list, tuple etc.), not %s' % type(value)
+                )
+            )
+        self._processes = value
+
+    def setup_logging(self, path=None):
+        # Have each child dump logs inside their own subpackage by default
+        path = (
+            path
+            or pkg_resources.resource_filename(
+                self.__class__.__module__, 'agent.log'
+            )
+        )
 
         logging.config.fileConfig(
             log_config_path,
-            defaults={
-                'agent_name': self.server_name, 'log_path': self.log_path
-            },
+            defaults={'agent_name': self.server_name, 'log_path': path},
         )
 
         self.logger = logging.getLogger(self.server_name)
         self.fallback_logger = logging.getLogger(
             '_'.join([self.server_name, 'fallback'])
         )
-
-        self._parse_config_file()
-
-        self._set_server_metadata()
 
     def _parse_config_file(self):
         """Parse server's config file using ConfigParser."""
@@ -161,7 +195,7 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                 )
 
-    def _set_server_metadata(self):
+    def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
         uptime, and timestamp.

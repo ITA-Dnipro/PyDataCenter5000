@@ -8,3 +8,4 @@ class CommandHistoryAdmin(admin.ModelAdmin):
     list_display = ('hostname', 'status', 'timestamp')
     list_filter = ('status', 'hostname')
     search_fields = ('hostname', 'command')
+    readonly_fields = ('hostname', 'command', 'result', 'status', 'timestamp')

@@ -4,19 +4,19 @@ from rest_framework import status
 
 
 class MonitoringBaseException(Exception):
-    status_code: int
-    message: str
-    detail_info: Union[str, bool] = False
-
     def __init__(
             self,
-            message: str = None,
-            detail_info: Union[str, bool] = False
+            message: str,
+            status_code: int = 400,
+            detail_info: str = ''
     ):
-        if message:
-            self.message = message
+        self.message = message
+        self.status_code = status_code
         self.detail_info = detail_info
-        super().__init__(self.message)
+        super().__init__(message)
+
+    def __str__(self):
+        return f'{self.message} | Details: {self.detail_info}'
 
 
 class NoAuthUser(MonitoringBaseException):

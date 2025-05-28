@@ -1,44 +1,30 @@
-import json
-import os
+import logging
 
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import ServerStatus
-from .serializers import ServerStatusResponseSerializer
-from .utils import run_remote_health_check
+from .serializers import ServerStatusSerializer
+
+logger = logging.getLogger('monitoring')
 
 
 @api_view(['POST'])
 def receive_status(request):
+    serializer = ServerStatusSerializer(data=request.data)
 
-    vm_ip = os.getenv('VM_SMTP_IP')
-    username = os.getenv('VM_USERNAME')
-    password = os.getenv('VM_PASSWORD')
-
-    raw_data = run_remote_health_check(
-        vm_ip,
-        username=username,
-        password=password
-    )
-    try:
-        data = json.loads(raw_data)
-    except json.JSONDecodeError:
+    if serializer.is_valid():
+        instance = serializer.save()
+        logger.info(
+            f'✅ Status received from {instance.hostname}'
+            f' ({instance.ip}) - Healthy: {instance.healthy}'
+        )
         return Response(
-            {'error': 'Invalid response from remote agent'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {'message': 'Status received'},
+            status=status.HTTP_201_CREATED
         )
 
-    server_status = ServerStatus.objects.create(
-        hostname=data['hostname'],
-        ip=data['ip'],
-        uptime=data['uptime'],
-        os=data['os'],
-        server_name=data['server_name'],
-        timestamp=data['timestamp'],
-        healthy=data['healthy'],
+    logger.warning(
+        f'❌ Invalid status data from: {serializer.errors}'
     )
-
-    response_serializer = ServerStatusResponseSerializer(server_status)
-    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

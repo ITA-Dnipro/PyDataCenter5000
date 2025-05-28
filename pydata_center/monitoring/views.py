@@ -15,6 +15,18 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
     search_fields = ['hostname', 'status']
     ordering_fields = ['timestamp']
 
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = {
+            key: value
+            for key, value in request.data.items()
+            if key in ['status', 'result']
+        }
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
 @api_view(['POST'])
 def create_command(request):
     serializer = CommandHistorySerializer(data=request.data)

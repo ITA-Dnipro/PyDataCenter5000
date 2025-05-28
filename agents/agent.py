@@ -60,12 +60,14 @@ class ServerAgent(object):
         server_name=None,
         port=None,
         processes=None,
+        interface=None,
         controller_url=None,
         config_file=None,
     ):
         self.server_name = server_name
         self.port = port or self.port
         self.processes = processes or self.processes
+        self.interface = interface
 
         self.controller_url = controller_url
 

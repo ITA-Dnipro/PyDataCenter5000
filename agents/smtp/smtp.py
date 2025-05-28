@@ -10,6 +10,7 @@ class SMTPAgent(ServerAgent):
         server_name='smtp',
         port=25,
         processes=None,
+        interface=None,
         controller_url=None,
         config_file=None,
     ):
@@ -17,6 +18,7 @@ class SMTPAgent(ServerAgent):
             server_name=server_name,
             port=port,
             processes=processes or ['postfix', 'exim', 'sendmail', 'master'],
+            interface=interface,
             controller_url=controller_url,
             config_file=(
                 config_file

@@ -1,5 +1,7 @@
-import pkg_resources
 import os
+
+import pkg_resources
+
 from ..agent import ServerAgent
 
 
@@ -13,7 +15,7 @@ class WebAgent(ServerAgent):
 
         if 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
-        
+
         self.port = int(os.environ['PORT'])
         self.processes = web_processes or [
             'uvicorn',

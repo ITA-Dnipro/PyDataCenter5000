@@ -1,0 +1,21 @@
+name: pre-commit hooks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+      - develop
+      - 61-setup-minimal-github-workflow-to-run-linter-on-attempt-to-merge-to-develop
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - uses: pre-commit/action@v3.0.1

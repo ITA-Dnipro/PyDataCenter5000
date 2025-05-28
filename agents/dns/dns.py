@@ -12,7 +12,6 @@ class DNSAgent(ServerAgent):
         processes=None,
         interface=None,
         controller_url=None,
-        config_file=None,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -20,8 +19,4 @@ class DNSAgent(ServerAgent):
             processes=processes or ['named', 'bind9'],
             interface=interface,
             controller_url=controller_url,
-            config_file=(
-                config_file
-                or pkg_resources.resource_filename(__name__, 'config.ini')
-            ),
         )

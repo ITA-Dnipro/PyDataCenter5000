@@ -62,16 +62,13 @@ class ServerAgent(object):
         processes=None,
         interface=None,
         controller_url=None,
-        config_file=None,
     ):
         self.server_name = server_name
-        self.port = port or self.port
-        self.processes = processes or self.processes
+        self.port = port if port is not None else self.port
+        self.processes = processes if processes is not None else self.processes
         self.interface = interface
 
         self.controller_url = controller_url
-
-        self.config_file = config_file
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -86,10 +83,10 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls(config_file=filename)
+        agent = cls()
 
         agent.setup_logging(path=log_path)
-        agent._parse_config_file()
+        agent._parse_config_file(filename)
 
         agent.collect_server_metadata()
 
@@ -114,7 +111,7 @@ class ServerAgent(object):
         if not isinstance(value, Sequence):
             raise TypeError(
                 (
-                    'Process names must be provided as a sequence '
+                    'Process names must be provided as a string or a sequence '
                     '(list, tuple etc.), not %s' % type(value)
                 )
             )
@@ -139,63 +136,68 @@ class ServerAgent(object):
             '_'.join([self.server_name, 'fallback'])
         )
 
-    def _parse_config_file(self):
+    def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
+        filename = (
+            filename
+            or pkg_resources.resource_filename(
+                self.__class__.__module__, 'config.ini'
+            )
+        )
+
         config = ConfigParser.ConfigParser()
+        config.read(filename)
 
-        if self.config_file:
-            config.read(self.config_file)
+        if config.sections():
+            self.server_name = get_config_option(
+                config,
+                'server',
+                'name',
+                default=self.server_name,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
-            if config.sections():
-                self.server_name = get_config_option(
-                    config,
-                    'server',
-                    'name',
-                    default=self.server_name,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                )
+            self.port = get_config_option(
+                config,
+                'server',
+                'port',
+                default=self.port,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=int,
+            )
 
-                self.port = get_config_option(
-                    config,
-                    'server',
-                    'port',
-                    default=self.port,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    cast=int,
-                )
+            self.processes = get_config_option(
+                config,
+                'server',
+                'processes',
+                default=self.processes,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=(
+                    lambda procs: [
+                        proc.strip() for proc in procs.split(',')
+                    ]
+                ),
+            )
 
-                self.processes = get_config_option(
-                    config,
-                    'server',
-                    'processes',
-                    default=self.processes,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    cast=(
-                        lambda procs: [
-                            proc.strip() for proc in procs.split(',')
-                        ]
-                    ),
-                )
+            self.interface = get_config_option(
+                config,
+                'server',
+                'interface',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
-                self.interface = get_config_option(
-                    config,
-                    'server',
-                    'interface',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                )
-
-                self.controller_url = get_config_option(
-                    config,
-                    'controller',
-                    'url',
-                    self.controller_url,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                )
+            self.controller_url = get_config_option(
+                config,
+                'controller',
+                'url',
+                self.controller_url,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
     def collect_server_metadata(self):
         """

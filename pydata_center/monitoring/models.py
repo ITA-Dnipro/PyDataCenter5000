@@ -27,10 +27,10 @@ class CommandHistory(models.Model):
         ('failed', 'Failed'),
     ]
 
-    hostname = models.CharField(max_length=100)
+    hostname = models.CharField(max_length=100, db_index=True)
     command = models.TextField()
     result = models.TextField(null=True, blank=True) #or TextField
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending', db_index=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

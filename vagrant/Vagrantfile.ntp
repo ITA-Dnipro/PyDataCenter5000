@@ -1,9 +1,29 @@
 load File.expand_path("../env.rb", __FILE__)
-require_relative "common"
+load File.expand_path("../common.rb", __FILE__)
 
 Vagrant.configure("2") do |config|
+  # Shared box/provider/hostname/synced_folder setup
   VagrantCommon.configure_box(config, ENV_NTP)
 
+  config.vm.network "public_network",
+    ip:      ENV_NTP["IP"],
+    netmask: ENV_NTP["NETMASK"]
+
+  config.vm.synced_folder "..", "/home/vagrant/project"
+
+  # Base provisioning (nginx, ssh, build tools, Python 2.6, psutil, etc.)
   config.vm.provision "shell", inline: VagrantCommon.base_provision
 
+  # NTP-specific provisioning only
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
+    # Install NTP
+    sudo apt update
+    sudo apt install -y ntp
+
+    # Ensure SSH service is enabled and running
+    sudo systemctl enable ssh
+    sudo systemctl start ssh
+  SHELL
 end

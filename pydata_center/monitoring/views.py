@@ -51,3 +51,24 @@ def fetch_pending_command(request):
     
     serializer = CommandHistorySerializer(command)
     return Response(serializer.data)
+
+@api_view(['POST'])
+def submit_command_result(request):
+    command_id = request.data.get('id')
+    result = request.data.get('result')
+    status_update = request.data.get('status')
+
+    if not command_id or not result or not status_update:
+        return Response({'error': 'id, result, and status are required'}, status=400)
+
+    try:
+        command = CommandHistory.objects.get(id=command_id)
+    except CommandHistory.DoesNotExist:
+        return Response({'error': 'Command not found'}, status=404)
+
+    command.result = result
+    command.status = status_update
+    command.save()
+
+    serializer = CommandHistorySerializer(command)
+    return Response(serializer.data, status=200)

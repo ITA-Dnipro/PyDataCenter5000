@@ -29,7 +29,7 @@ class CommandHistory(models.Model):
 
     hostname = models.CharField(max_length=100)
     command = models.TextField()
-    result = models.JSONField(null=True, blank=True) #or TextField
+    result = models.TextField(null=True, blank=True) #or TextField
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     timestamp = models.DateTimeField(auto_now_add=True)
 

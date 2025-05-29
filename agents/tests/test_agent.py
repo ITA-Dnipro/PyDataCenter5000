@@ -1,3 +1,4 @@
+import socket
 import tempfile
 
 import mock
@@ -75,8 +76,8 @@ def test_status_to_controller_success():
 
 def test_status_to_controller_error():
     """
-    Test that the HTTP failure of POST request to controller is properly
-    handled and logged.
+    Test that the HTTP and URL failures of POST request to controller are
+    properly handled and logged.
     """
     output = [
         (
@@ -97,7 +98,14 @@ def test_status_to_controller_error():
             (
                 'POST request to controller failed due to error: '
                 '<urlopen error Connection refused>'
-            )
+            ),
+        ),
+        (
+            socket.timeout('HTTP request timed out'),
+            (
+                'POST request to controller failed due to error: '
+                'HTTP request timed out'
+            ),
         ),
     ]
 

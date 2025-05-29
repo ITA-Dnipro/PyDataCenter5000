@@ -1,3 +1,4 @@
+import os
 import socket
 import tempfile
 import types
@@ -22,6 +23,19 @@ class MockAgent(ServerAgent):
         super(MockAgent, self).__init__(
             server_name, port, processes, controller_url, config_file
         )
+
+    def setup_logging(self, path=None):
+        if not path:
+            self.logfile = tempfile.NamedTemporaryFile(delete=False)
+            self.logfile.close()
+
+            path = self.logfile.name
+
+        return super(MockAgent, self).setup_logging(path)
+
+    def __del__(self):
+        if self.log_path:
+            os.remove(self.log_path)
 
 
 def test_type_checks_on_init():
@@ -51,31 +65,30 @@ def test_status_to_json_type_error():
         def __str__(self):
             raise TypeError("Can't serialize me")
 
-    with tempfile.NamedTemporaryFile() as tmp:
-        agent = MockAgent(port=12345)
-        agent.setup_logging(tmp.name)
+    def mock_status_to_dict(self):
+        status = ServerAgent.status_to_dict(self)
+        status.update({'mock_parameter': MockUnserializableParameter()})
+        return status
 
-        def mock_status_to_dict(self):
-            status = ServerAgent.status_to_dict(self)
-            status.update({'mock_parameter': MockUnserializableParameter()})
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
 
-            return status
+    agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
 
-        agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
+    agent.status_to_json()
 
-        agent.status_to_json()
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
 
-        tmp.seek(0)
-        contents = tmp.read()
+    msg = (
+        'JSON serialization of status failed due to error: '
+        "Can't serialize me"
+    )
 
-        msg = (
-            'JSON serialization of status failed due to error: '
-            "Can't serialize me"
-        )
-
-        assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
-        )
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )
 
 
 def test_status_to_controller_success():
@@ -89,45 +102,45 @@ def test_status_to_controller_success():
                 return 201
         return MockResponse()
 
-    with tempfile.NamedTemporaryFile() as tmp:
-        agent = MockAgent(port=12345)
-        agent.setup_logging(tmp.name)
-        agent.collect_server_metadata()
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+    agent.collect_server_metadata()
 
-        agent.controller_url = 'http://mock/api/status/'
+    agent.controller_url = 'http://mock/api/status/'
 
-        with mock.patch('urllib2.urlopen', mock_urlopen):
-            agent.status_to_controller()
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.status_to_controller()
 
-        tmp.seek(0)
-        contents = tmp.read()
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
 
-        assert 'POST request status: 201' in contents, (
-            'Expected "POST request status: 201" in logs, got:\n%s' % contents
-        )
+    assert 'POST request status: 201' in contents, (
+        'Expected "POST request status: 201" in logs, got:\n%s' % contents
+    )
 
 
 def test_status_to_controller_missing_url():
     """Test that missing controller URL is properly handled and logged."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        agent = MockAgent(port=12345)
-        agent.setup_logging(tmp.name)
-        agent.collect_server_metadata()
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+    agent.collect_server_metadata()
 
-        # Set controller's URL explicitly to be independent of changes
-        # of default values in agent.py/
-        agent.controller_url = None
+    # Set controller's URL explicitly to be independent of changes
+    # of default values in agent.py/
+    agent.controller_url = None
 
-        agent.status_to_controller()
+    agent.status_to_controller()
 
-        tmp.seek(0)
-        contents = tmp.read()
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
 
-        msg = "Couldn't send status update: controller URL is not set"
+    msg = "Couldn't send status update: controller URL is not set"
 
-        assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
-        )
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )
 
 
 def test_status_to_controller_error():
@@ -169,19 +182,19 @@ def test_status_to_controller_error():
         def mock_urlopen(request, timeout=5):
             raise error
 
-        with tempfile.NamedTemporaryFile() as tmp:
-            agent = MockAgent(port=12345)
-            agent.setup_logging(tmp.name)
-            agent.collect_server_metadata()
+        agent = MockAgent(port=12345)
+        agent.setup_logging()
+        agent.collect_server_metadata()
 
-            agent.controller_url = 'http://mock/api/status/'
+        agent.controller_url = 'http://mock/api/status/'
 
-            with mock.patch('urllib2.urlopen', mock_urlopen):
-                agent.status_to_controller()
+        with mock.patch('urllib2.urlopen', mock_urlopen):
+            agent.status_to_controller()
 
-            tmp.seek(0)
-            contents = tmp.read()
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
 
-            assert msg in contents, (
-                'Expected %s in logs, got:\n%s' % (msg, contents)
-            )
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (msg, contents)
+        )

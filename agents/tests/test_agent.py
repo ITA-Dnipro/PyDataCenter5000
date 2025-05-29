@@ -59,5 +59,5 @@ def test_status_to_controller_success():
         contents = tmp.read()
 
         assert 'POST request status: 201' in contents, (
-            'POST request test failed'
+            'Expected "POST request status: 201" in logs, got:\n%s' % contents
         )

@@ -61,6 +61,10 @@ def test_type_checks_on_config_parse():
 
 
 def test_status_to_json_type_error():
+    """
+    Test that the TypeError is handled and logged on JSON serialization
+    failure.
+    """
     class MockUnserializableParameter:
         def __str__(self):
             raise TypeError("Can't serialize me")

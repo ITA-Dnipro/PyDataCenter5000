@@ -18,21 +18,36 @@ def receive_status(request):
     """
     serializer = ServerStatusResponseSerializer(data=request.data)
 
-    hostname = request.data.get('hostname', 'unknown')
-    ip = request.data.get('ip', request.META.get('REMOTE_ADDR'))
-    uptime = request.data.get('uptime', 'unknown')
-
     if serializer.is_valid():
-        serializer.save()
-        logger.info(
-            '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
-            hostname, ip, uptime
-        )
-        return Response(
-            {'message': 'Status received'},
-            status=status.HTTP_201_CREATED
-        )
+        try:
+            serializer.save()
+            validated = serializer.validated_data
+            hostname = validated.get('hostname', 'unknown')
+            ip = validated.get('ip', request.META.get('REMOTE_ADDR'))
+            uptime = validated.get('uptime', 'unknown')
+
+            logger.info(
+                '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
+                hostname, ip, uptime
+            )
+            return Response(
+                {
+                    'message': 'Status received',
+                    'hostname': hostname,
+                    'ip': ip
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error('[ERROR] Saving status failed: %s', str(e))
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     else:
+        ip = request.data.get('ip', request.META.get('REMOTE_ADDR'))
+        hostname = request.data.get('hostname', 'unknown')
+
         logger.warning(
             '[INVALID] Host: %s | IP: %s | Errors: %s',
             hostname, ip, serializer.errors

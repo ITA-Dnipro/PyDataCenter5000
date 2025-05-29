@@ -7,14 +7,24 @@ class ServerStatusResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerStatus
         fields = '__all__'
-
-    def create(self, validated_data):
-        return ServerStatus.objects.create(**validated_data)
+        read_only_fields = ('id', 'timestamp')
 
 
 class ServerStatusRequestSerializer(serializers.Serializer):
     hostname = serializers.CharField(max_length=100)
     server_name = serializers.CharField(max_length=50)
+
+    def validate_hostname(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError(
+                'Hostname cannot contain spaces.'
+            )
+        return value
+
+    def validate_server_name(self, value):
+        if not value.isidentifier():
+            raise serializers.ValidationError('Invalid server name format.')
+        return value
 
 
 class CommandHistorySerializer(serializers.ModelSerializer):

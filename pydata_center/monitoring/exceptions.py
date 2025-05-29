@@ -5,18 +5,16 @@ from rest_framework import status
 
 class MonitoringBaseException(Exception):
     def __init__(
-            self,
-            message: str,
-            status_code: int = 400,
-            detail_info: str = ''
+        self,
+        message: str,
+        status_code: int = 400,
+        detail_info: str = ''
     ):
-        self.message = message
-        self.status_code = status_code
-        self.detail_info = detail_info
-        super().__init__(message)
+        super().__init__(message, detail_info, status_code)
 
     def __str__(self):
-        return f'{self.message} | Details: {self.detail_info}'
+        message, detail_info, status_code = self.args
+        return f'{message} (Status: {status_code}) | Details: {detail_info}'
 
 
 class NoAuthUser(MonitoringBaseException):

@@ -12,12 +12,18 @@ def web_agent():
     os.environ['PORT'] = '8000'
     yield WebAgent()
 
+
 def test_to_dict_format(web_agent):
-    """Test that to_dict returns a dictionary with correct keys and value types"""
+    """Test that to_dict returns a dictionary with correct key-value types"""
     result = web_agent.to_dict()
 
     # Check all required keys are present
-    required_keys = set(['os', 'hostname', 'ip', 'server_name', 'uptime', 'timestamp', 'healthy'])
+    required_keys = set(
+        [
+            'os', 'hostname', 'ip', 'server_name', 'uptime', 'timestamp',
+            'healthy'
+        ]
+    )
     assert set(result.keys()) == required_keys
 
     # Check value types
@@ -29,6 +35,7 @@ def test_to_dict_format(web_agent):
     assert isinstance(result['timestamp'], str)
     assert isinstance(result['healthy'], bool)
 
+
 def test_to_dict_timestamp_format(web_agent):
     """Test that timestamp in to_dict follows the correct format"""
     result = web_agent.to_dict()
@@ -36,7 +43,10 @@ def test_to_dict_timestamp_format(web_agent):
 
     # Check timestamp format (YYYY-MM-DD HH:MM:SS)
     import re
-    assert re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp) is not None
+    assert re.match(
+        r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp
+    ) is not None
+
 
 @patch('agents.web.web.WebAgent.service_healthy')
 def test_to_dict_healthy_status(mock_healthy, web_agent):
@@ -50,6 +60,7 @@ def test_to_dict_healthy_status(mock_healthy, web_agent):
     mock_healthy.return_value = False
     result = web_agent.to_dict()
     assert result['healthy'] is False
+
 
 def test_to_txt(web_agent):
     """Test that to_txt logs each key-value pair"""

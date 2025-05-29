@@ -1,5 +1,7 @@
 from rest_framework import serializers
+
 from .models import CommandHistory
+
 
 class CommandHistorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,5 +11,5 @@ class CommandHistorySerializer(serializers.ModelSerializer):
 
     def validate_command(self, value):
         if len(value.strip()) == 0:
-            raise serializers.ValidationError("Command cannot be empty.")
+            raise serializers.ValidationError('Command cannot be empty.')
         return value

@@ -97,8 +97,6 @@ class ServerAgent(object):
         agent.setup_logging(path=log_path)
         agent._parse_config_file(filename)
 
-        agent.collect_server_metadata()
-
         return agent
 
     @property

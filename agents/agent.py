@@ -129,7 +129,7 @@ class ServerAgent(object):
         path = (
             path
             or pkg_resources.resource_filename(
-                self.__class__.__module__, 'agent.log'
+                self.__class__.__module__, 'logs/agent.log'
             )
         )
 

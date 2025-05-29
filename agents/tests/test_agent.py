@@ -1,5 +1,6 @@
 import socket
 import tempfile
+import types
 
 import mock
 import pytest
@@ -43,6 +44,38 @@ def test_type_checks_on_config_parse():
 
         with pytest.raises(TypeError):
             MockAgent.from_config_file(tmp.name)
+
+
+def test_status_to_json_type_error():
+    class MockUnserializableParameter:
+        def __str__(self):
+            raise TypeError("Can't serialize me")
+
+    with tempfile.NamedTemporaryFile() as tmp:
+        agent = MockAgent(port=12345)
+        agent.setup_logging(tmp.name)
+
+        def mock_status_to_dict(self):
+            status = ServerAgent.status_to_dict(self)
+            status.update({'mock_parameter': MockUnserializableParameter()})
+
+            return status
+
+        agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
+
+        agent.status_to_json()
+
+        tmp.seek(0)
+        contents = tmp.read()
+
+        msg = (
+            'JSON serialization of status failed due to error: '
+            "Can't serialize me"
+        )
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (msg, contents)
+        )
 
 
 def test_status_to_controller_success():

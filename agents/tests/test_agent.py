@@ -74,6 +74,29 @@ def test_status_to_controller_success():
         )
 
 
+def test_status_to_controller_missing_url():
+    """Test that missing controller URL is properly handled and logged."""
+    with tempfile.NamedTemporaryFile() as tmp:
+        agent = MockAgent(port=12345)
+        agent.setup_logging(tmp.name)
+        agent.collect_server_metadata()
+
+        # Set controller's URL explicitly to be independent of changes
+        # of default values in agent.py/
+        agent.controller_url = None
+
+        agent.status_to_controller()
+
+        tmp.seek(0)
+        contents = tmp.read()
+
+        msg = "Couldn't send status update: controller URL is not set"
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (msg, contents)
+        )
+
+
 def test_status_to_controller_error():
     """
     Test that the HTTP and URL failures of POST request to controller are

@@ -419,7 +419,7 @@ class ServerAgent(object):
         try:
             response = urllib2.urlopen(request, timeout=timeout)
             status_code = response.getcode()
-        except (urllib2.URLError, urllib2.HTTPError) as e:
+        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
             status_code = getattr(e, 'code', None)
 
             maybe_log_message(

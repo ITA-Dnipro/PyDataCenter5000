@@ -361,8 +361,8 @@ class ServerAgent(object):
                         self.logger,
                         fallback_logger=self.fallback_logger,
                     )
-                finally:
-                    return status
+
+            return status
         except TypeError as e:
             maybe_log_message(
                 (

@@ -1,6 +1,9 @@
+from rest_framework import filters, viewsets
+from rest_framework.response import Response
+
 from .models import CommandHistory
 from .serializers import CommandHistorySerializer
-from rest_framework import viewsets, filters
+
 
 class CommandHistoryViewSet(viewsets.ModelViewSet):
     queryset = CommandHistory.objects.all()
@@ -21,7 +24,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         hostname = self.request.query_params.get('hostname')
@@ -32,4 +35,3 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         if status:
             queryset = queryset.filter(status=status)
         return queryset
-

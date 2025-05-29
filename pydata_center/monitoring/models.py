@@ -18,3 +18,25 @@ class ServerStatus(models.Model):
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
+
+
+class CommandHistory(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('done', 'Done'),
+        ('failed', 'Failed'),
+    ]
+
+    hostname = models.CharField(max_length=100, db_index=True)
+    command = models.TextField()
+    result = models.TextField(null=True, blank=True)  # or TextField
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.hostname} - {self.status} - {self.timestamp}'

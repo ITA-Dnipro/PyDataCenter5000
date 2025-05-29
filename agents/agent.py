@@ -32,7 +32,11 @@ def get_ip_from_interface(interface):
     Returns:
         str: On success, IP address is returned.
     """
-    addresses = psutil.net_if_addrs()[interface]
+    net_if_dict = psutil.net_if_addrs()
+    if interface not in net_if_dict:
+        return
+
+    addresses = net_if_dict[interface]
 
     for address in addresses:
         if address.address.startswith('127.'):

@@ -6,10 +6,12 @@ import logging.config
 import platform
 import socket
 import subprocess
+from collections import Sequence
 
 import ConfigParser
 import pkg_resources
 import psutil
+import urllib2
 
 from .utils.helpers import get_config_option
 from .utils.logtools import maybe_log_message
@@ -30,7 +32,11 @@ def get_ip_from_interface(interface):
     Returns:
         str: On success, IP address is returned.
     """
-    addresses = psutil.net_if_addrs()[interface]
+    net_if_dict = psutil.net_if_addrs()
+    if interface not in net_if_dict:
+        return
+
+    addresses = net_if_dict[interface]
 
     for address in addresses:
         if address.address.startswith('127.'):
@@ -53,17 +59,83 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    config_file = None
-    log_dir = None
-    server_name = None
-    processes = []
-    port = -1
+    def __init__(
+        self,
+        server_name=None,
+        port=None,
+        processes=None,
+        interface=None,
+        controller_url=None,
+    ):
+        self.server_name = server_name
+        self.port = port if port is not None else self.port
+        self.processes = processes if processes is not None else self.processes
+        self.interface = interface
 
-    def __init__(self):
-        # Setup logging
+        self.controller_url = controller_url
+
+        # Init server metadata to prevent AttributeError and to indicate
+        # to user that collect_server_metadata hasn't been called.
+        self.os_type = self.hostname = self.ip = None
+        self.uptime = self.timestamp = None
+
+    @classmethod
+    def from_config_file(cls, filename=None, log_path=None):
+        """
+        Create an agent from a configuration (.ini) file.
+
+        Parameters:
+            filename (str): Path to configuration file. Default is None.
+            log_path (str): Path to where the log files will be stored.
+                Default is None.
+
+        Returns:
+            ServerAgent: Child instance of ServerAgent.
+        """
+        agent = cls()
+
+        agent.setup_logging(path=log_path)
+        agent._parse_config_file(filename)
+
+        return agent
+
+    @property
+    def port(self):
+        return getattr(self, '_port', -1)
+
+    @port.setter
+    def port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('Port number must be an integer')
+        self._port = value
+
+    @property
+    def processes(self):
+        return getattr(self, '_processes', [])
+
+    @processes.setter
+    def processes(self, value):
+        if not isinstance(value, Sequence):
+            raise TypeError(
+                (
+                    'Process names must be provided as a string or a sequence '
+                    '(list, tuple etc.), not %s' % type(value)
+                )
+            )
+        self._processes = value
+
+    def setup_logging(self, path=None):
+        # Have each child dump logs inside their own subpackage by default
+        path = (
+            path
+            or pkg_resources.resource_filename(
+                self.__class__.__module__, 'logs/agent.log'
+            )
+        )
+
         logging.config.fileConfig(
             log_config_path,
-            defaults={'agent_name': self.server_name, 'log_dir': self.log_dir},
+            defaults={'agent_name': self.server_name, 'log_path': path},
         )
 
         self.logger = logging.getLogger(self.server_name)
@@ -71,27 +143,70 @@ class ServerAgent(object):
             '_'.join([self.server_name, 'fallback'])
         )
 
-        self._parse_config_file()
-
-        self._set_server_metadata()
-
-    def _parse_config_file(self):
+    def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
+        filename = (
+            filename
+            or pkg_resources.resource_filename(
+                self.__class__.__module__, 'config.ini'
+            )
+        )
+
         config = ConfigParser.ConfigParser()
+        config.read(filename)
 
-        if self.config_file:
-            config.read(self.config_file)
+        if config.sections():
+            self.server_name = get_config_option(
+                config,
+                'server',
+                'name',
+                default=self.server_name,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
-            if config.sections():
-                self.interface = get_config_option(
-                    config,
-                    'server',
-                    'interface',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                )
+            self.port = get_config_option(
+                config,
+                'server',
+                'port',
+                default=self.port,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=int,
+            )
 
-    def _set_server_metadata(self):
+            self.processes = get_config_option(
+                config,
+                'server',
+                'processes',
+                default=self.processes,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=(
+                    lambda procs: [
+                        proc.strip() for proc in procs.split(',')
+                    ]
+                ),
+            )
+
+            self.interface = get_config_option(
+                config,
+                'server',
+                'interface',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            self.controller_url = get_config_option(
+                config,
+                'controller',
+                'url',
+                self.controller_url,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+    def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
         uptime, and timestamp.
@@ -215,7 +330,7 @@ class ServerAgent(object):
         """
         return self._is_port_open() and self._is_process_running()
 
-    def to_dict(self):
+    def status_to_dict(self):
         return {
             'os': self.os_type,
             'hostname': self.hostname,
@@ -226,21 +341,44 @@ class ServerAgent(object):
             'healthy': self.service_healthy(),
         }
 
-    def to_json(self):
-        """Dump host metadata to json file."""
+    def status_to_json(self, log=False):
+        """
+        Dump host metadata to json file.
+
+        Parameters:
+            log (bool): Whether to log JSON status string to the logfile.
+                Default is False.
+
+        Returns:
+            str: JSON status string.
+        """
         try:
-            msg = json.dumps(self.to_dict())
-            self.logger.info(msg)
-        except (IOError, OSError) as e:
+            status = json.dumps(self.status_to_dict(), default=str)
+
+            if log:
+                try:
+                    self.logger.info(status)
+                except (IOError, OSError) as e:
+                    maybe_log_message(
+                        'Error logging to file: %s' % str(e),
+                        self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+            return status
+        except TypeError as e:
             maybe_log_message(
-                'Error logging to file: %s' % str(e),
+                (
+                    'JSON serialization of status failed '
+                    'due to error: %s' % str(e)
+                ),
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )
 
-    def to_txt(self):
+    def status_to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
-        data = self.to_dict()
+        data = self.status_to_dict()
 
         try:
             for k, v in data.items():
@@ -251,3 +389,53 @@ class ServerAgent(object):
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )
+
+    def status_to_controller(self, timeout=5, api_key=None):
+        """
+        Send system's metadata to controller.
+
+        Parameters:
+            timeout (int): POST request timeout in seconds. Default is 5.
+            api_key (str): Authentication API key. Default is None.
+        """
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            return
+
+        payload = self.status_to_json(log=False)
+
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update({'X-API-Key': api_key})
+
+        request = urllib2.Request(
+            self.controller_url, payload, headers=headers
+        )
+
+        status_code = None
+
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+            status_code = response.getcode()
+        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+            status_code = getattr(e, 'code', None)
+
+            maybe_log_message(
+                'POST request to controller failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+        finally:
+            if status_code:
+                maybe_log_message(
+                    'POST request status: %s' % str(status_code),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )

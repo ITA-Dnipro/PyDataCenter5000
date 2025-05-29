@@ -53,6 +53,12 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    # Protocol for port check: 'tcp' or 'udp'
+    protocol = 'tcp'
+    # Optional UDP probe settings for subclasses
+    udp_probe_payload = b''
+    udp_probe_response_len = 0
+
     config_file = None
     log_dir = None
     server_name = None
@@ -174,18 +180,51 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if self.protocol.lower() == 'udp':
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.settimeout(2)
+                payload = self.udp_probe_payload or b''
+                sock.sendto(payload, (self.ip, self.port))
+                # if a response length is specified, wait for reply
+                if self.udp_probe_response_len > 0:
+                    data, _ = sock.recvfrom(self.udp_probe_response_len)
+                    if data and len(data) >= self.udp_probe_response_len:
+                        return True
+                    self.logger.warning(
+                        'Received unexpected UDP packet length %d', len(data)
+                    )
+                    return False
+                return True
+            except socket.timeout:
+                self.logger.warning(
+                    '%s UDP check to %s:%d timed out',
+                    self.server_name, self.ip, self.port
+                )
+                return False
+            except socket.error as e:
+                self.logger.warning(
+                    '%s UDP check failed for %s:%d - %s',
+                    self.server_name, self.ip, self.port, e
+                )
+                return False
+            finally:
+                sock.close()
 
+        # Default TCP behavior
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
-        except socket.error:
+            sock.settimeout(2)
+            sock.connect((self.ip, self.port))
+            return True
+        except socket.error as e:
+            self.logger.warning(
+                '%s TCP port check failed for %s:%d - %s',
+                self.server_name, self.ip, self.port, e
+            )
             return False
         finally:
-            s.close()
-
-        return True
+            sock.close()
 
     def _is_process_running(self):
         try:

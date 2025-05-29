@@ -74,6 +74,11 @@ class ServerAgent(object):
 
         self.controller_url = controller_url
 
+        # Init server metadata to prevent AttributeError and to indicate
+        # to user that collect_server_metadata hasn't been called.
+        self.os_type = self.hostname = self.ip = None
+        self.uptime = self.timestamp = None
+
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """

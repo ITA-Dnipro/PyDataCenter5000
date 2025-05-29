@@ -13,11 +13,27 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='CommandHistory',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                (
+                    'id',
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID'
+                    )
+                ),
                 ('hostname', models.CharField(max_length=100)),
                 ('command', models.TextField()),
                 ('result', models.JSONField(blank=True, null=True)),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('done', 'Done'), ('failed', 'Failed')], default='pending', max_length=10)),
+                ('status', models.CharField(
+                    max_length=10,
+                    choices=[
+                        ('pending', 'Pending'),
+                        ('done', 'Done'),
+                        ('failed', 'Failed')
+                    ],
+                    default='pending'
+                )),
                 ('timestamp', models.DateTimeField(auto_now_add=True)),
             ],
         ),

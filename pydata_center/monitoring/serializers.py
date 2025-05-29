@@ -17,7 +17,7 @@ class ServerStatusRequestSerializer(serializers.Serializer):
     server_name = serializers.CharField(max_length=50)
 
 
-class HistorySerializer(serializers.ModelSerializer):
+class CommandHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = CommandHistory
         fields = '__all__'

@@ -27,7 +27,7 @@ module VagrantCommon
 
       if ! /opt/python2.6/bin/python2.6 --version > /dev/null 2>&1; then
         cd /usr/src
-        sudo wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
+        sudo wget --tries=3 --timeout=10 https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
         sudo tar xzf Python-2.6.9.tgz
         # Instaling zlib
         cd Python-2.6.9/Modules
@@ -52,7 +52,7 @@ module VagrantCommon
 
       # Installing setuptools
       if ! python2 -c "import setuptools" > /dev/null 2>&1; then
-        wget https://bootstrap.pypa.io/ez_setup.py
+        wget --tries=3 --timeout=10 https://bootstrap.pypa.io/ez_setup.py
         sudo python2 ez_setup.py
         rm ez_setup.py
       fi
@@ -69,7 +69,7 @@ module VagrantCommon
 
       # Installing argparse
       if ! python2 -c "import argparse" > /dev/null 2>&1; then
-        wget https://files.pythonhosted.org/packages/source/a/argparse/argparse-1.4.0.tar.gz
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/a/argparse/argparse-1.4.0.tar.gz
         tar xzf argparse-1.4.0.tar.gz
         cd argparse-1.4.0
         sudo python2 setup.py install
@@ -79,7 +79,7 @@ module VagrantCommon
 
       # Installing py
       if ! python2 -c "import py" > /dev/null 2>&1; then
-        wget https://files.pythonhosted.org/packages/source/p/py/py-1.4.29.tar.gz
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/p/py/py-1.4.29.tar.gz
         tar xzf py-1.4.29.tar.gz
         cd py-1.4.29
         sudo python2 setup.py install
@@ -89,7 +89,7 @@ module VagrantCommon
 
       # Installing pytest
       if ! python2 -c "import pytest" > /dev/null 2>&1; then
-        wget https://files.pythonhosted.org/packages/source/p/pytest/pytest-2.8.7.tar.gz
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/p/pytest/pytest-2.8.7.tar.gz
         tar xzf pytest-2.8.7.tar.gz
         cd pytest-2.8.7
         sudo python2 setup.py install
@@ -99,7 +99,7 @@ module VagrantCommon
 
       # Installing mock
       if ! python2 -c "import mock" > /dev/null 2>&1; then
-        wget https://pypi.python.org/packages/source/m/mock/mock-1.0.1.tar.gz
+        wget --tries=3 --timeout=10 https://pypi.python.org/packages/source/m/mock/mock-1.0.1.tar.gz
         tar xzf mock-1.0.1.tar.gz
         cd mock-1.0.1
         sudo python2 setup.py install

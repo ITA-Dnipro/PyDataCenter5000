@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import ServerStatus, CommandHistory
+
+from .models import CommandHistory, ServerStatus
+
 
 @admin.register(CommandHistory)
 class CommandHistoryAdmin(admin.ModelAdmin):

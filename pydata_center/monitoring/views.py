@@ -29,6 +29,17 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         return Response(serializer.data)
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        hostname = self.request.query_params.get('hostname')
+        status = self.request.query_params.get('status')
+
+        if hostname:
+            queryset = queryset.filter(hostname=hostname)
+        if status:
+            queryset = queryset.filter(status=status)
+        return queryset
+
 
 @api_view(['POST'])
 def create_command(request):

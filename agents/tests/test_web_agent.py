@@ -15,7 +15,7 @@ def web_agent():
 
 def test_to_dict_format(web_agent):
     """Test that to_dict returns a dictionary with correct key-value types"""
-    web_agent.collect_server_metadata()  # Initialize metadata 
+    web_agent.collect_server_metadata()  # Initialize metadata
     result = web_agent.status_to_dict()
 
     # Check all required keys are present

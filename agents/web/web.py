@@ -6,6 +6,7 @@ from ..agent import ServerAgent
 
 
 class WebAgent(ServerAgent):
+
     def __init__(
         self,
         server_name='web',
@@ -16,9 +17,9 @@ class WebAgent(ServerAgent):
     ):
         if port is None and 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
-            
+
         port = port or int(os.environ['PORT'])
-        
+
         super(WebAgent, self).__init__(
             server_name=server_name,
             port=port,

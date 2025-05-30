@@ -16,8 +16,8 @@ module VagrantCommon
   def self.base_provision
     # Importing bash
     <<-SHELL
-      chmod +x /vagrant/scripts/common.sh
-      /vagrant/scripts/common.sh
+      chmod +x /vagrant/agents/scripts/common.sh
+      /vagrant/agents/scripts/common.sh
     SHELL
   end
 end

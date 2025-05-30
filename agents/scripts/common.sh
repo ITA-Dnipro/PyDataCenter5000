@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
 echo "[INFO] Updating and installing system packages..."
 apt update
@@ -34,7 +35,7 @@ fi
 echo "[INFO] Python 2.6 version:"
 /opt/python2.6/bin/python2.6 --version
 
-# ln -sf /opt/python2.6/bin/python2.6 /usr/local/bin/python2
+ln -sf /opt/python2.6/bin/python2.6 /usr/local/bin/python2
 echo 'alias python2="/opt/python2.6/bin/python2.6"' >> ~/.bashrc
 source ~/.bashrc
 
@@ -42,7 +43,7 @@ source ~/.bashrc
 # Instaling setuptools
 echo "[INFO] Installing setuptools..."
 wget https://bootstrap.pypa.io/ez_setup.py
-python2 ez_setup.py
+/opt/python2.6/bin/python2.6 ez_setup.py
 rm ez_setup.py
 
 # Instaling psutil
@@ -50,11 +51,11 @@ echo "[INFO] Installing psutil 5.7.0..."
 git clone https://github.com/giampaolo/psutil.git
 cd psutil
 git checkout release-5.7.0
-python2 setup.py install
+/opt/python2.6/bin/python2.6 setup.py install
 cd ..
 rm -rf psutil
 
-if ! /usr/local/bin/python2 -c "import psutil"; then
+if ! /opt/python2.6/bin/python2.6 -c "import psutil"; then
     echo "[ERROR] psutil failed to install!" >&2
     exit 1
 fi

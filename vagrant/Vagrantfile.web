@@ -6,13 +6,6 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 8000, host: 8000
   config.vm.synced_folder "servers/web", "/home/vagrant/server"
 
-  # Export environment variables to shell script
-  ENV_WEB.each do |key, value|
-    config.vm.provision "shell", inline: <<-SHELL
-      echo "export #{key}=#{value}" >> /etc/profile.d/vagrant_env.sh
-    SHELL
-  end
-
   config.vm.provision "shell", inline: VagrantCommon.base_provision
 
   # Set up Python virtual environment and FastAPI server

@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from .models import CommandHistory
 from .serializers import (CommandHistorySerializer,
                           ServerStatusResponseSerializer)
+from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger('django')
 
@@ -21,20 +22,16 @@ def receive_status(request):
     if serializer.is_valid():
         try:
             serializer.save()
-            validated = serializer.validated_data
-            hostname = validated.get('hostname', 'unknown')
-            ip = validated.get('ip', request.META.get('REMOTE_ADDR'))
-            uptime = validated.get('uptime', 'unknown')
-
+            data = extract_status_data(serializer.validated_data, request)
             logger.info(
                 '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
-                hostname, ip, uptime
+                data['hostname'], data['ip'], data['uptime']
             )
             return Response(
                 {
                     'message': 'Status received',
-                    'hostname': hostname,
-                    'ip': ip
+                    'hostname': data['hostname'],
+                    'ip': data['ip']
                 },
                 status=status.HTTP_201_CREATED
             )
@@ -45,12 +42,10 @@ def receive_status(request):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     else:
-        ip = request.data.get('ip', request.META.get('REMOTE_ADDR'))
-        hostname = request.data.get('hostname', 'unknown')
-
+        data = extract_status_data(request.data, request)
         logger.warning(
             '[INVALID] Host: %s | IP: %s | Errors: %s',
-            hostname, ip, serializer.errors
+            data['hostname'], data['ip'], serializer.errors
         )
         return Response(
             serializer.errors,

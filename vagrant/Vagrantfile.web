@@ -3,7 +3,56 @@ require_relative "common"
 
 Vagrant.configure("2") do |config|
   VagrantCommon.configure_box(config, ENV_WEB)
+  config.vm.network "forwarded_port", guest: 8000, host: 8000
+  config.vm.synced_folder "servers/web", "/home/vagrant/server"
+
+  # Export environment variables to shell script
+  ENV_WEB.each do |key, value|
+    config.vm.provision "shell", inline: <<-SHELL
+      echo "export #{key}=#{value}" >> /etc/profile.d/vagrant_env.sh
+    SHELL
+  end
 
   config.vm.provision "shell", inline: VagrantCommon.base_provision
 
+  # Set up Python virtual environment and FastAPI server
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
+    # Install python3-venv
+    sudo apt-get update
+    sudo apt-get install -y python3-venv
+
+    # Create virtual environment in /opt
+    sudo mkdir -p /opt/fastapi
+    sudo chown vagrant:vagrant /opt/fastapi
+    cd /opt/fastapi
+    python3 -m venv venv
+    source venv/bin/activate
+
+    # Install requirements
+    pip install -r /home/vagrant/server/requirements.txt
+
+    # Create systemd service for FastAPI
+    sudo tee /etc/systemd/system/fastapi.service << 'EOF'
+[Unit]
+Description=FastAPI application
+After=network.target
+
+[Service]
+User=vagrant
+WorkingDirectory=/home/vagrant/server
+Environment="PATH=/opt/fastapi/venv/bin"
+ExecStart=/opt/fastapi/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Enable and start the service
+    sudo systemctl daemon-reload
+    sudo systemctl enable fastapi
+    sudo systemctl start fastapi
+  SHELL
 end

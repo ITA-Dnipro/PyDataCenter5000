@@ -22,13 +22,9 @@ defaults:
 jobs:
   tests:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        image:
-          - python:2.7
-          - python:3.8
     container:
-      image: ${{ matrix.image }}
+      image: python:2.7
+
     name: Run agents unit tests
 
     steps:

@@ -30,7 +30,7 @@ module VagrantCommon
 
       if ! /opt/python2.6/bin/python2.6 --version > /dev/null 2>&1; then
         cd /usr/src
-        wget https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
+        wget --tries=3 --timeout=10 https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz
         tar xzf Python-2.6.9.tgz
         # Instaling zlib
         cd Python-2.6.9/Modules
@@ -48,16 +48,62 @@ module VagrantCommon
       /opt/python2.6/bin/python2.6 --version
       ln -sf /opt/python2.6/bin/python2.6 /usr/local/bin/python2
 
-      # Instaling setuptools
-      wget https://bootstrap.pypa.io/ez_setup.py
-      python2 ez_setup.py
+      # Installing setuptools
+      if ! python2 -c "import setuptools" > /dev/null 2>&1; then
+        wget --tries=3 --timeout=10 https://bootstrap.pypa.io/ez_setup.py
+        python2 ez_setup.py
+        rm ez_setup.py
+      fi
 
-      # Instaling psutil
-      git clone https://github.com/giampaolo/psutil.git
-      cd psutil
-      git checkout release-5.7.0
-      python2 setup.py install
-      cd ..
+      # Installing psutil
+      if ! python2 -c "import psutil" > /dev/null 2>&1; then
+        git clone https://github.com/giampaolo/psutil.git
+        cd psutil
+        git checkout release-5.7.0
+        python2 setup.py install
+        cd ..
+        rm -rf psutil
+      fi
+
+      # Installing argparse
+      if ! python2 -c "import argparse" > /dev/null 2>&1; then
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/a/argparse/argparse-1.4.0.tar.gz
+        tar xzf argparse-1.4.0.tar.gz
+        cd argparse-1.4.0
+        python2 setup.py install
+        cd ..
+        rm -rf argparse-1.4.0 argparse-1.4.0.tar.gz
+      fi
+
+      # Installing py
+      if ! python2 -c "import py" > /dev/null 2>&1; then
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/p/py/py-1.4.29.tar.gz
+        tar xzf py-1.4.29.tar.gz
+        cd py-1.4.29
+        python2 setup.py install
+        cd ..
+        rm -rf py-1.4.29 py-1.4.29.tar.gz
+      fi
+
+      # Installing pytest
+      if ! python2 -c "import pytest" > /dev/null 2>&1; then
+        wget --tries=3 --timeout=10 https://files.pythonhosted.org/packages/source/p/pytest/pytest-2.8.7.tar.gz
+        tar xzf pytest-2.8.7.tar.gz
+        cd pytest-2.8.7
+        python2 setup.py install
+        cd ..
+        rm -rf pytest-2.8.7 pytest-2.8.7.tar.gz
+      fi
+
+      # Installing mock
+      if ! python2 -c "import mock" > /dev/null 2>&1; then
+        wget --tries=3 --timeout=10 https://pypi.python.org/packages/source/m/mock/mock-1.0.1.tar.gz
+        tar xzf mock-1.0.1.tar.gz
+        cd mock-1.0.1
+        python2 setup.py install
+        cd ..
+        rm -rf mock-1.0.1 mock-1.0.1.tar.gz
+      fi
 
     SHELL
   end

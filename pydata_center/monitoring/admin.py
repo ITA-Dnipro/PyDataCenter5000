@@ -15,6 +15,6 @@ class CommandHistoryAdmin(admin.ModelAdmin):
 class ServerStatusAdmin(admin.ModelAdmin):
     list_display = ('hostname', 'server_name', 'ip', 'uptime', 'timestamp')
     search_fields = ('hostname', 'server_name')
-    list_filter = ('server_name',)
+    list_filter = ('server_name', )
     readonly_fields = ('hostname', 'ip', 'uptime', 'server_name', 'timestamp')
-    ordering = ('-timestamp',)
+    ordering = ('-timestamp', )

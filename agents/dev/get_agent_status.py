@@ -38,10 +38,8 @@ def main():
             agent_class = getattr(module, agent_name.upper() + 'Agent')
         agent = agent_class()
 
-        data = agent.to_dict()
+        data = agent.status_to_dict()
         print(json.dumps(data, indent=2))
-
-        agent.to_txt()
 
     except Exception as e:
         print('Error: {0}'.format(str(e)))

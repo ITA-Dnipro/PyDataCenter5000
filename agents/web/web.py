@@ -6,17 +6,23 @@ from ..agent import ServerAgent
 
 
 class WebAgent(ServerAgent):
-    config_file = pkg_resources.resource_filename(__name__, 'config.ini')
-    log_dir = pkg_resources.resource_filename(__name__, 'logs')
-    server_name = 'web'
-
-    def __init__(self, web_processes=None):
-        super(WebAgent, self).__init__()
-
-        if 'PORT' not in os.environ:
+    def __init__(
+        self,
+        server_name='web',
+        port=None,
+        processes=None,
+        interface=None,
+        controller_url=None,
+    ):
+        if port is None and 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
-
-        self.port = int(os.environ['PORT'])
-        self.processes = web_processes or [
-            'uvicorn',
-        ]
+            
+        port = port or int(os.environ['PORT'])
+        
+        super(WebAgent, self).__init__(
+            server_name=server_name,
+            port=port,
+            processes=processes or ['uvicorn'],
+            interface=interface,
+            controller_url=controller_url,
+        )

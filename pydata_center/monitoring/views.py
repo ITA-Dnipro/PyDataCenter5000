@@ -1,12 +1,39 @@
-from django.shortcuts import render
+import logging
+
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
-from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import CommandHistory
-from .serializers import CommandHistorySerializer
+from .serializers import CommandHistorySerializer, ServerStatusSerializer
+
+logger = logging.getLogger('monitoring')
+
+
+@api_view(['POST'])
+def receive_status(request):
+    """
+    Accepts server health status reports and saves them to the database.
+    """
+
+    serializer = ServerStatusSerializer(data=request.data)
+
+    if serializer.is_valid():
+        instance = serializer.save()
+        logger.info(
+            f'Status received from {instance.hostname}'
+            f' ({instance.ip}) - Healthy: {instance.healthy}'
+        )
+        return Response(
+            {'message': 'Status received'},
+            status=status.HTTP_201_CREATED
+        )
+
+    logger.warning(
+        f'Invalid status data from: {serializer.errors}'
+    )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CommandHistoryViewSet(viewsets.ModelViewSet):

@@ -38,6 +38,8 @@ def main():
             agent_class = getattr(module, agent_name.upper() + 'Agent')
         agent = agent_class()
 
+        agent.collect_server_metadata()
+
         data = agent.status_to_dict()
         print(json.dumps(data, indent=2))
 

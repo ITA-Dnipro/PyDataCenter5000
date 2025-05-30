@@ -34,11 +34,6 @@ module VagrantCommon
         sudo cp Setup.dist Setup
         sudo sed -i '/zlibmodule\.c/ s/^# *//' Setup
         cd ..
-        # Instaling zlib
-        cd Python-2.6.9/Modules
-        sudo cp Setup.dist Setup
-        sudo sed -i '/zlibmodule\.c/ s/^# *//' Setup
-        cd ..
         sudo ./configure --prefix=/opt/python2.6
         sudo make
         sudo make install

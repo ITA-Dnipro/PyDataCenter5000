@@ -25,8 +25,8 @@ jobs:
     strategy:
       matrix:
         image:
-          - python:2.6
           - python:2.7
+          - python:3.8
     container:
       image: ${{ matrix.image }}
     name: Run agents unit tests

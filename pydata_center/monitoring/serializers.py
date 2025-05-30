@@ -7,7 +7,7 @@ class ServerStatusResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerStatus
         fields = '__all__'
-        read_only_fields = ('id', 'timestamp')
+        read_only_fields = ('id', 'created_at')
 
 
 class ServerStatusRequestSerializer(serializers.Serializer):

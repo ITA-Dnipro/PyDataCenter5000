@@ -13,16 +13,15 @@ Vagrant.configure("2") do |config|
 
 	sleep 3
 	systemctl daemon-reload
-	cat > /etc/postfix/main.cf <<- 'EOF'
-		# Postfix configuration
-		myhostname = smtp.local
-		myorigin = /etc/mailname
-		mydestination = $myhostname, localhost.$mydomain, localhost
-		relayhost =
-		mynetworks = 127.0.0.0/8
-		mailbox_size_limit = 0
-		recipient_delimiter = +
-	EOF
+	cat > /etc/postfix/main.cf <<'EOF'
+myhostname = smtp.local
+myorigin = /etc/mailname
+mydestination = $myhostname, localhost.$mydomain, localhost
+relayhost =
+mynetworks = 127.0.0.0/8
+mailbox_size_limit = 0
+recipient_delimiter = +
+EOF
 
     # Postfix
     systemctl restart postfix

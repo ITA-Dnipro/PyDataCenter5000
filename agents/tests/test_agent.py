@@ -65,7 +65,9 @@ def test_status_to_json_type_error():
     Test that the TypeError is handled and logged on JSON serialization
     failure.
     """
+
     class MockUnserializableParameter:
+
         def __str__(self):
             raise TypeError("Can't serialize me")
 
@@ -90,9 +92,7 @@ def test_status_to_json_type_error():
         "Can't serialize me"
     )
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
 def test_status_to_controller_success():
@@ -100,10 +100,14 @@ def test_status_to_controller_success():
     Test that successful POST request to controller is properly handled
     and logged.
     """
+
     def mock_urlopen(request, timeout=5):
+
         class MockResponse(object):
+
             def getcode(self):
                 return 201
+
         return MockResponse()
 
     agent = MockAgent(port=12345)
@@ -142,9 +146,7 @@ def test_status_to_controller_missing_url():
 
     msg = "Couldn't send status update: controller URL is not set"
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
 def test_status_to_controller_error():
@@ -183,6 +185,7 @@ def test_status_to_controller_error():
     ]
 
     for error, msg in output:
+
         def mock_urlopen(request, timeout=5):
             raise error
 

@@ -4,6 +4,7 @@ from .models import CommandHistory, ServerStatus
 
 
 class CommandHistorySerializer(serializers.ModelSerializer):
+
     class Meta:
         model = CommandHistory
         fields = '__all__'

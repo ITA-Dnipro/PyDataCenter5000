@@ -15,9 +15,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('command/', create_command, name='create_command'),
     path(
-        'command/fetch/',
-        fetch_pending_command,
-        name='fetch_pending_command'
+        'command/fetch/', fetch_pending_command, name='fetch_pending_command'
     ),
     path(
         'command/result/',

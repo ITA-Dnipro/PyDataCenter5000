@@ -3,7 +3,32 @@ require_relative "common"
 
 Vagrant.configure("2") do |config|
   VagrantCommon.configure_box(config, ENV_SMTP)
-
   config.vm.provision "shell", inline: VagrantCommon.base_provision
+
+  config.vm.provision "shell", inline: <<-SHELL
+  	set -e
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update
+	apt-get install -y postfix mailutils
+
+	sleep 3
+	systemctl daemon-reload
+	cat > /etc/postfix/main.cf <<- 'EOF'
+		# Postfix configuration
+		myhostname = smtp.local
+		myorigin = /etc/mailname
+		mydestination = localhost
+		relayhost =
+		mynetworks = 127.0.0.0/8
+		mailbox_size_limit = 0
+		recipient_delimiter = +
+	EOF
+
+    # Postfix
+    systemctl restart postfix
+    systemctl enable postfix
+
+    systemctl status postfix || true
+  SHELL
 
 end

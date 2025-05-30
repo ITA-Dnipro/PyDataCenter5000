@@ -13,6 +13,10 @@ logger = logging.getLogger('monitoring')
 
 @api_view(['POST'])
 def receive_status(request):
+    """
+    Accepts server health status reports and saves them to the database.
+    """
+
     serializer = ServerStatusSerializer(data=request.data)
 
     if serializer.is_valid():

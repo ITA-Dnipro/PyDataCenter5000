@@ -2,6 +2,7 @@ from django.db import models
 
 
 class ServerStatus(models.Model):
+
     class Meta:
         indexes = [
             models.Index(fields=['hostname', 'timestamp']),

@@ -5,7 +5,7 @@ import types
 
 import mock
 import pytest
-import urllib2
+import requests
 
 from agents.agent import ServerAgent
 
@@ -65,7 +65,7 @@ def test_status_to_json_type_error():
     Test that the TypeError is handled and logged on JSON serialization
     failure.
     """
-    class MockUnserializableParameter:
+    class MockUnserializableParameter(object):
         def __str__(self):
             raise TypeError("Can't serialize me")
 
@@ -100,19 +100,26 @@ def test_status_to_controller_success():
     Test that successful POST request to controller is properly handled
     and logged.
     """
-    def mock_urlopen(request, timeout=5):
+    def mock_post(*args, **kwargs):
         class MockResponse(object):
-            def getcode(self):
-                return 201
+            def __init__(self, status_code=201, text='Success'):
+                self.status_code = status_code
+                self.text = self.reason = text
+                self.url = 'http://mock/api/status/'
+
+            def raise_for_status(self):
+                pass
+
         return MockResponse()
 
     agent = MockAgent(port=12345)
     agent.setup_logging()
+
     agent.collect_server_metadata()
 
     agent.controller_url = 'http://mock/api/status/'
 
-    with mock.patch('urllib2.urlopen', mock_urlopen):
+    with mock.patch('requests.post', mock_post):
         agent.status_to_controller()
 
     with open(agent.logfile.name, 'r') as f:
@@ -147,58 +154,44 @@ def test_status_to_controller_missing_url():
     )
 
 
-def test_status_to_controller_error():
+def test_status_to_controller_http_error():
     """
     Test that the HTTP and URL failures of POST request to controller are
     properly handled and logged.
     """
-    output = [
-        (
-            urllib2.HTTPError(
-                url='http://mock/api/status/',
-                code=500,
-                msg='Internal Server Error',
-                hdrs=None,
-                fp=None,
-            ),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP Error 500: Internal Server Error'
-            ),
-        ),
-        (
-            urllib2.URLError('Connection refused'),
-            (
-                'POST request to controller failed due to error: '
-                '<urlopen error Connection refused>'
-            ),
-        ),
-        (
-            socket.timeout('HTTP request timed out'),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP request timed out'
-            ),
-        ),
-    ]
+    def mock_post(*args, **kwargs):
+        class MockResponse(object):
+            def __init__(self, status_code=500, text='Internal Server Error'):
+                self.status_code = status_code
+                self.text = self.reason = text
+                self.url = 'http://mock/api/status/'
 
-    for error, msg in output:
-        def mock_urlopen(request, timeout=5):
-            raise error
+            def raise_for_status(self):
+                raise requests.HTTPError(
+                    'HTTP Error %s: %s' % (self.status_code, self.reason),
+                    response=self,
+                )
+        return MockResponse()
 
-        agent = MockAgent(port=12345)
-        agent.setup_logging()
-        agent.collect_server_metadata()
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
 
-        agent.controller_url = 'http://mock/api/status/'
+    agent.collect_server_metadata()
 
-        with mock.patch('urllib2.urlopen', mock_urlopen):
-            agent.status_to_controller()
+    agent.controller_url = 'http://mock/api/status/'
 
-        with open(agent.logfile.name, 'r') as f:
-            f.seek(0)
-            contents = f.read()
+    with mock.patch('requests.post', mock_post):
+        agent.status_to_controller()
 
-        assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
-        )
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = (
+        'POST request to controller failed due to error: '
+        'HTTP Error 500: Internal Server Error'
+    )
+
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )

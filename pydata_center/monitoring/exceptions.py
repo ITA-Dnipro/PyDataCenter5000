@@ -1,9 +1,14 @@
-from typing import Union
-
 from rest_framework import status
 
 
 class MonitoringBaseException(Exception):
+    """
+    The base exception for monitoring errors.
+
+    Arguments:
+
+    detail_info: Detailed information for logging or debugging.
+    """
     def __init__(
         self,
         message: str,

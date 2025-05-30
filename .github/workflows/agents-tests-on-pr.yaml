@@ -1,0 +1,40 @@
+name: Run agents tests on pull request
+
+on:
+  pull_request:
+    paths:
+      - agents/**
+      - .github/**
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - agents/**
+      - .github/**
+    branches:
+      - main
+      - develop
+      - 65-add-github-workflow-to-run-tests-on-pr
+
+defaults:
+  run:
+    working-directory: agents
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    name: Run agents unit tests
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '2.7'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run tests
+        run: |
+          python -m pytest -v

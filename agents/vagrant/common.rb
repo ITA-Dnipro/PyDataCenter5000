@@ -14,10 +14,10 @@ module VagrantCommon
   end
 
   def self.base_provision
-    # Importing bash
     <<-SHELL
-      chmod +x /vagrant/agents/scripts/common.sh
-      /vagrant/agents/scripts/common.sh
+      cd /vagrant/agents/scripts
+      chmod +x setup-server.sh install-dependencies.sh
+      ./setup-server.sh  && ./install-dependencies.sh
     SHELL
   end
 end

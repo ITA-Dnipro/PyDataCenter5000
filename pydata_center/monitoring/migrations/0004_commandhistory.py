@@ -25,15 +25,17 @@ class Migration(migrations.Migration):
                 ('hostname', models.CharField(max_length=100)),
                 ('command', models.TextField()),
                 ('result', models.JSONField(blank=True, null=True)),
-                ('status', models.CharField(
-                    max_length=10,
-                    choices=[
-                        ('pending', 'Pending'),
-                        ('done', 'Done'),
-                        ('failed', 'Failed')
-                    ],
-                    default='pending'
-                )),
+                (
+                    'status',
+                    models.CharField(
+                        max_length=10,
+                        choices=[
+                            ('pending', 'Pending'), ('done', 'Done'),
+                            ('failed', 'Failed')
+                        ],
+                        default='pending'
+                    )
+                ),
                 ('timestamp', models.DateTimeField(auto_now_add=True)),
             ],
         ),

@@ -4,14 +4,21 @@ from ..agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
-    config_file = pkg_resources.resource_filename(__name__, 'config.ini')
-    log_dir = pkg_resources.resource_filename(__name__, 'logs')
-    server_name = 'smtp'
-
-    def __init__(self, smtp_processes=None):
-        super(SMTPAgent, self).__init__()
-
-        self.port = 25
-        self.processes = smtp_processes or [
-            'postfix', 'exim', 'sendmail', 'master'
-        ]
+    """
+    SMTPAgent handles SMTP server configuration and logging setup.
+    """
+    def __init__(
+        self,
+        server_name='smtp',
+        port=25,
+        processes=None,
+        interface=None,
+        controller_url=None,
+    ):
+        super(SMTPAgent, self).__init__(
+            server_name=server_name,
+            port=port,
+            processes=processes or ['postfix', 'exim', 'sendmail', 'master'],
+            interface=interface,
+            controller_url=controller_url,
+        )

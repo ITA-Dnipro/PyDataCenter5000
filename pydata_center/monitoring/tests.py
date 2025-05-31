@@ -1,6 +1,8 @@
+from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import ServerStatus
 
@@ -9,6 +11,14 @@ class ReceiveStatusEndpointTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.url = reverse('monitoring:receive_status')
+        cls.username = 'testuser'
+        cls.password = 'testpass'
+        cls.user = User.objects.create_user(
+            username=cls.username, password=cls.password
+        )
+
+    def setUp(self):
+        self.client.login(username=self.username, password=self.password)
 
     def _get_valid_status_data(self):
         return {

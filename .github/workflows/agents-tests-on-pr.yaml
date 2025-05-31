@@ -15,10 +15,6 @@ on:
       - develop
       - 65-add-github-workflow-to-run-tests-on-pr
 
-defaults:
-  run:
-    working-directory: agents
-
 jobs:
   python26:
     runs-on: ubuntu-latest
@@ -31,7 +27,7 @@ jobs:
           docker run --rm \
           -v "$PWD":/workspace \
           ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
-          bash -c "ls -l /workspace && cd /workspace && python -m pytest -v"
+          bash -c "cd /workspace && python -m pytest agents"
 
   python27:
     runs-on: ubuntu-latest
@@ -54,7 +50,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        working-directory: agents
 
       - name: Run tests
         run: |
           python -m pytest -v
+        working-directory: agents

@@ -31,7 +31,7 @@ jobs:
           docker run --rm \
           -v "$PWD":/workspace \
           ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
-          bash -c "cd /workspace/PyDataCenter5000/agents && python -m pytest -v"
+          bash -c "ls -l /workspace && cd /workspace && python -m pytest -v"
 
   python27:
     runs-on: ubuntu-latest

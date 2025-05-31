@@ -185,7 +185,6 @@ def test_status_to_controller_http_error():
     ]
 
     for error, msg in output:
-
         def mock_urlopen(request, timeout=5):
             raise error
 
@@ -202,11 +201,6 @@ def test_status_to_controller_http_error():
     with open(agent.logfile.name, 'r') as f:
         f.seek(0)
         contents = f.read()
-
-    msg = (
-        'POST request to controller failed due to error: '
-        'HTTP Error 500: Internal Server Error'
-    )
 
     assert msg in contents, (
         'Expected %s in logs, got:\n%s' % (msg, contents)

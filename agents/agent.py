@@ -11,7 +11,7 @@ from collections import Sequence
 import ConfigParser
 import pkg_resources
 import psutil
-import requests
+import urllib2
 
 from .utils.helpers import get_config_option
 from .utils.logtools import maybe_log_message
@@ -408,28 +408,23 @@ class ServerAgent(object):
         if api_key:
             headers.update({'X-API-Key': api_key})
 
+        request = urllib2.Request(
+            self.controller_url, payload, headers=headers
+        )
+
         status_code = None
 
         try:
-            response = requests.post(
-                self.controller_url,
-                data=payload,
-                headers=headers,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-
-            status_code = response.status_code
-        except (
-            requests.exceptions.HTTPError, requests.exceptions.RequestException
-        ) as e:
-            if getattr(e, 'response', None):
-                status_code = e.response.status_code
+            response = urllib2.urlopen(request, timeout=timeout)
+            status_code = response.getcode()
+        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+            status_code = getattr(e, 'code', None)
 
             maybe_log_message(
                 'POST request to controller failed due to error: %s' % str(e),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
+                exc_info=True,
             )
         finally:
             if status_code:

@@ -22,16 +22,14 @@ defaults:
 jobs:
   python26:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/yelyzavetav/ubuntu-python2.6:latest
-
-    name: Run agents unit tests (Python 2.6)
     steps:
       - uses: actions/checkout@v3
 
-      - name: Run tests
+      - name: Run tests in container
         run: |
           python -m pytest -v
+        container:
+          image: ghcr.io/yelyzavetav/ubuntu-python2.6:latest
 
   python27:
     runs-on: ubuntu-latest

@@ -22,14 +22,17 @@ defaults:
 jobs:
   python26:
     runs-on: ubuntu-latest
+    name: Run agents unit tests in container(Python 2.6)
     steps:
       - uses: actions/checkout@v3
 
-      - name: Run tests in container
+      - name: Run agents unit tests
         run: |
+          docker run --rm \
+          -v "$PWD":/workspace \
+          -w /workspace/agents \
+          ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
           python -m pytest -v
-        container:
-          image: ghcr.io/yelyzavetav/ubuntu-python2.6:latest
 
   python27:
     runs-on: ubuntu-latest

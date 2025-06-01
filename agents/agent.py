@@ -7,6 +7,7 @@ import platform
 import socket
 import subprocess
 from collections import Sequence
+import time
 
 import ConfigParser
 import pkg_resources
@@ -19,6 +20,55 @@ from .utils.logtools import maybe_log_message
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
+
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+
+
+def log_error(msg):
+    with open('agent_log.txt', 'a') as f:
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        f.write("[ERROR] %s - %s\n" % (timestamp, msg))
+
+
+def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
+    """
+    Sends a POST request with JSON data to the specified URL
+    with retry logic. Retries up to `max_retries` times with `delay`
+    seconds between attempts. Logs all attempts and failures.
+    """
+    headers = {'Content-Type': 'application/json'}
+    payload = json.dumps(data).encode('utf-8')
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            log_error(
+                "[Attempt %d] Sending data to %s" % (attempt, url)
+            )
+            request = urllib2.Request(
+                url, data=payload, headers=headers
+            )
+            response = urllib2.urlopen(request)
+            result = response.read()
+            response.close()
+            log_error(
+                "Success on attempt %d: %s" % (attempt, result)
+            )
+            return result
+        except urllib2.URLError as e:
+            log_error(
+                "Attempt %d failed: %s" % (attempt, e)
+            )
+            if attempt < max_retries:
+                log_error(
+                    "Retrying in %d seconds..." % delay
+                )
+                time.sleep(delay)
+            else:
+                log_error(
+                    "All %d attempts failed. Data not sent. "
+                    "Last error: %s" % (max_retries, e)
+                )
 
 
 def get_ip_from_interface(interface):
@@ -402,35 +452,33 @@ class ServerAgent(object):
 
             return
 
-        payload = self.status_to_json(log=False)
+        payload_str = self.status_to_json(log=False)
+        payload = json.loads(payload_str)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:
-            headers.update({'X-API-Key': api_key})
-
-        request = urllib2.Request(
-            self.controller_url, payload, headers=headers
-        )
-
-        status_code = None
+            payload['api_key'] = api_key
 
         try:
-            response = urllib2.urlopen(request, timeout=timeout)
-            status_code = response.getcode()
-        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-            status_code = getattr(e, 'code', None)
-
-            maybe_log_message(
-                'POST request to controller failed due to error: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
-        finally:
-            if status_code:
+            result = post_data(self.controller_url, payload)
+            if result:
                 maybe_log_message(
-                    'POST request status: %s' % str(status_code),
+                    'POST request to controller succeeded.',
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO,
                 )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )

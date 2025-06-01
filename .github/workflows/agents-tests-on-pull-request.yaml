@@ -1,4 +1,4 @@
-name: Run agents tests on pull request
+name: agents tests
 
 on:
   pull_request:
@@ -18,16 +18,16 @@ on:
 jobs:
   python26:
     runs-on: ubuntu-latest
-    name: Run agents unit tests in container(Python 2.6)
+    name: Run agents unit tests in container (Python 2.6)
     steps:
       - uses: actions/checkout@v3
 
       - name: Run agents unit tests
         run: |
           docker run --rm \
-          -v "$PWD":/workspace \
+          -v "$PWD":/pydata \
           ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
-          bash -c "cd /workspace && python -m pytest agents"
+          bash -c "cd /pydata && python -m pytest agents"
 
   python27:
     runs-on: ubuntu-latest

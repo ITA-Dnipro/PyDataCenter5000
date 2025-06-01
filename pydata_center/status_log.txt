@@ -1,3 +1,0 @@
-[2025-06-01 17:34:49,755] [WARNING] monitoring.views: Invalid status data from: {'ip': [ErrorDetail(string='Enter a valid IPv4 or IPv6 address.', code='invalid')]}
-[2025-06-01 17:34:49,917] [WARNING] monitoring.views: Invalid status data from: {'hostname': [ErrorDetail(string='This field is required.', code='required')]}
-[2025-06-01 17:34:50,083] [WARNING] monitoring.views: Invalid status data from: {'uptime': [ErrorDetail(string='A valid number is required.', code='invalid')]}

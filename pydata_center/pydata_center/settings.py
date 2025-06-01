@@ -116,7 +116,7 @@ LOGGING = {
         'status_file': {
             'level': 'WARNING',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'status_log.txt'),
+            'filename': os.path.join(BASE_DIR, 'status.log'),
             'formatter': 'verbose',
         },
     },

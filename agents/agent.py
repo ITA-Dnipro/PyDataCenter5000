@@ -6,8 +6,8 @@ import logging.config
 import platform
 import socket
 import subprocess
-from collections import Sequence
 import time
+from collections import Sequence
 
 import ConfigParser
 import pkg_resources
@@ -28,7 +28,7 @@ RETRY_DELAY = 5
 def log_error(msg):
     with open('agent_log.txt', 'a') as f:
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        f.write("[ERROR] %s - %s\n" % (timestamp, msg))
+        f.write('[ERROR] %s - %s\n' % (timestamp, msg))
 
 
 def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
@@ -43,7 +43,7 @@ def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
     for attempt in range(1, max_retries + 1):
         try:
             log_error(
-                "[Attempt %d] Sending data to %s" % (attempt, url)
+                '[Attempt %d] Sending data to %s' % (attempt, url)
             )
             request = urllib2.Request(
                 url, data=payload, headers=headers
@@ -52,22 +52,22 @@ def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
             result = response.read()
             response.close()
             log_error(
-                "Success on attempt %d: %s" % (attempt, result)
+                'Success on attempt %d: %s' % (attempt, result)
             )
             return result
         except urllib2.URLError as e:
             log_error(
-                "Attempt %d failed: %s" % (attempt, e)
+                'Attempt %d failed: %s' % (attempt, e)
             )
             if attempt < max_retries:
                 log_error(
-                    "Retrying in %d seconds..." % delay
+                    'Retrying in %d seconds...' % delay
                 )
                 time.sleep(delay)
             else:
                 log_error(
-                    "All %d attempts failed. Data not sent. "
-                    "Last error: %s" % (max_retries, e)
+                    'All %d attempts failed. Data not sent. '
+                    'Last error: %s' % (max_retries, e)
                 )
 
 
@@ -455,7 +455,6 @@ class ServerAgent(object):
         payload_str = self.status_to_json(log=False)
         payload = json.loads(payload_str)
 
-        headers = {'Content-Type': 'application/json'}
         if api_key:
             payload['api_key'] = api_key
 

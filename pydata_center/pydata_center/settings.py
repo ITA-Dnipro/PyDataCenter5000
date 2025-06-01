@@ -14,7 +14,6 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from logconfig import setup_logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -100,6 +99,35 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'API',
     'DESCRIPTION': 'API documentation for PyDataCenter5000 project',
     'VERSION': '1.0.0',
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] [{levelname}] {name}: {message}',
+            'style': '{',
+        },
+    },
+
+    'handlers': {
+        'status_file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'status_log.txt'),
+            'formatter': 'verbose',
+        },
+    },
+
+    'loggers': {
+        'monitoring': {
+            'handlers': ['status_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
 }
 
 ROOT_URLCONF = 'pydata_center.urls'
@@ -188,6 +216,3 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-
-setup_logging()

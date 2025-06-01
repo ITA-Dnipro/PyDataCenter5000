@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from .models import CommandHistory
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
 
-logger = logging.getLogger('monitoring')
+logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])

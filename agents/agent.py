@@ -7,6 +7,7 @@ import platform
 import socket
 import subprocess
 import time
+import os
 from collections import Sequence
 
 import ConfigParser
@@ -21,8 +22,9 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
+config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
 config = ConfigParser.ConfigParser()
-config.read('config.ini')
+config.read(config_path)
 
 MAX_RETRIES = config.getint('retry_settings', 'max_retries')
 RETRY_DELAY = config.getint('retry_settings', 'retry_delay')

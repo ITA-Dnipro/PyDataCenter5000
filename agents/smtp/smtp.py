@@ -1,5 +1,10 @@
 from __future__ import print_function  # compatibility with hooks
 import datetime
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s'
+)
 import json
 import socket
 import sys
@@ -13,6 +18,7 @@ from ..agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
+    DEFAULT_PROCESSES = ['postfix', 'exim', 'sendmail', 'master']
     """
     SMTPAgent performs health checks for an SMTP server:
     - verifies if the port is open
@@ -30,7 +36,7 @@ class SMTPAgent(ServerAgent):
             self,
             server_name=server_name,
             port=port,
-            processes=processes or ['postfix', 'exim', 'sendmail', 'master'],
+            processes=processes or self.DEFAULT_PROCESSES,
             interface=interface,
             controller_url=controller_url,
         )
@@ -66,22 +72,21 @@ class SMTPAgent(ServerAgent):
             s.connect(('localhost', self.port))
             s.close()
             return True
-        except Exception:
+        except Exception as e:
+            logging.error("check_port failed: %s", str(e))
             return False
 
     def check_processes(self):
         try:
             import subprocess
-            output = subprocess.check_output(
-                ['ps', 'aux']
-            )
-            found = False
+            output = subprocess.check_output(['ps', '-eo', 'comm'])
+
             for p in self.processes:
-                if p in output:
-                    found = True
-                    break
-            return found
-        except Exception:
+                if p in output.split():
+                    return True
+            return False
+        except Exception as e:
+            logging.error("check_processes failed: %s", str(e))
             return False
 
     def generate_health_report(self, host='localhost'):

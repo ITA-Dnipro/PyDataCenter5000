@@ -1,5 +1,4 @@
 from __future__ import print_function  # compatibility with hooks
-
 import datetime
 import json
 import socket
@@ -87,8 +86,8 @@ class SMTPAgent(ServerAgent):
 
     def generate_health_report(self, host='localhost'):
         """
-        Aggregates the results 
-        of all checks into a 
+        Aggregates the results
+        of all checks into a
         single health report dictionary.
         """
         port_status = self.check_port()
@@ -111,8 +110,8 @@ class SMTPAgent(ServerAgent):
 def main():
     parser = OptionParser()
     parser.add_option(
-        '--host', dest='host', 
-        default='127.0.0.1', 
+        '--host', dest='host',
+        default='127.0.0.1',
         help='SMTP server host'
     )
     parser.add_option(

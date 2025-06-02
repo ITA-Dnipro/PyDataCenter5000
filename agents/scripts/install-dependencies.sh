@@ -137,5 +137,5 @@ if ! python -c "import mock"; then
 fi
 
 echo "[INFO] Setup completed successfully."
-echo "[INFO] Cleaning up..."
-cd ../.. && rm -rf /python-build/src
+echo "[INFO] Cleaning up build directories..."
+rm -rf /python-build/src

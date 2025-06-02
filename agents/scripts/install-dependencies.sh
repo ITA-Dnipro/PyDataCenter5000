@@ -8,6 +8,46 @@ source "$scripts_dir/config.env"
 source "$scripts_dir/${ENV_FILE}"
 set +a
 
+get_package_src_from_tar() {
+    local name=$1
+    local url=$2
+
+    local tarfile="${name}.tar.gz"
+
+    mkdir -p "${name}"
+    if [ ! -f "${name}/${tarfile}" ]; then
+        echo "[INFO] Downloading ${name} from ${url}..."
+        wget -O "${name}/${tarfile}" "${url}"
+        tar -C "${name}" --strip-components 1 -xzf "${name}/${tarfile}"
+    fi
+}
+
+get_package_src_from_git() {
+    local name=$1
+    local url=$2
+    local tag=$3
+
+    git clone "${url}" "${name}"
+
+    if [ -n "${tag}" ]; then
+        echo "[INFO] Checking out tag ${tag} for ${name}..."
+        cd "${name}"
+        git checkout "${tag}"
+        cd ..
+    fi
+}
+
+install_python_package_from_src() {
+    local src=$1
+
+    cd "${src}"
+    if [ -f setup.py ]; then
+        echo "[INFO] Installing Python package from source in ${src}..."
+        python setup.py install
+        cd .. && rm -rf "${src}"
+    fi
+}
+
 echo "[INFO] Updating and installing system packages..."
 apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update
 apt-get install -y build-essential zlib1g-dev wget git
@@ -79,66 +119,28 @@ if ! python -c "import setuptools"; then
 fi
 
 if ! python -c "import psutil"; then
-    echo "[INFO] Installing psutil..."
-    if [ ! -d psutil ]; then
-        git clone https://github.com/giampaolo/psutil.git psutil
-    fi
-    cd psutil
-    git checkout release-5.7.0
-    python setup.py install
-    cd .. && rm -rf psutil
+    get_package_src_from_git psutil "https://github.com/giampaolo/psutil.git" "release-5.7.0"
+    install_python_package_from_src psutil
 fi
 
 if ! python -c "import argparse"; then
-    echo "[INFO] Installing argparse..."
-    if [ ! -d argparse ]; then
-        mkdir argparse
-        argparse_url="https://files.pythonhosted.org/packages/18/dd/e617cfc3f6210ae183374cd9f6a26b20514bbb5a792af97949c5aacddf0f/argparse-1.4.0.tar.gz"
-        wget -O argparse/argparse.tar.gz ${argparse_url}
-        tar -C argparse --strip-components 1 -xzf argparse/argparse.tar.gz
-    fi
-    cd argparse
-    python setup.py install
-    cd .. && rm -rf argparse
+    get_package_src_from_tar argparse "https://files.pythonhosted.org/packages/18/dd/e617cfc3f6210ae183374cd9f6a26b20514bbb5a792af97949c5aacddf0f/argparse-1.4.0.tar.gz"
+    install_python_package_from_src argparse
 fi
 
 if ! python -c "import py"; then
-    echo "[INFO] Installing py..."
-    if [ ! -d py ]; then
-        mkdir py
-        py_url="https://files.pythonhosted.org/packages/2a/bc/a1a4a332ac10069b8e5e25136a35e08a03f01fd6ab03d819889d79a1fd65/py-1.4.29.tar.gz"
-        wget -O py/py.tar.gz ${py_url}
-        tar -C py --strip-components 1 -xzf py/py.tar.gz
-    fi
-    cd py
-    python setup.py install
-    cd .. && rm -rf py
+    get_package_src_from_tar py "https://files.pythonhosted.org/packages/2a/bc/a1a4a332ac10069b8e5e25136a35e08a03f01fd6ab03d819889d79a1fd65/py-1.4.29.tar.gz"
+    install_python_package_from_src py
 fi
 
 if ! python -c "import pytest"; then
-    echo "[INFO] Installing pytest..."
-    if [ ! -d pytest ]; then
-        mkdir pytest
-        pytest_url="https://files.pythonhosted.org/packages/07/bc/9ce76df7c91b87467e9fcae153297d88b34591f0379f6ad55781b72c2fd1/pytest-2.8.7.tar.gz"
-        wget -O pytest/pytest.tar.gz ${pytest_url}
-        tar -C pytest --strip-components 1 -xzf pytest/pytest.tar.gz
-    fi
-    cd pytest
-    python setup.py install
-    cd .. && rm -rf pytest
+    get_package_src_from_tar pytest "https://files.pythonhosted.org/packages/07/bc/9ce76df7c91b87467e9fcae153297d88b34591f0379f6ad55781b72c2fd1/pytest-2.8.7.tar.gz"
+    install_python_package_from_src pytest
 fi
 
 if ! python -c "import mock"; then
-    echo "[INFO] Installing mock..."
-    if [ ! -d mock ]; then
-        mkdir mock
-        mock_url="https://files.pythonhosted.org/packages/a2/52/7edcd94f0afb721a2d559a5b9aae8af4f8f2c79bc63fdbe8a8a6c9b23bbe/mock-1.0.1.tar.gz"
-        wget -O mock/mock.tar.gz ${mock_url}
-        tar -C mock --strip-components 1 -xzf mock/mock.tar.gz
-    fi
-    cd mock
-    python setup.py install
-    cd .. && rm -rf mock
+    get_package_src_from_tar mock "https://files.pythonhosted.org/packages/a2/52/7edcd94f0afb721a2d559a5b9aae8af4f8f2c79bc63fdbe8a8a6c9b23bbe/mock-1.0.1.tar.gz"
+    install_python_package_from_src mock
 fi
 
 echo "[INFO] Setup completed successfully."

@@ -107,6 +107,12 @@ def test_status_to_controller_success():
             def getcode(self):
                 return 201
 
+            def read(self):
+                return b'{"message":"status received"}'
+
+            def close(self):
+                pass
+
         return MockResponse()
 
     agent = MockAgent(port=12345)

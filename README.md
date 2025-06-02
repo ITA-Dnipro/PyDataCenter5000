@@ -3,6 +3,7 @@
 <a href="https://softserve.academy/"><img src="https://s.057.ua/section/newsInternalIcon/upload/images/news/icon/000/050/792/vnutr_5ce4f980ef15f.jpg" title="SoftServe IT Academy" alt="SoftServe IT Academy"></a>
 
 [![agents tests](https://github.com/ITA-Dnipro/PyDataCenter5000/actions/workflows/agents-tests-on-pull-request.yaml/badge.svg)](https://github.com/ITA-Dnipro/PyDataCenter5000/actions/workflows/agents-tests-on-pull-request.yaml)
+[![agents test coverage](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000/branch/develop/graph/badge.svg?token=IYV4B8RAZE)](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000)
 
 # PyDataCenter5000
 > PyDataCenter: Smart Monitoring and Remote Ops

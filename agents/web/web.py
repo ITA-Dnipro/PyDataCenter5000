@@ -1,7 +1,5 @@
 import os
 
-import pkg_resources
-
 from ..agent import ServerAgent
 
 
@@ -10,7 +8,7 @@ class WebAgent(ServerAgent):
     def __init__(
         self,
         server_name='web',
-        port=None,
+        port=8000,
         processes=None,
         interface=None,
         controller_url=None,

@@ -438,7 +438,6 @@ class ServerAgent(object):
                         'POST failed after %d attempts' % max_retries
                     )
 
-
     def status_to_controller(self, timeout=5, api_key=None):
         """
         Send system's metadata to controller.

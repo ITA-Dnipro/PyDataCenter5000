@@ -1,10 +1,28 @@
 from rest_framework import serializers
 
-from .models import CommandHistory
+from .models import CommandHistory, ServerStatus
+
+
+class ServerStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServerStatus
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at')
+
+    def validate_hostname(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError(
+                'Hostname cannot contain spaces.'
+            )
+        return value
+
+    def validate_server_name(self, value):
+        if not value.isidentifier():
+            raise serializers.ValidationError('Invalid server name format.')
+        return value
 
 
 class CommandHistorySerializer(serializers.ModelSerializer):
-
     class Meta:
         model = CommandHistory
         fields = '__all__'

@@ -30,7 +30,7 @@ class CommandHistory(models.Model):
 
     hostname = models.CharField(max_length=100, db_index=True)
     command = models.TextField()
-    result = models.TextField(null=True, blank=True)  # or TextField
+    result = models.TextField(null=True, blank=True)
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,

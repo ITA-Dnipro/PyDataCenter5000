@@ -21,8 +21,11 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
-MAX_RETRIES = 3
-RETRY_DELAY = 5
+config = ConfigParser.ConfigParser()
+config.read('config.ini')
+
+MAX_RETRIES = config.getint('retry_settings', 'max_retries')
+RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
 
 
 def get_ip_from_interface(interface):

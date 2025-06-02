@@ -23,13 +23,6 @@ log_config_path = pkg_resources.resource_filename(
 
 MAX_RETRIES = 3
 RETRY_DELAY = 5
-LOG_FILE = 'agent_log.txt'
-
-
-def log_error(msg):
-    with open(LOG_FILE, 'a') as f:
-        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        f.write('[ERROR] %s - %s\n' % (timestamp, msg))
 
 
 def get_ip_from_interface(interface):
@@ -407,32 +400,54 @@ class ServerAgent(object):
 
         for attempt in range(1, max_retries + 1):
             try:
-                log_error(
-                    '[Attempt %d] Sending data to %s' % (attempt, url)
+                maybe_log_message(
+                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
                 )
                 request = urllib2.Request(
                     url, data=payload, headers=headers
                 )
                 response = urllib2.urlopen(request)
                 result = response.read()
+                status_code = response.getcode()
+                maybe_log_message(
+                    'POST request status: %d' % status_code,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
                 response.close()
-                log_error(
-                    'Success on attempt %d: %s' % (attempt, result)
+                maybe_log_message(
+                    'Success on attempt %d: %s' % (attempt, result),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
                 )
                 return result
             except urllib2.URLError as e:
-                log_error(
-                    'Attempt %d failed: %s' % (attempt, e)
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.ERROR
                 )
                 if attempt < max_retries:
-                    log_error(
-                        'Retrying in %d seconds...' % delay
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.WARNING
                     )
                     time.sleep(delay * attempt)
                 else:
-                    log_error(
+                    maybe_log_message(
                         'All %d attempts failed. Data not sent. '
-                        'Last error: %s' % (max_retries, e)
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.CRITICAL
                     )
                     raise RuntimeError(
                         'POST failed after %d attempts' % max_retries

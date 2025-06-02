@@ -1,9 +1,14 @@
-import pkg_resources
-import socket
+from __future__ import print_function  # compatibility with hooks
+
 import datetime
-import sys
 import json
-from optparse import OptionParser  # argparse isn't available in Python2.6, used optparse for CLI-arguments instead
+import socket
+import sys
+# argparse isn't available in Python2.6,
+# used optparse for CLI-arguments instead
+from optparse import OptionParser
+
+import pkg_resources
 
 from ..agent import ServerAgent
 
@@ -31,42 +36,46 @@ class SMTPAgent(ServerAgent):
             controller_url=controller_url,
         )
 
-    def check_banner(self, host='127.0.0.1'):  # opens TCP connection to SMTP server and tries to read a banner
+    def check_banner(self, host='127.0.0.1'):
         sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(8)
-            sock.connect((host, self.port))
+            sock.connect(
+                (host, self.port)
+            )
             try:
                 banner = sock.recv(1024)
             except socket.timeout:
-                banner = ""
+                banner = ''
             sock.close()
 
             return {
-            "status": "ok" if banner else "no banner",
-            "banner": banner.strip() if banner else None
+                'status': 'ok' if banner else 'no banner',
+                'banner': banner.strip() if banner else None
             }
         except Exception as e:
             return {
-            "status": "error",
-            "error": str(e)
+                'status': 'error',
+                'error': str(e)
             }
-        
-    def check_port(self):  # checks if the port is open on localhost
+
+    def check_port(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.settimeout(1)
             s.connect(('localhost', self.port))
             s.close()
             return True
-        except:
+        except Exception:
             return False
-        
-    def check_processes(self):  # checks if prorocesses are running
+
+    def check_processes(self):
         try:
             import subprocess
-            output = subprocess.check_output(['ps', 'aux'])
+            output = subprocess.check_output(
+                ['ps', 'aux']
+            )
             found = False
             for p in self.processes:
                 if p in output:
@@ -78,42 +87,50 @@ class SMTPAgent(ServerAgent):
 
     def generate_health_report(self, host='localhost'):
         """
-        Aggregates the results of all checks into a single health report dictionary.
+        Aggregates the results 
+        of all checks into a 
+        single health report dictionary.
         """
         port_status = self.check_port()
         process_status = self.check_processes()
         banner_info = self.check_banner(host)
 
         report = {
-            "timestamp": datetime.datetime.now().isoformat(),
-            "server": self.server_name,
-            "host": host,
-            "port": self.port,
-            "port_open": port_status,
-            "process_running": process_status,
-            "banner_check": banner_info
+            'timestamp': datetime.datetime.now().isoformat(),
+            'server': self.server_name,
+            'host': host,
+            'port': self.port,
+            'port_open': port_status,
+            'process_running': process_status,
+            'banner_check': banner_info
         }
 
         return report
 
 
-
-
-def main():  # command-line interface entry point
+def main():
     parser = OptionParser()
-    parser.add_option('--host', dest='host', default='127.0.0.1', help='SMTP server host')
-    parser.add_option('--port', dest='port', type='int', default=25, help='SMTP port')
-    parser.add_option('--controller-url', dest='controller_url', help='Controller URL')
-    parser.add_option('--processes', dest='processes', help='Comma-separated list of processes')
+    parser.add_option(
+        '--host', dest='host', 
+        default='127.0.0.1', 
+        help='SMTP server host'
+    )
+    parser.add_option(
+        '--port', dest='port',
+        type='int', default=25,
+        help='SMTP port'
+    )
+    parser.add_option(
+        '--controller-url',
+        dest='controller_url',
+        help='Controller URL'
+    )
+    parser.add_option(
+        '--processes', dest='processes',
+        help='Comma-separated list of processes'
+    )
 
     (options, args) = parser.parse_args()
-
-    # Debug output (can be removed later)
-    print "[DEBUG] Parsed options:"
-    print "host:", options.host
-    print "port:", options.port
-    print "processes:", options.processes
-    print "controller_url:", options.controller_url
 
     # convert process string to list
     processes = options.processes.split(',') if options.processes else None
@@ -125,9 +142,9 @@ def main():  # command-line interface entry point
         controller_url=options.controller_url
     )
 
-    # generate and print health report as json
+    # generate & print health report
     report = agent.generate_health_report(host=options.host)
-    print json.dumps(report, indent=2)
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == '__main__':

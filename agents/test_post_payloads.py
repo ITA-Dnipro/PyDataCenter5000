@@ -33,6 +33,9 @@ logger.addHandler(fh)
 
 ip = os.environ.get('CONTROLLER_IP')
 port = os.environ.get('CONTROLLER_PORT')
+if not ip or not port:
+    logger.error('Missing CONTROLLER_IP or CONTROLLER_PORT')
+    exit(1)
 controller_url = 'http://%s:%s/api/v1/server/status/' % (ip, port)
 
 # --- Example payloads ---
@@ -79,7 +82,7 @@ def post_payload(data):
             logger.error('Missing USERNAME or PASSWORD environment variables.')
             return
 
-        credentials = base64.b64encode('%s:%s' % (user, pwd))
+        credentials = base64.b64encode('%s:%s' % (user, pwd)).strip()
         headers = {
             'Content-Type': 'application/json',
             'Authorization': 'Basic ' + credentials,
@@ -87,6 +90,8 @@ def post_payload(data):
 
         request = urllib2.Request(controller_url, json_data, headers)
         response = urllib2.urlopen(request, timeout=5)
+        logger.info('Sending payload to controller: %s', controller_url)
+        logger.debug('Payload content: %s', json_data)
         logger.info(
             'Success: %s - Status code: %s' % (
                 data.get('server_name'), response.getcode()
@@ -96,13 +101,19 @@ def post_payload(data):
         logger.error('HTTPError (%s): %s' % (e.code, e.read()))
     except urllib2.URLError as e:
         logger.error('URLError: %s' % str(e))
-    except Exception as e:
-        logger.error('Unexpected error: %s' % str(e))
+    except Exception:
+        logger.exception('Unexpected error:')
 
 
 def main():
+    success, fail = 0, 0
     for payload in payloads:
-        post_payload(payload)
+        try:
+            post_payload(payload)
+            success += 1
+        except Exception:
+            fail += 1
+    logger.info('Run summary: %d success, %d failed', success, fail)
 
 
 if __name__ == '__main__':

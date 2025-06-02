@@ -1,4 +1,9 @@
-def get_client_ip(request):
+from typing import Any, Dict
+
+from django.http import HttpRequest
+
+
+def get_client_ip(request: HttpRequest) -> str:
     """
     Retrieve the client's IP address from the request object.
     If the application is behind a proxy, it tries to get the IP
@@ -7,10 +12,13 @@ def get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+    return request.META.get('REMOTE_ADDR', 'unknown')
 
 
-def extract_status_data(data, request):
+def extract_status_data(
+    data: Dict[str, Any],
+    request: HttpRequest
+) -> Dict[str, str]:
     """
     Extract status-related data from the request data and
     include the client IP if not provided.

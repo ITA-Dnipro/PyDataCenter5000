@@ -3,16 +3,11 @@ from rest_framework import serializers
 from .models import CommandHistory, ServerStatus
 
 
-class ServerStatusResponseSerializer(serializers.ModelSerializer):
+class ServerStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerStatus
         fields = '__all__'
         read_only_fields = ('id', 'created_at')
-
-
-class ServerStatusRequestSerializer(serializers.Serializer):
-    hostname = serializers.CharField(max_length=100)
-    server_name = serializers.CharField(max_length=50)
 
     def validate_hostname(self, value):
         if ' ' in value:

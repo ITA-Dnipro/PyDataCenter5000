@@ -6,8 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import CommandHistory
-from .serializers import (CommandHistorySerializer,
-                          ServerStatusResponseSerializer)
+from .serializers import CommandHistorySerializer, ServerStatusSerializer
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger('django')
@@ -18,7 +17,7 @@ def receive_status(request):
     """
     Receive and log server status data sent via POST request.
     """
-    serializer = ServerStatusResponseSerializer(data=request.data)
+    serializer = ServerStatusSerializer(data=request.data)
 
     if serializer.is_valid():
         try:

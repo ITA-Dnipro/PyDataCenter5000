@@ -1,8 +1,13 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import (CommandHistoryViewSet, create_command,
-                    fetch_pending_command, submit_command_result)
+from .views import (
+    CommandHistoryViewSet,
+    create_command,
+    fetch_pending_command,
+    submit_command_result,
+    dashboard_view
+)
 
 app_name = 'monitoring'
 
@@ -22,4 +27,9 @@ urlpatterns = [
         submit_command_result,
         name='submit_command_result'
     ),
+    path(
+        'dashboard/',
+        dashboard_view,
+        name='dashboard'
+    )
 ]

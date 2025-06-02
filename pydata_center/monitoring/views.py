@@ -1,12 +1,11 @@
-from datetime import timedelta
-
 from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import CommandHistory, ServerStatus
+from .helpers import get_latest_agents
+from .models import CommandHistory
 from .serializers import CommandHistorySerializer
 
 
@@ -125,25 +124,7 @@ def submit_command_result(request):
 
 
 def dashboard_view(request):
-    cutoff_time = now() - timedelta(seconds=60)
-
-    latest_statuses = (
-        ServerStatus.objects
-        .order_by('hostname', '-timestamp')
-        .distinct('hostname')
-    )
-
-    agents = []
-    for agent in latest_statuses:
-        is_offline = agent.timestamp < cutoff_time
-        agents.append({
-            'hostname': agent.hostname,
-            'ip': agent.ip,
-            'uptime': agent.uptime,
-            'timestamp': agent.timestamp,
-            'healthy': agent.healthy,
-            'offline': is_offline,
-        })
+    agents = get_latest_agents()
 
     return render(
         request,

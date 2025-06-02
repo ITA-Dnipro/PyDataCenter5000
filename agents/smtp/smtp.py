@@ -11,7 +11,6 @@ class SMTPAgent(ServerAgent):
         port=25,
         processes=None,
         interface=None,
-        controller_url=None,
         whitelist_commands=None,
     ):
         super(SMTPAgent, self).__init__(
@@ -19,6 +18,5 @@ class SMTPAgent(ServerAgent):
             port=port,
             processes=processes or ['postfix', 'exim', 'sendmail', 'master'],
             interface=interface,
-            controller_url=controller_url,
             whitelist_commands=whitelist_commands,
         )

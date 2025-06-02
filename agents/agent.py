@@ -59,13 +59,16 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    controller_url = None
+    api_prefix = 'api/'
+    whitelist_commands = []
+
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
         interface=None,
-        controller_url=None,
         whitelist_commands=None,
     ):
         self.server_name = server_name
@@ -73,10 +76,8 @@ class ServerAgent(object):
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
 
-        self.controller_url = controller_url
         self.whitelist_commands = (
-            whitelist_commands if whitelist_commands is not None
-            else ['uptime', 'df -h', 'ls', 'whoami']
+            whitelist_commands if whitelist_commands is not None else []
         )
 
         # Init server metadata to prevent AttributeError and to indicate
@@ -193,15 +194,6 @@ class ServerAgent(object):
                 config,
                 'server',
                 'interface',
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-
-            self.controller_url = get_config_option(
-                config,
-                'controller',
-                'url',
-                self.controller_url,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
@@ -397,7 +389,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_controller(self, timeout=5, api_key=None):
+    def status_to_controller(self, timeout=5, api_key=None, api_prefix='api/'):
         """
         Send system's metadata to controller.
 
@@ -446,3 +438,18 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO,
                 )
+
+    def fetch_command_from_controller(
+        self, timeout=5, api_key=None, api_prefix='api/'
+    ):
+        if not self.controller_url or not self.hostname:
+            maybe_log_message(
+                (
+                    "Couldn't fetch controller command: controller URL or "
+                    'hostname not set'
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            return

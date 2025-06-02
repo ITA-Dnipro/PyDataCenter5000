@@ -21,3 +21,18 @@ tr.offline {
 h1 {
   margin-bottom: 1rem;
 }
+
+.status-dot {
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green {
+  background-color: #4CAF50;
+}
+
+.status-dot.red {
+  background-color: #F44336;
+}

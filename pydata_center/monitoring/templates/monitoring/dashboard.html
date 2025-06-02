@@ -30,10 +30,11 @@
           <td>{{ agent.uptime }}</td>
           <td>{{ agent.timestamp|date:"Y-m-d H:i:s" }}</td>
           <td>
+            <span class="status-dot {% if agent.offline %}red{% else %}green{% endif %}"></span>
             {% if agent.offline %}
-              ❌ Offline
+              Offline
             {% else %}
-              ✅ Online
+              Online
             {% endif %}
           </td>
         </tr>

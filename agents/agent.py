@@ -493,7 +493,7 @@ class ServerAgent(object):
                 )
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
-                'POST request to controller failed due to error: ' % str(e),
+                'POST request to controller failed due to error: %s' % str(e),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True,

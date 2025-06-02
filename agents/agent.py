@@ -3,11 +3,11 @@ import datetime
 import json
 import logging
 import logging.config
+import os
 import platform
 import socket
 import subprocess
 import time
-import os
 from collections import Sequence
 
 import ConfigParser

@@ -211,3 +211,86 @@ def test_status_to_controller_http_error():
     assert msg in contents, (
         'Expected %s in logs, got:\n%s' % (msg, contents)
     )
+
+
+def test_post_data_success(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    class MockResponse:
+        def getcode(self):
+            return 200
+
+        def read(self):
+            return b'Success'
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(urllib2, 'urlopen', lambda req: MockResponse())
+
+    result = agent.post_data('http://mock/api', {'test': 'data'})
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert result == b'Success'
+    assert 'POST request status: 200' in contents
+    assert 'Success on attempt 1' in contents
+
+
+def test_post_data_retry(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    call_count = {'count': 0}
+
+    def mock_urlopen(req):
+        call_count['count'] += 1
+        if call_count['count'] < 2:
+            raise urllib2.URLError('Temporary failure')
+        class MockResponse:
+            def getcode(self):
+                return 200
+            def read(self):
+                return b'Retry Success'
+            def close(self):
+                pass
+        return MockResponse()
+
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
+    result = agent.post_data(
+        'http://mock/api', {'retry': 'test'}, max_retries=3, delay=0
+    )
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert call_count['count'] == 2
+    assert result == b'Retry Success'
+    assert 'Retrying in 0 seconds...' in contents
+    assert 'Success on attempt 2' in contents
+
+
+def test_post_data_max_retries_fail(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    monkeypatch.setattr(
+        urllib2,
+        'urlopen',
+        lambda req: (_ for _ in ()).throw(urllib2.URLError('Permanent error'))
+    )
+
+    with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):
+        agent.post_data(
+            'http://mock/api', {'fail': True}, max_retries=3, delay=0
+        )
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert 'All 3 attempts failed. Data not sent.' in contents
+    assert 'Permanent error' in contents
+

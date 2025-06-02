@@ -32,49 +32,6 @@ def log_error(msg):
         f.write('[ERROR] %s - %s\n' % (timestamp, msg))
 
 
-def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
-    """
-    Sends a POST request with JSON data to the specified URL
-    with retry logic. Retries up to `max_retries` times with `delay`
-    seconds between attempts. Logs all attempts and failures.
-    """
-    headers = {'Content-Type': 'application/json'}
-    payload = json.dumps(data).encode('utf-8')
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            log_error(
-                '[Attempt %d] Sending data to %s' % (attempt, url)
-            )
-            request = urllib2.Request(
-                url, data=payload, headers=headers
-            )
-            response = urllib2.urlopen(request)
-            result = response.read()
-            response.close()
-            log_error(
-                'Success on attempt %d: %s' % (attempt, result)
-            )
-            return result
-        except urllib2.URLError as e:
-            log_error(
-                'Attempt %d failed: %s' % (attempt, e)
-            )
-            if attempt < max_retries:
-                log_error(
-                    'Retrying in %d seconds...' % delay
-                )
-                time.sleep(delay * attempt)
-            else:
-                log_error(
-                    'All %d attempts failed. Data not sent. '
-                    'Last error: %s' % (max_retries, e)
-                )
-                raise RuntimeError(
-                    'POST failed after %d attempts' % max_retries
-                )
-
-
 def get_ip_from_interface(interface):
     """
     Attempt getting server's primary IP address associated with a given
@@ -439,6 +396,49 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
+    def post_data(self, url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
+        """
+        Sends a POST request with JSON data to the specified URL
+        with retry logic. Retries up to `max_retries` times with `delay`
+        seconds between attempts. Logs all attempts and failures.
+        """
+        headers = {'Content-Type': 'application/json'}
+        payload = json.dumps(data).encode('utf-8')
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                log_error(
+                    '[Attempt %d] Sending data to %s' % (attempt, url)
+                )
+                request = urllib2.Request(
+                    url, data=payload, headers=headers
+                )
+                response = urllib2.urlopen(request)
+                result = response.read()
+                response.close()
+                log_error(
+                    'Success on attempt %d: %s' % (attempt, result)
+                )
+                return result
+            except urllib2.URLError as e:
+                log_error(
+                    'Attempt %d failed: %s' % (attempt, e)
+                )
+                if attempt < max_retries:
+                    log_error(
+                        'Retrying in %d seconds...' % delay
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    log_error(
+                        'All %d attempts failed. Data not sent. '
+                        'Last error: %s' % (max_retries, e)
+                    )
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
+
     def status_to_controller(self, timeout=5, api_key=None):
         """
         Send system's metadata to controller.
@@ -463,7 +463,7 @@ class ServerAgent(object):
             payload['api_key'] = api_key
 
         try:
-            result = post_data(self.controller_url, payload)
+            result = self.post_data(self.controller_url, payload)
             if result:
                 maybe_log_message(
                     'POST request to controller succeeded.',

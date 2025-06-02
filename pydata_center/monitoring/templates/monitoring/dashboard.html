@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Agent Dashboard{% endblock %}
+
+{% block head_extra %}
+  <meta http-equiv="refresh" content="60">
+  <link rel="stylesheet" href="{% static 'monitoring/css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+  <h1>Agent Dashboard</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Hostname</th>
+        <th>IP Address</th>
+        <th>Uptime (s)</th>
+        <th>Last Seen</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for agent in agents %}
+        <tr{% if agent.offline %} class="offline"{% endif %}>
+          <td>{{ agent.hostname }}</td>
+          <td>{{ agent.ip }}</td>
+          <td>{{ agent.uptime }}</td>
+          <td>{{ agent.timestamp }}</td>
+          <td>
+            {% if agent.offline %}
+              ❌ Offline
+            {% else %}
+              ✅ Online
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5">No agent data available.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -28,7 +28,7 @@
           <td>{{ agent.hostname }}</td>
           <td>{{ agent.ip }}</td>
           <td>{{ agent.uptime }}</td>
-          <td>{{ agent.timestamp }}</td>
+          <td>{{ agent.timestamp|date:"Y-m-d H:i:s" }}</td>
           <td>
             {% if agent.offline %}
               ❌ Offline

@@ -80,14 +80,7 @@ mkdir -p /python-build/src
 cd /python-build/src
 
 if ! "${PYTHON_DIR}/bin/python" --version > /dev/null 2>&1; then
-    mkdir -p python
-
-    if [ ! -f python/python.tar.gz ]; then
-        echo "[INFO] Downloading Python 2.6.9..."
-        python_url="https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz"
-        wget -O python/python.tar.gz ${python_url}
-        tar -C python --strip-components 1 -xzf python/python.tar.gz
-    fi
+    get_package_src_from_tar python "https://www.python.org/ftp/python/2.6.9/Python-2.6.9.tgz"
 
     cd python
 

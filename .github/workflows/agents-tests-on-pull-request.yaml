@@ -50,6 +50,6 @@ jobs:
           bash -c "
             cd /pydata/agents && \
             pip install -r requirements.txt && \
-            pip install pytest pytest-cov && \
+            pip install pytest pytest-cov==2.4.0 && \
             python -m pytest --cov=.
           "

@@ -79,7 +79,9 @@ class SMTPAgent(ServerAgent):
     def check_processes(self):
         try:
             import subprocess
-            output = subprocess.check_output(['ps', '-eo', 'comm'])
+            proc = subprocess.Popen(['ps', '-eo', 'comm'], stdout=subprocess.PIPE)
+            output, _ = proc.communicate()
+            output = output or ''  
 
             for p in self.processes:
                 if p in output.split():

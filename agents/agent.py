@@ -467,7 +467,6 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
-
             return
 
         payload_str = self.status_to_json(log=False)
@@ -492,6 +491,13 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     exc_info=True,
                 )
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
+            maybe_log_message(
+                f'POST request to controller failed due to error: {str(e)}',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),

@@ -58,7 +58,7 @@ if ! "${PYTHON_DIR}/bin/python" --version > /dev/null 2>&1; then
     fi
 
     ncores="$(grep ^processor /proc/cpuinfo 2>/dev/null | wc -l | xargs)"
-    ncores="${numcores#0}"
+    ncores="${ncores#0}"
 
     echo "[INFO] Building Python 2.6.9..."
     ./configure --prefix=${PYTHON_DIR}

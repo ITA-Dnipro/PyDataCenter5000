@@ -5,6 +5,17 @@ import ConfigParser
 from .logtools import maybe_log_message
 
 
+def parse_csv_list(value):
+    """Parse a comma-separated string into a list of strings."""
+    if not isinstance(value, (str, unicode)):
+        raise TypeError('Expected a string as input, got %s' % type(value))
+
+    if not value:
+        return []
+
+    return [elem.strip() for elem in value.split(',')]
+
+
 def get_config_option(
     config,
     section,

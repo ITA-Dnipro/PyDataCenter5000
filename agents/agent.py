@@ -13,7 +13,7 @@ import pkg_resources
 import psutil
 import urllib2
 
-from .utils.helpers import get_config_option
+from .utils.helpers import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
@@ -66,6 +66,7 @@ class ServerAgent(object):
         processes=None,
         interface=None,
         controller_url=None,
+        whitelist_commands=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -73,6 +74,10 @@ class ServerAgent(object):
         self.interface = interface
 
         self.controller_url = controller_url
+        self.whitelist_commands = (
+            whitelist_commands if whitelist_commands is not None
+            else ['uptime', 'df -h', 'ls', 'whoami']
+        )
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -181,9 +186,7 @@ class ServerAgent(object):
                 default=self.processes,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
-                cast=(
-                    lambda procs: [proc.strip() for proc in procs.split(',')]
-                ),
+                cast=parse_csv_list,
             )
 
             self.interface = get_config_option(
@@ -199,6 +202,15 @@ class ServerAgent(object):
                 'controller',
                 'url',
                 self.controller_url,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            self.whitelist_commands = get_config_option(
+                config,
+                'controller',
+                'whitelist_commands',
+                self.whitelist_commands,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )

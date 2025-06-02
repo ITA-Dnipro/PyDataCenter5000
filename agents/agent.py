@@ -23,10 +23,11 @@ log_config_path = pkg_resources.resource_filename(
 
 MAX_RETRIES = 3
 RETRY_DELAY = 5
+LOG_FILE = 'agent_log.txt'
 
 
 def log_error(msg):
-    with open('agent_log.txt', 'a') as f:
+    with open(LOG_FILE, 'a') as f:
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
         f.write('[ERROR] %s - %s\n' % (timestamp, msg))
 
@@ -63,11 +64,14 @@ def post_data(url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
                 log_error(
                     'Retrying in %d seconds...' % delay
                 )
-                time.sleep(delay)
+                time.sleep(delay * attempt)
             else:
                 log_error(
                     'All %d attempts failed. Data not sent. '
                     'Last error: %s' % (max_retries, e)
+                )
+                raise RuntimeError(
+                    'POST failed after %d attempts' % max_retries
                 )
 
 

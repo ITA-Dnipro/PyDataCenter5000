@@ -7,12 +7,16 @@ from fastapi import FastAPI
 app = FastAPI()
 
 
-@app.get("/")
+@app.get("/", 
+         summary="Root route", 
+         description="Returns a simple Hello World message")
 def read_root():
     return {"Hello": "World"}
 
 
-@app.get("/health")
+@app.get("/health", 
+         summary="Health check", 
+         description="Returns the health status of the API")
 def read_health():
     return {"status": "ok"}
 

@@ -20,6 +20,8 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
+PROTOCOLS = ('tcp', 'udp')
+
 
 def get_ip_from_interface(interface):
     """
@@ -59,24 +61,23 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    # Protocol for port check: 'tcp' or 'udp'
-    protocol = 'tcp'
-    # Optional UDP probe settings for subclasses
-    udp_probe_payload = b''
-    udp_probe_response_len = 0
-
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         controller_url=None,
     ):
         self.server_name = server_name
+
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        if protocol is not None:
+            self.protocol = protocol
 
         self.controller_url = controller_url
 
@@ -129,6 +130,22 @@ class ServerAgent(object):
                 )
             )
         self._processes = value
+
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
+
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
+
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
 
     def setup_logging(self, path=None):
         # Have each child dump logs inside their own subpackage by default
@@ -277,7 +294,7 @@ class ServerAgent(object):
             '%Y-%m-%d %H:%M:%S'
         )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -295,53 +312,54 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        if self.protocol.lower() == 'udp':
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                sock.settimeout(2)
-                payload = self.udp_probe_payload or b''
-                sock.sendto(payload, (self.ip, self.port))
-                # if a response length is specified, wait for reply
-                if self.udp_probe_response_len > 0:
-                    data, _ = sock.recvfrom(self.udp_probe_response_len)
-                    if data and len(data) >= self.udp_probe_response_len:
-                        return True
-                    self.logger.warning(
-                        'Received unexpected UDP packet length %d', len(data)
-                    )
-                    return False
-                return True
-            except socket.timeout:
-                self.logger.warning(
-                    '%s UDP check to %s:%d timed out',
-                    self.server_name, self.ip, self.port
-                )
-                return False
-            except socket.error as e:
-                self.logger.warning(
-                    '%s UDP check failed for %s:%d - %s',
-                    self.server_name, self.ip, self.port, e
-                )
-                return False
-            finally:
-                sock.close()
-
-        # Default TCP behavior
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.settimeout(2)
-            sock.connect((self.ip, self.port))
-            return True
-        except socket.error as e:
-            self.logger.warning(
-                '%s TCP port check failed for %s:%d - %s',
-                self.server_name, self.ip, self.port, e
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
             )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
+
+        try:
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+                    return False
+
+            return True
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
         finally:
-            sock.close()
+            s.close()
 
-    def _is_process_running(self):
+    def is_process_running(self):
         try:
             output = subprocess.Popen(
                 ['ps', 'aux'], stdout=subprocess.PIPE
@@ -362,14 +380,15 @@ class ServerAgent(object):
 
             return False
 
-    def service_healthy(self):
+    @abc.abstractmethod
+    def service_healthy(self, *args, **kwargs):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        pass
 
-    def status_to_dict(self):
+    def status_to_dict(self, *args, **kwargs):
         return {
             'os': self.os_type,
             'hostname': self.hostname,
@@ -377,10 +396,10 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(),
+            'healthy': self.service_healthy(*args, **kwargs),
         }
 
-    def status_to_json(self, log=False):
+    def status_to_json(self, log=False, *args, **kwargs):
         """
         Dump host metadata to json file.
 
@@ -392,7 +411,9 @@ class ServerAgent(object):
             str: JSON status string.
         """
         try:
-            status = json.dumps(self.status_to_dict(), default=str)
+            status = json.dumps(
+                self.status_to_dict(*args, **kwargs), default=str
+            )
 
             if log:
                 try:
@@ -415,9 +436,9 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_txt(self):
+    def status_to_txt(self, *args, **kwargs):
         """Dump host metadata to txt file as key-value pairs."""
-        data = self.status_to_dict()
+        data = self.status_to_dict(*args, **kwargs)
 
         try:
             for k, v in data.items():
@@ -429,7 +450,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_controller(self, timeout=5, api_key=None):
+    def status_to_controller(self, timeout=5, api_key=None, *args, **kwargs):
         """
         Send system's metadata to controller.
 
@@ -446,7 +467,7 @@ class ServerAgent(object):
 
             return
 
-        payload = self.status_to_json(log=False)
+        payload = self.status_to_json(log=False, *args, **kwargs)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:

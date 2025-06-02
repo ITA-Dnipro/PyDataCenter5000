@@ -133,15 +133,16 @@ class ServerAgent(object):
     def setup_logging(self, path=None):
         # Have each child dump logs inside their own subpackage by default
         path = (
-            path
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'logs/agent.log'
-            )
+            path or pkg_resources.
+            resource_filename(self.__class__.__module__, 'logs/agent.log')
         )
 
         logging.config.fileConfig(
             log_config_path,
-            defaults={'agent_name': self.server_name, 'log_path': path},
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': path
+            },
         )
 
         self.logger = logging.getLogger(self.server_name)
@@ -152,10 +153,8 @@ class ServerAgent(object):
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
         filename = (
-            filename
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'config.ini'
-            )
+            filename or pkg_resources.
+            resource_filename(self.__class__.__module__, 'config.ini')
         )
 
         config = ConfigParser.ConfigParser()
@@ -189,9 +188,7 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=(
-                    lambda procs: [
-                        proc.strip() for proc in procs.split(',')
-                    ]
+                    lambda procs: [proc.strip() for proc in procs.split(',')]
                 ),
             )
 
@@ -273,9 +270,8 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-        self.timestamp = datetime.datetime.utcnow().strftime(
-            '%Y-%m-%d %H:%M:%S'
-        )
+        self.timestamp = datetime.datetime.utcnow(
+        ).strftime('%Y-%m-%d %H:%M:%S')
 
     def _is_port_open(self):
         """
@@ -343,9 +339,8 @@ class ServerAgent(object):
 
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(
-                ['ps', 'aux'], stdout=subprocess.PIPE
-            ).communicate()[0]
+            output = subprocess.Popen(['ps', 'aux'],
+                                      stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')

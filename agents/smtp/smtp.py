@@ -4,7 +4,9 @@ from ..agent import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
-
+    """
+    SMTPAgent handles SMTP server configuration and logging setup.
+    """
     def __init__(
         self,
         server_name='smtp',

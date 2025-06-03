@@ -9,6 +9,27 @@ import urllib2
 
 from agents.agent import ServerAgent
 
+HTTP_ERROR_OUTPUT = (
+    urllib2.HTTPError(
+        url='http://mock/api/dest/',
+        code=500,
+        msg='Internal Server Error',
+        hdrs=None,
+        fp=None,
+    ),
+    'HTTP Error 500: Internal Server Error',
+)
+URL_ERROR_OUTPUT = (
+    urllib2.URLError('Connection refused'),
+    '<urlopen error Connection refused>',
+)
+TIMEOUT_ERROR_OUTPUT = (
+    socket.timeout('HTTP request timed out'), 'HTTP request timed out'
+)
+UNEXPECTED_ERROR_OUTPUT = (
+    Exception('Unexpected error occurred'), 'Unexpected error occurred'
+)
+
 
 class MockAgent(ServerAgent):
 
@@ -161,27 +182,12 @@ def test_status_to_controller_error(monkeypatch):
     Test that the HTTP, URL and timeout failures at POST request to
     controller are properly handled and logged.
     """
-    output = [
-        (
-            urllib2.HTTPError(
-                url='http://mock/api/status/',
-                code=500,
-                msg='Internal Server Error',
-                hdrs=None,
-                fp=None,
-            ),
-            'HTTP Error 500: Internal Server Error',
-        ),
-        (
-            urllib2.URLError('Connection refused'),
-            '<urlopen error Connection refused>',
-        ),
-        (
-            socket.timeout('HTTP request timed out'), 'HTTP request timed out'
-        ),
-    ]
-
-    for error, msg in output:
+    for error, msg in [
+        HTTP_ERROR_OUTPUT,
+        URL_ERROR_OUTPUT,
+        TIMEOUT_ERROR_OUTPUT,
+        UNEXPECTED_ERROR_OUTPUT,
+    ]:
         def mock_urlopen(request, timeout=5):
             raise error
 
@@ -348,6 +354,10 @@ def test_fetch_command_from_controller_success(monkeypatch):
 
 
 def test_fetch_command_from_controller_missing_data():
+    """
+    Test proper handling and logging of missing data
+    (hostname or controller URL) in fetch_command_from_controller.
+    """
     parameters = [(None, 'mock_server'), ('http://mock/', None)]
 
     for controller_url, hostname in parameters:
@@ -371,3 +381,46 @@ def test_fetch_command_from_controller_missing_data():
         assert msg in contents, (
             'Expected %s in logs, got:\n%s' % (msg, contents)
         )
+
+
+def test_fetch_command_from_controller_error(monkeypatch):
+    """
+    Test proper handling and logging of errors in
+    fetch_command_from_controller.
+    """
+    for error, msg in [
+        HTTP_ERROR_OUTPUT,
+        URL_ERROR_OUTPUT,
+        TIMEOUT_ERROR_OUTPUT,
+        (
+            ValueError(
+                'Data received from controller is not a valid JSON string'
+            ),
+            'Data received from controller is not a valid JSON string',
+        ),
+        UNEXPECTED_ERROR_OUTPUT,
+    ]:
+        def mock_urlopen(request, timeout=5):
+            raise error
+
+        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
+        agent = MockAgent(port=12345)
+        agent.setup_logging()
+
+        agent.collect_server_metadata()
+
+        agent.hostname = 'mock_server'
+        agent.controller_url = (
+            'http://mock/api/command/?hostname=%s' % agent.hostname
+        )
+
+        agent.fetch_command_from_controller()
+
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % msg, contents
+            )

@@ -11,7 +11,7 @@ class WebAgent(ServerAgent):
         port=8000,
         processes=None,
         interface=None,
-        controller_url=None,
+        whitelist_commands=None,
     ):
         if port is None and 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
@@ -23,5 +23,5 @@ class WebAgent(ServerAgent):
             port=port,
             processes=processes or ['uvicorn'],
             interface=interface,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
         )

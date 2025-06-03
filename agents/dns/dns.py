@@ -9,12 +9,12 @@ class DNSAgent(ServerAgent):
         port=53,
         processes=None,
         interface=None,
-        controller_url=None,
+        whitelist_commands=None,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
             port=port,
             processes=processes or ['named', 'bind9'],
             interface=interface,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
         )

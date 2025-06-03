@@ -141,6 +141,7 @@ env.bak/
 venv.bak/
 .vagrant
 !env.*.example
+pyproject.toml
 
 
 # Spyder project settings

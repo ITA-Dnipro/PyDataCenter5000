@@ -1,9 +1,9 @@
+import json
 import os
 import socket
 import tempfile
 import types
 
-import mock
 import pytest
 import urllib2
 
@@ -311,46 +311,52 @@ def test_fetch_command_from_controller_success(monkeypatch):
     Test that succesful GET request to controller is properly handled
     and logged.
     """
-    class MockResponse(object):
-        def read(self):
-            return b'''{
-                "hostname": "mock_server",
-                "command": "uptime",
-                "result": null,
-                "status": "pending",
-                "timestamp": null
-            }'''
+    commands = [
+        {
+            'hostname': 'mock_server',
+            'command': 'uptime',
+            'result': None,
+            'status': 'pending',
+            'timestamp': None,
+        },
+        None,
+    ]
+    codes = [200, 204]
 
-        def close(self):
-            pass
+    for command, code in zip(commands, codes):
+        class MockResponse(object):
+            def getcode(self):
+                return code
 
-    monkeypatch.setattr(
-        urllib2, 'urlopen', lambda req, timeout: MockResponse()
-    )
+            def read(self):
+                return json.dumps(command)
 
-    agent = MockAgent(port=12345)
-    agent.setup_logging()
+            def close(self):
+                pass
 
-    agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+        monkeypatch.setattr(
+            urllib2, 'urlopen', lambda req, timeout: MockResponse()
+        )
 
-    result = agent.fetch_command_from_controller()
+        agent = MockAgent(port=12345)
+        agent.setup_logging()
 
-    assert result == {
-        'hostname': agent.hostname,
-        'command': 'uptime',
-        'result': None,
-        'status': 'pending',
-        'timestamp': None,
-    }, 'Expected command dict, got %r' % result
+        agent.hostname = 'mock_server'
+        agent.controller_url = 'http://mock/'
 
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
+        result = agent.fetch_command_from_controller()
 
-    msg = 'GET request to controller succeded.'
+        assert result == command, 'Expected command dict, got %r' % result
 
-    assert msg in contents, 'Expected %s in logs, got:\n%s' % (msg, contents)
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        msg = 'GET request to controller succeded with status: %s' % code
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (msg, contents)
+        )
 
 
 def test_fetch_command_from_controller_missing_data():
@@ -392,12 +398,6 @@ def test_fetch_command_from_controller_error(monkeypatch):
         HTTP_ERROR_OUTPUT,
         URL_ERROR_OUTPUT,
         TIMEOUT_ERROR_OUTPUT,
-        (
-            ValueError(
-                'Data received from controller is not a valid JSON string'
-            ),
-            'Data received from controller is not a valid JSON string',
-        ),
         UNEXPECTED_ERROR_OUTPUT,
     ]:
         def mock_urlopen(request, timeout=5):

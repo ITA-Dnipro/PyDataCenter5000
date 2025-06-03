@@ -1,11 +1,50 @@
 import argparse
+import configparser
+import os
+
+import requests
+
+config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
+config = configparser.ConfigParser()
+config.read(config_path)
+
+id_width = int(config['display']['id_width'])
+hostname_width = int(config['display']['hostname_width'])
+server_name_width = int(config['display']['server_name_width'])
+
+default_interval = int(config['polling']['interval'])
+default_timeout = int(config['polling']['timeout'])
 
 
-def list_agents():
+def truncate(text, max_length):
+    """Truncate text to fit max_length with ellipsis if needed."""
+    return text if len(text) <= max_length else text[:max_length - 3] + '...'
+
+
+def list_agents(url: str = None):
     """
-    List active agents.
+    List active agents as a formatted table, truncating long values.
     """
-    pass
+    print('Available agents:')
+    print(
+        f"{'ID':<{id_width}} {'Hostname':<{hostname_width}} "
+        f"{'Server Name':<{server_name_width}}"
+    )
+    print('-' * (id_width + hostname_width + server_name_width + 2))
+
+    # TODO: replace with actual url
+    response = requests.get(url)
+    agents = response.json()
+
+    for agent in agents:
+        id_str = str(agent['id'])
+        hostname = truncate(agent['hostname'], hostname_width)
+        server_name = truncate(agent.get('server_name', ''), server_name_width)
+
+        print(
+            f'{id_str:<{id_width}} {hostname:<{hostname_width}} '
+            f'{server_name:<{server_name_width}}'
+        )
 
 
 def send_command(agent_hostname, command):
@@ -15,9 +54,11 @@ def send_command(agent_hostname, command):
     pass
 
 
-def poll_result(command_id, interval=2, timeout=30):
+def poll_result(
+        command_id, interval=default_interval, timeout=default_timeout
+):
     """
-    Poll for the result from poll for the result from 'submit_command_result'
+    Poll for the result from 'submit_command_result'
     """
     pass
 

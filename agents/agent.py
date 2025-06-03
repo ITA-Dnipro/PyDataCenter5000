@@ -569,7 +569,16 @@ class ServerAgent(object):
             data = response.read()
             response.close()
 
-            return json.loads(data)
+            data = json.loads(data)
+
+            maybe_log_message(
+                'GET request to controller succeded.',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO,
+            )
+
+            return data
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
                 (

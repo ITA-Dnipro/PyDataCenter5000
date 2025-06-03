@@ -153,7 +153,7 @@ def test_status_to_controller_missing_url():
 
     msg = "Couldn't send status update: controller URL is not set"
 
-    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
+    assert msg in contents, 'Expected %s in logs, got:\n%s' % (msg, contents)
 
 
 def test_status_to_controller_error(monkeypatch):
@@ -228,6 +228,7 @@ def test_post_data_success(monkeypatch):
     result = agent.post_data('http://mock/api', {'test': 'data'})
 
     with open(agent.logfile.name) as f:
+        f.seek(0)
         contents = f.read()
 
     assert result == b'Success'
@@ -246,7 +247,7 @@ def test_post_data_retry(monkeypatch):
         if call_count['count'] < 2:
             raise urllib2.URLError('Temporary failure')
 
-        class MockResponse:
+        class MockResponse(object):
 
             def getcode(self):
                 return 200
@@ -292,7 +293,55 @@ def test_post_data_max_retries_fail(monkeypatch):
         )
 
     with open(agent.logfile.name) as f:
+        f.seek(0)
         contents = f.read()
 
     assert 'All 3 attempts failed. Data not sent.' in contents
     assert 'Permanent error' in contents
+
+
+def test_fetch_command_from_controller_success(monkeypatch):
+    """
+    Test that succesful GET request to controller is properly handled
+    and logged.
+    """
+    class MockResponse(object):
+        def read(self):
+            return b'''{
+                "hostname": "mock_server",
+                "command": "uptime",
+                "result": null,
+                "status": "pending",
+                "timestamp": null
+            }'''
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        urllib2, 'urlopen', lambda req, timeout: MockResponse()
+    )
+
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+
+    result = agent.fetch_command_from_controller()
+
+    assert result == {
+        'hostname': agent.hostname,
+        'command': 'uptime',
+        'result': None,
+        'status': 'pending',
+        'timestamp': None,
+    }, 'Expected command dict, got %r' % result
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'GET request to controller succeded.'
+
+    assert msg in contents, 'Expected %s in logs, got:\n%s' % (msg, contents)

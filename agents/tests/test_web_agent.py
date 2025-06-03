@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import pytest
 from mock import MagicMock, patch
@@ -10,7 +11,17 @@ from agents.web.web import WebAgent
 def web_agent():
     """Fixture to create a WebAgent instance with required environment setup"""
     os.environ['PORT'] = '8000'
-    yield WebAgent()
+
+    logfile = tempfile.NamedTemporaryFile(delete=False)
+    logfile.close()
+
+    agent = WebAgent()
+    agent.setup_logging(logfile.name)
+
+    yield agent
+
+    if os.path.exists(logfile.name):
+        os.remove(logfile.name)
 
 
 def test_to_dict_format(web_agent):

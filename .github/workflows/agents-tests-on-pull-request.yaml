@@ -1,0 +1,62 @@
+name: agents tests
+
+on:
+  pull_request:
+    paths:
+      - agents/**
+      - .github/**
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - agents/**
+      - .github/**
+    branches:
+      - main
+      - develop
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [2.6, 2.7]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Agents Unit Tests (Python 2.6 - Custom Docker Image)
+        if: matrix.python-version == '2.6'
+        run: |
+          docker run --rm \
+          -v "$PWD":/pydata \
+          ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
+          bash -c "cd /pydata && python -m pytest agents"
+
+      - name: Cache Pip Environment
+        if: matrix.python-version == '2.7'
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
+        if: matrix.python-version == '2.7'
+        run: |
+          docker run --rm \
+          -v "$PWD":/pydata \
+          python:2.7 \
+          bash -c "
+            cd /pydata/agents && \
+            pip install -r requirements.txt && \
+            pip install pytest pytest-cov==2.4.0 && \
+            python -m pytest --cov=. --cov-report=xml:/pydata/coverage.xml
+          "
+
+      - name: Upload Coverage Report to Codecov
+        if: matrix.python-version == '2.7'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml

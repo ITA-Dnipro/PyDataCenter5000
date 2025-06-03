@@ -66,8 +66,7 @@ def test_status_to_json_type_error():
     failure.
     """
 
-    class MockUnserializableParameter:
-
+    class MockUnserializableParameter(object):
         def __str__(self):
             raise TypeError("Can't serialize me")
 
@@ -112,6 +111,7 @@ def test_status_to_controller_success():
 
     agent = MockAgent(port=12345)
     agent.setup_logging()
+
     agent.collect_server_metadata()
 
     agent.controller_url = 'http://mock/api/status/'
@@ -149,7 +149,7 @@ def test_status_to_controller_missing_url():
     assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
-def test_status_to_controller_error():
+def test_status_to_controller_http_error():
     """
     Test that the HTTP and URL failures of POST request to controller are
     properly handled and logged.
@@ -185,23 +185,23 @@ def test_status_to_controller_error():
     ]
 
     for error, msg in output:
-
         def mock_urlopen(request, timeout=5):
             raise error
 
-        agent = MockAgent(port=12345)
-        agent.setup_logging()
-        agent.collect_server_metadata()
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
 
-        agent.controller_url = 'http://mock/api/status/'
+    agent.collect_server_metadata()
 
-        with mock.patch('urllib2.urlopen', mock_urlopen):
-            agent.status_to_controller()
+    agent.controller_url = 'http://mock/api/status/'
 
-        with open(agent.logfile.name, 'r') as f:
-            f.seek(0)
-            contents = f.read()
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.status_to_controller()
 
-        assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
-        )
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )

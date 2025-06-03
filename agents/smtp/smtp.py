@@ -1,9 +1,8 @@
-from __future__ import print_function
-from utils.logtools import maybe_log_message
 import socket
-import pkg_resources
 
-from agent.agent import ServerAgent
+from ..agent import ServerAgent
+from ..utils.logtools import maybe_log_message
+
 
 class SMTPAgent(ServerAgent):
     DEFAULT_PROCESSES = ['postfix', 'exim', 'sendmail', 'master']
@@ -54,17 +53,16 @@ class SMTPAgent(ServerAgent):
 
     def check_port(self):
         return self._is_port_open()
-        
 
     def check_processes(self):
         return self._is_process_running()
-        
+
     def service_healthy(self):
         port_ok = self.check_port()
         processes_ok = self.check_processes()
         banner = self.check_banner()
         return port_ok and processes_ok and bool(banner)
-    
+
     def status_to_dict(self):
         data = super(SMTPAgent, self).status_to_dict()
         banner = self.check_banner()

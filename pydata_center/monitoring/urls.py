@@ -9,9 +9,8 @@ app_name = 'monitoring'
 
 router = DefaultRouter()
 router.register(r'commands', CommandHistoryViewSet)
-
 urlpatterns = [
-    path('server/status/', receive_status, name='receive_status'),
+    path('status/', receive_status, name='receive_status'),
     path('', include(router.urls)),
     path('command/', create_command, name='create_command'),
     path(

@@ -1,21 +1,9 @@
-from __future__ import print_function  # compatibility with hooks
-import datetime
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s'
-)
-import json
+from __future__ import print_function
+from utils.logtools import maybe_log_message
 import socket
-import sys
-# argparse isn't available in Python2.6,
-# used optparse for CLI-arguments instead
-from optparse import OptionParser
-
 import pkg_resources
 
-from ..agent import ServerAgent
-
+from agent.agent import ServerAgent
 
 class SMTPAgent(ServerAgent):
     DEFAULT_PROCESSES = ['postfix', 'exim', 'sendmail', 'master']
@@ -40,118 +28,48 @@ class SMTPAgent(ServerAgent):
             interface=interface,
             controller_url=controller_url,
         )
+        self.setup_logging()
 
-    def check_banner(self, host='127.0.0.1'):
-        sock = None
+    def collect_server_metadata(self):
+        return super(SMTPAgent, self).collect_server_metadata()
+
+    def check_banner(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(8)
+
+        banner = ''
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(8)
-            sock.connect(
-                (host, self.port)
+            sock.connect((self.ip, self.port))
+            banner = sock.recv(1024)
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Banner check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
             )
-            try:
-                banner = sock.recv(1024)
-            except socket.timeout:
-                banner = ''
+        finally:
             sock.close()
 
-            return {
-                'status': 'ok' if banner else 'no banner',
-                'banner': banner.strip() if banner else None
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'error': str(e)
-            }
+        return banner.strip() if banner else ''
 
     def check_port(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.settimeout(1)
-            s.connect(('localhost', self.port))
-            s.close()
-            return True
-        except Exception as e:
-            logging.error("check_port failed: %s", str(e))
-            return False
+        return self._is_port_open()
+        
 
     def check_processes(self):
-        try:
-            import subprocess
-            proc = subprocess.Popen(['ps', '-eo', 'comm'], stdout=subprocess.PIPE)
-            output, _ = proc.communicate()
-            output = output or ''  
-
-            for p in self.processes:
-                if p in output.split():
-                    return True
-            return False
-        except Exception as e:
-            logging.error("check_processes failed: %s", str(e))
-            return False
-
-    def generate_health_report(self, host='localhost'):
-        """
-        Aggregates the results
-        of all checks into a
-        single health report dictionary.
-        """
-        port_status = self.check_port()
-        process_status = self.check_processes()
-        banner_info = self.check_banner(host)
-
-        report = {
-            'timestamp': datetime.datetime.now().isoformat(),
-            'server': self.server_name,
-            'host': host,
-            'port': self.port,
-            'port_open': port_status,
-            'process_running': process_status,
-            'banner_check': banner_info
+        return self._is_process_running()
+        
+    def service_healthy(self):
+        port_ok = self.check_port()
+        processes_ok = self.check_processes()
+        banner = self.check_banner()
+        return port_ok and processes_ok and bool(banner)
+    
+    def status_to_dict(self):
+        data = super(SMTPAgent, self).status_to_dict()
+        banner = self.check_banner()
+        data['banner_check'] = {
+            'status': 'ok' if banner else 'no banner',
+            'banner': banner if banner else None
         }
-
-        return report
-
-
-def main():
-    parser = OptionParser()
-    parser.add_option(
-        '--host', dest='host',
-        default='127.0.0.1',
-        help='SMTP server host'
-    )
-    parser.add_option(
-        '--port', dest='port',
-        type='int', default=25,
-        help='SMTP port'
-    )
-    parser.add_option(
-        '--controller-url',
-        dest='controller_url',
-        help='Controller URL'
-    )
-    parser.add_option(
-        '--processes', dest='processes',
-        help='Comma-separated list of processes'
-    )
-
-    (options, args) = parser.parse_args()
-
-    # convert process string to list
-    processes = options.processes.split(',') if options.processes else None
-
-    # initialize agent with parsed options
-    agent = SMTPAgent(
-        port=options.port,
-        processes=processes,
-        controller_url=options.controller_url
-    )
-
-    # generate & print health report
-    report = agent.generate_health_report(host=options.host)
-    print(json.dumps(report, indent=2))
-
-
-if __name__ == '__main__':
-    main()
+        return data

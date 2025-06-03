@@ -18,6 +18,7 @@
         <th>IP Address</th>
         <th>Uptime (s)</th>
         <th>Last Seen</th>
+        <th>Healthy</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -29,6 +30,10 @@
           <td>{{ agent.ip }}</td>
           <td>{{ agent.uptime }}</td>
           <td>{{ agent.timestamp|date:"Y-m-d H:i:s" }}</td>
+          <td>
+            <span class="status-dot {% if agent.healthy %}green{% else %}red{% endif %}"></span>
+            {{ agent.healthy }}
+          </td>
           <td>
             <span class="status-dot {% if agent.offline %}red{% else %}green{% endif %}"></span>
             {% if agent.offline %}

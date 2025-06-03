@@ -198,14 +198,17 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-            self.whitelist_commands = get_config_option(
+            whitelist_commands = get_config_option(
                 config,
                 'controller',
                 'whitelist_commands',
-                self.whitelist_commands,
+                [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
+            # Add commands to the list of globally allowed commands.
+            if whitelist_commands:
+                self.whitelist_commands.extend(whitelist_commands)
 
     def collect_server_metadata(self):
         """

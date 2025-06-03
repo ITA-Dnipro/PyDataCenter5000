@@ -84,14 +84,13 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
         return queryset
 
-
-@api_view(['POST'])
-def create_command(request):
-    serializer = CommandHistorySerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save(status='pending')  # set default status
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data['status'] = 'pending'
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

@@ -12,7 +12,7 @@ class NTPAgent(ServerAgent):
         server_name='ntp',
         port=123,
         processes=None,
-        interface=None,
+        interface='enp0s3',
         controller_url=None,
     ):
         super(NTPAgent, self).__init__(

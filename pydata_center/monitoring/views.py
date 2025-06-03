@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -42,6 +43,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_command(request):
     serializer = CommandHistorySerializer(data=request.data)
     if serializer.is_valid():
@@ -57,6 +59,7 @@ def create_command(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def fetch_pending_command(request):
     hostname = request.query_params.get('hostname')
 
@@ -81,6 +84,7 @@ def fetch_pending_command(request):
 
 
 @api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
 def submit_command_result(request):
     command_id = request.data.get('id')
     if not command_id:

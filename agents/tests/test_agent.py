@@ -17,11 +17,11 @@ class MockAgent(ServerAgent):
         server_name='mock',
         port=None,
         processes=None,
-        controller_url=None,
-        config_file=None,
+        interface=None,
+        whitelist_commands=None,
     ):
         super(MockAgent, self).__init__(
-            server_name, port, processes, controller_url, config_file
+            server_name, port, processes, interface, whitelist_commands
         )
 
     def setup_logging(self, path=None):
@@ -34,8 +34,8 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).setup_logging(path)
 
     def __del__(self):
-        if self.log_path:
-            os.remove(self.log_path)
+        if hasattr(self, 'logfile'):
+            os.remove(self.logfile.name)
 
 
 def test_type_checks_on_init():
@@ -94,7 +94,7 @@ def test_status_to_json_type_error():
     assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
-def test_status_to_controller_success():
+def test_status_to_controller_success(monkeypatch):
     """
     Test that successful POST request to controller is properly handled
     and logged.
@@ -115,6 +115,8 @@ def test_status_to_controller_success():
 
         return MockResponse()
 
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
     agent = MockAgent(port=12345)
     agent.setup_logging()
 
@@ -122,8 +124,7 @@ def test_status_to_controller_success():
 
     agent.controller_url = 'http://mock/api/status/'
 
-    with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.status_to_controller()
+    agent.status_to_controller()
 
     with open(agent.logfile.name, 'r') as f:
         f.seek(0)
@@ -155,10 +156,10 @@ def test_status_to_controller_missing_url():
     assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
-def test_status_to_controller_http_error():
+def test_status_to_controller_error(monkeypatch):
     """
-    Test that the HTTP and URL failures of POST request to controller are
-    properly handled and logged.
+    Test that the HTTP, URL and timeout failures at POST request to
+    controller are properly handled and logged.
     """
     output = [
         (
@@ -169,24 +170,14 @@ def test_status_to_controller_http_error():
                 hdrs=None,
                 fp=None,
             ),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP Error 500: Internal Server Error'
-            ),
+            'HTTP Error 500: Internal Server Error',
         ),
         (
             urllib2.URLError('Connection refused'),
-            (
-                'POST request to controller failed due to error: '
-                '<urlopen error Connection refused>'
-            ),
+            '<urlopen error Connection refused>',
         ),
         (
-            socket.timeout('HTTP request timed out'),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP request timed out'
-            ),
+            socket.timeout('HTTP request timed out'), 'HTTP request timed out'
         ),
     ]
 
@@ -194,23 +185,26 @@ def test_status_to_controller_http_error():
         def mock_urlopen(request, timeout=5):
             raise error
 
-    agent = MockAgent(port=12345)
-    agent.setup_logging()
+        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-    agent.collect_server_metadata()
+        agent = MockAgent(port=12345)
+        agent.setup_logging()
 
-    agent.controller_url = 'http://mock/api/status/'
+        agent.collect_server_metadata()
 
-    with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.status_to_controller()
+        agent.controller_url = 'http://mock/api/status/'
 
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
+        agent.status_to_controller(max_retries=1)
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (
+                'Attempt 1 failed: %s' % msg, contents
+            )
+        )
 
 
 def test_post_data_success(monkeypatch):

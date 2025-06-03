@@ -469,6 +469,10 @@ class ServerAgent(object):
                         level=logging.CRITICAL
                     )
 
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
     def status_to_controller(
         self, api_key=None, max_retries=3, delay=5, timeout=5
     ):

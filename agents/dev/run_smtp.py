@@ -1,8 +1,10 @@
 from __future__ import print_function
-from smtp.smtp import SMTPAgent
+
 import argparse
-import sys
 import json
+
+from agents.smtp.smtp import SMTPAgent
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -36,6 +38,7 @@ def main():
         processes=processes,
         controller_url=args.controller_url
     )
+    agent.setup_logging()
 
     agent.collect_server_metadata()
 

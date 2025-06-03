@@ -18,7 +18,7 @@ urlpatterns = [
         name='fetch_pending_command'
     ),
     path(
-        'api/command/result/',
+        'command/result/',
         submit_command_result,
         name='submit_command_result'
     ),

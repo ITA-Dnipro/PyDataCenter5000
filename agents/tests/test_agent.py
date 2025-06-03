@@ -345,3 +345,29 @@ def test_fetch_command_from_controller_success(monkeypatch):
     msg = 'GET request to controller succeded.'
 
     assert msg in contents, 'Expected %s in logs, got:\n%s' % (msg, contents)
+
+
+def test_fetch_command_from_controller_missing_data():
+    parameters = [(None, 'mock_server'), ('http://mock/', None)]
+
+    for controller_url, hostname in parameters:
+        agent = MockAgent(port=12345)
+        agent.setup_logging()
+
+        agent.hostname = hostname
+        agent.controller_url = controller_url
+
+        agent.fetch_command_from_controller()
+
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        msg = (
+            "Couldn't fetch controller command: controller URL or "
+            'hostname not set'
+        )
+
+        assert msg in contents, (
+            'Expected %s in logs, got:\n%s' % (msg, contents)
+        )

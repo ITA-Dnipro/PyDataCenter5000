@@ -22,14 +22,6 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
-config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
-config = ConfigParser.ConfigParser()
-config.read(config_path)
-
-MAX_RETRIES = config.getint('retry_settings', 'max_retries')
-RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
-HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
-
 
 def get_ip_from_interface(interface):
     """
@@ -407,13 +399,7 @@ class ServerAgent(object):
             )
 
     def post_data(
-        self,
-        url,
-        data,
-        api_key=None,
-        max_retries=MAX_RETRIES,
-        delay=RETRY_DELAY,
-        timeout=HTTP_TIMEOUT
+        self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
     ):
         """
         Sends a POST request with JSON data to the specified URL
@@ -488,11 +474,7 @@ class ServerAgent(object):
                     )
 
     def status_to_controller(
-        self,
-        api_key=None,
-        max_retries=MAX_RETRIES,
-        delay=RETRY_DELAY,
-        timeout=HTTP_TIMEOUT
+        self, api_key=None, max_retries=3, delay=5, timeout=5
     ):
         """
         Sends a POST request with JSON data to the specified URL, including
@@ -559,10 +541,7 @@ class ServerAgent(object):
             )
 
     def fetch_command_from_controller(
-        self,
-        api_key=None,
-        suffix='command/',
-        timeout=HTTP_TIMEOUT,
+        self, api_key=None, suffix='command/', timeout=5
     ):
         if not self.controller_url or not self.hostname:
             maybe_log_message(

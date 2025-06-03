@@ -6,6 +6,7 @@ import logging.config
 import platform
 import socket
 import subprocess
+import time
 from collections import Sequence
 
 import ConfigParser
@@ -86,6 +87,9 @@ class ServerAgent(object):
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
+        # Ensure log_path always exists as an attribute (tests expect it)
+        self.log_path = ''
+
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -165,6 +169,8 @@ class ServerAgent(object):
         self.fallback_logger = logging.getLogger(
             '_'.join([self.server_name, 'fallback'])
         )
+        # Record where the logfile actually is, so tests can delete it:
+        self.log_path = path
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
@@ -387,6 +393,58 @@ class ServerAgent(object):
         healthy.
         """
         pass
+
+    def post_data(
+            self,
+            url,
+            data,
+            max_retries=3,
+            delay=1
+    ):
+        """
+        Attempt to POST JSON-encoded `data` to `url`.
+        If urllib2.URLError is raised,
+        retry up to max_retries times
+        (waiting `delay` seconds between attempts).
+        On success, return the response body (bytes). On final failure, log and
+        raise RuntimeError("POST failed after N attempts").
+        """
+        headers = {'Content-Type': 'application/json'}
+        payload = json.dumps(data).encode('utf-8')
+        attempt = 0
+
+        while attempt < max_retries:
+            attempt += 1
+            try:
+                request = urllib2.Request(url, payload, headers)
+                response = urllib2.urlopen(request, timeout=10)
+                body = response.read()
+                status_code = response.getcode()
+                response.close()
+
+                # Log success
+                self.logger.info('Success on attempt %d' % attempt)
+                self.logger.info('POST request status: %d' % status_code)
+                return body
+
+            except urllib2.URLError as e:
+                err_text = str(e)
+                if attempt < max_retries:
+                    # Log retry message
+                    self.logger.info('Retrying in %d seconds...' % delay)
+                    time.sleep(delay)
+                else:
+                    # Final failure: log and then raise
+                    self.logger.info(
+                        'All %d attempts failed. Data not sent.' % max_retries
+                    )
+                    self.logger.info(err_text)
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
+        # Should never get here
+        raise RuntimeError('POST failed after %d attempts' % max_retries)
 
     def status_to_dict(self, *args, **kwargs):
         return {

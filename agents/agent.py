@@ -61,7 +61,7 @@ class ServerAgent(object):
 
     controller_url = None
     api_prefix = 'api/'
-    whitelist_commands = []
+    whitelist_commands = None
 
     def __init__(
         self,
@@ -75,6 +75,9 @@ class ServerAgent(object):
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        if self.whitelist_commands is None:
+            self.whitelist_commands = []
 
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)

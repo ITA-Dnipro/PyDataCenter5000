@@ -20,6 +20,5 @@ if global_config.sections():
         global_config,
         'controller',
         'whitelist_commands',
-        agent.ServerAgent.whitelist_commands,
         cast=helpers.parse_csv_list,
     )

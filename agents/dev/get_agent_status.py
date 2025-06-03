@@ -39,7 +39,7 @@ def main():
         else:
             agent_class = getattr(module, agent_name.upper() + 'Agent')
 
-        # 1) See if there's a config.ini under agents/<agent_name>/config.ini
+        # If there's a config.ini under agents/<agent_name>/config.ini
         config_path = os.path.join(
             os.path.dirname(__file__),
             agent_name,

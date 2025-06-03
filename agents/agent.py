@@ -444,7 +444,7 @@ class ServerAgent(object):
                 )
 
                 return result
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
                 maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
                     logger=self.logger,
@@ -467,9 +467,6 @@ class ServerAgent(object):
                         logger=self.logger,
                         fallback_logger=self.fallback_logger,
                         level=logging.CRITICAL
-                    )
-                    raise RuntimeError(
-                        'POST failed after %d attempts' % max_retries
                     )
 
     def status_to_controller(
@@ -510,6 +507,7 @@ class ServerAgent(object):
                 delay,
                 timeout
             )
+
             if result:
                 maybe_log_message(
                     'POST request to controller succeeded.',
@@ -524,13 +522,6 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     exc_info=True,
                 )
-        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
-            maybe_log_message(
-                'POST request to controller failed due to error: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),

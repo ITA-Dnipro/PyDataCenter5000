@@ -76,9 +76,8 @@ class ServerAgent(object):
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
 
-        self.whitelist_commands = (
-            whitelist_commands if whitelist_commands is not None else []
-        )
+        if whitelist_commands is not None:
+            self.whitelist_commands.extend(whitelist_commands)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -205,6 +204,7 @@ class ServerAgent(object):
                 [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:

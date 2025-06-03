@@ -77,4 +77,5 @@ def get_config_option(
                 fallback_logger=fallback_logger,
                 level=logging.WARNING,
             )
+
     return value or default

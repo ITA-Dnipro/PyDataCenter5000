@@ -28,6 +28,8 @@ config.read(config_path)
 
 MAX_RETRIES = config.getint('retry_settings', 'max_retries')
 RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
+HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
+AUTH_TOKEN_TYPE = 'Bearer'
 
 
 def get_ip_from_interface(interface):
@@ -394,13 +396,26 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def post_data(self, url, data, max_retries=MAX_RETRIES, delay=RETRY_DELAY):
+    def post_data(
+        self,
+        url,
+        data,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
         """
         Sends a POST request with JSON data to the specified URL
         with retry logic. Retries up to `max_retries` times with `delay`
         seconds between attempts. Logs all attempts and failures.
         """
         headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (auth_token_type, api_key)}
+            )
         payload = json.dumps(data).encode('utf-8')
 
         for attempt in range(1, max_retries + 1):
@@ -414,7 +429,7 @@ class ServerAgent(object):
                 request = urllib2.Request(
                     url, data=payload, headers=headers
                 )
-                response = urllib2.urlopen(request)
+                response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
                 maybe_log_message(
@@ -458,13 +473,26 @@ class ServerAgent(object):
                         'POST failed after %d attempts' % max_retries
                     )
 
-    def status_to_controller(self, timeout=5, api_key=None):
+    def status_to_controller(
+        self,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
         """
-        Send system's metadata to controller.
+        Sends a POST request with JSON data to the specified URL,
+        including optional authentication, and with built-in retry logic.
 
         Parameters:
-            timeout (int): POST request timeout in seconds. Default is 5.
-            api_key (str): Authentication API key. Default is None.
+            url (str): Target URL for the POST request.
+            data (dict): Data to send as JSON payload.
+            auth_token_type (str): Token type prefix for the Authorization header (e.g., 'Bearer').
+            api_key (str): API key to be used for the Authorization header. If None, no auth header is added.
+            max_retries (int): Maximum number of retry attempts on failure. Default is MAX_RETRIES.
+            delay (int | float): Delay (in seconds) between retry attempts. Default is RETRY_DELAY.
+            timeout (int | float): Timeout (in seconds) for the request. Default is HTTP_TIMEOUT.
         """
         if not self.controller_url:
             maybe_log_message(
@@ -477,11 +505,16 @@ class ServerAgent(object):
         payload_str = self.status_to_json(log=False)
         payload = json.loads(payload_str)
 
-        if api_key:
-            payload['api_key'] = api_key
-
         try:
-            result = self.post_data(self.controller_url, payload)
+            result = self.post_data(
+                self.controller_url,
+                payload,
+                auth_token_type,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
             if result:
                 maybe_log_message(
                     'POST request to controller succeeded.',

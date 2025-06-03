@@ -227,7 +227,7 @@ def test_post_data_success(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(urllib2, 'urlopen', lambda req: MockResponse())
+    monkeypatch.setattr(urllib2, 'urlopen', lambda req, timeout=None: MockResponse())
 
     result = agent.post_data('http://mock/api', {'test': 'data'})
 
@@ -245,7 +245,7 @@ def test_post_data_retry(monkeypatch):
 
     call_count = {'count': 0}
 
-    def mock_urlopen(req):
+    def mock_urlopen(req, timeout=None):
         call_count['count'] += 1
         if call_count['count'] < 2:
             raise urllib2.URLError('Temporary failure')
@@ -280,7 +280,7 @@ def test_post_data_max_retries_fail(monkeypatch):
     monkeypatch.setattr(
         urllib2,
         'urlopen',
-        lambda req: (_ for _ in ()).throw(urllib2.URLError('Permanent error'))
+        lambda req, timeout=None: (_ for _ in ()).throw(urllib2.URLError('Permanent error'))
     )
 
     with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):

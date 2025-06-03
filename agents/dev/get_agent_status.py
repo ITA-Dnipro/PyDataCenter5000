@@ -3,7 +3,10 @@ import os
 import sys
 
 sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    0,
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '../..')
+    )
 )
 
 
@@ -37,6 +40,9 @@ def main():
         else:
             agent_class = getattr(module, agent_name.upper() + 'Agent')
         agent = agent_class()
+        #########################
+        agent.setup_logging()
+        #########################
 
         agent.collect_server_metadata()
 

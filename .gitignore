@@ -181,3 +181,4 @@ cython_debug/
 .pypirc
 
 status_log.txt
+start_dns_agent.py

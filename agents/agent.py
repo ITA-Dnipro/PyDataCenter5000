@@ -306,14 +306,15 @@ class ServerAgent(object):
 
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(['ps', 'aux'],
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
                                       stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(proc in output.split() for proc in self.processes)
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,

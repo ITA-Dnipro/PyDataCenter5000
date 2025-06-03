@@ -175,11 +175,19 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# VSCode and other IDE-related ignores
+.vscode
+
+
 # Ruff stuff:
 .ruff_cache/
 
 # PyPI configuration file
 .pypirc
 
+# other logs
 status_log.txt
+
+# VSCode and other IDE-related ignores
+.vscode
 start_dns_agent.py

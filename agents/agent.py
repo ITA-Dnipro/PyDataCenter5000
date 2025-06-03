@@ -535,7 +535,7 @@ class ServerAgent(object):
             )
 
     def fetch_command_from_controller(
-        self, api_key=None, suffix='command/', timeout=5
+        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
     ):
         if not self.controller_url or not self.hostname:
             maybe_log_message(
@@ -560,6 +560,8 @@ class ServerAgent(object):
             headers.update(
                 {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
             )
+        if kwargs:
+            headers.update(kwargs)
 
         request = urllib2.Request(url, headers=headers)
 
@@ -569,14 +571,29 @@ class ServerAgent(object):
             data = response.read()
             response.close()
 
-            data = json.loads(data)
+            status_code = response.getcode()
 
             maybe_log_message(
-                'GET request to controller succeded.',
+                (
+                    'GET request to controller succeded with '
+                    'status: %s' % status_code
+                ),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 level=logging.INFO,
             )
+
+            if status_code == 204 or not data.strip():
+                maybe_log_message(
+                    'No pending commands for server %s' % self.hostname,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+
+                return
+
+            data = json.loads(data)
 
             return data
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
@@ -585,13 +602,6 @@ class ServerAgent(object):
                     'Failed to fetch command - GET request failed '
                     'due to error: %s' % str(e)
                 ),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
-        except ValueError:
-            maybe_log_message(
-                'Data received from controller is not a valid JSON string',
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True,

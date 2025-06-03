@@ -29,7 +29,7 @@ config.read(config_path)
 MAX_RETRIES = config.getint('retry_settings', 'max_retries')
 RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
 HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
-AUTH_TOKEN_TYPE = 'Bearer'
+AUTH_TOKEN_TYPE = config.get('general', 'auth_token_type')
 
 
 def get_ip_from_interface(interface):
@@ -482,17 +482,19 @@ class ServerAgent(object):
         timeout=HTTP_TIMEOUT
     ):
         """
-        Sends a POST request with JSON data to the specified URL,
-        including optional authentication, and with built-in retry logic.
+        Sends a POST request with JSON data to the specified URL, including
+        optional authentication, and with built-in retry logic.
 
         Parameters:
             url (str): Target URL for the POST request.
             data (dict): Data to send as JSON payload.
-            auth_token_type (str): Token type prefix for the Authorization header (e.g., 'Bearer').
-            api_key (str): API key to be used for the Authorization header. If None, no auth header is added.
-            max_retries (int): Maximum number of retry attempts on failure. Default is MAX_RETRIES.
-            delay (int | float): Delay (in seconds) between retry attempts. Default is RETRY_DELAY.
-            timeout (int | float): Timeout (in seconds) for the request. Default is HTTP_TIMEOUT.
+            auth_token_type (str): Token type prefix for the Authorization
+                header (e.g., 'Bearer').
+            api_key (str): API key to be used for the Authorization header. If
+                None, no auth header is added.
+            max_retries (int): Maximum number of retry attempts on failure.
+                Default is MAX_RETRIES.
+            delay (int | float): Delay (in seconds) between
         """
         if not self.controller_url:
             maybe_log_message(

@@ -291,12 +291,18 @@ class ServerAgent(object):
         try:
             s.settimeout(2)
             s.connect((self.ip, self.port))
-        except socket.error:
+
+            return True
+        except socket.error as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
         finally:
             s.close()
-
-        return True
 
     def _is_process_running(self):
         try:

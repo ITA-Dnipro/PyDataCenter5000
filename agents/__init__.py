@@ -14,8 +14,16 @@ if global_config.sections():
         global_config, 'controller', 'url'
     )
     agent.ServerAgent.api_prefix = helpers.get_config_option(
-        global_config, 'controller', 'api_prefix', 'api/'
+        global_config, 'controller', 'api_prefix', agent.ServerAgent.api_prefix
     )
+
+    agent.ServerAgent.auth_token_type = helpers.get_config_option(
+        global_config,
+        'controller',
+        'auth_token_type',
+        agent.ServerAgent.auth_token_type,
+    )
+
     agent.ServerAgent.whitelist_commands = helpers.get_config_option(
         global_config,
         'controller',

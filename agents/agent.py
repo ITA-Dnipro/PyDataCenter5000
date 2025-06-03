@@ -29,7 +29,6 @@ config.read(config_path)
 MAX_RETRIES = config.getint('retry_settings', 'max_retries')
 RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
 HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
-AUTH_TOKEN_TYPE = config.get('general', 'auth_token_type')
 
 
 def get_ip_from_interface(interface):
@@ -72,6 +71,7 @@ class ServerAgent(object):
 
     controller_url = None
     api_prefix = 'api/'
+    auth_token_type = 'Bearer'
     whitelist_commands = None
 
     def __init__(
@@ -410,7 +410,6 @@ class ServerAgent(object):
         self,
         url,
         data,
-        auth_token_type=AUTH_TOKEN_TYPE,
         api_key=None,
         max_retries=MAX_RETRIES,
         delay=RETRY_DELAY,
@@ -424,7 +423,7 @@ class ServerAgent(object):
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
-                {'Authorization': '%s %s' % (auth_token_type, api_key)}
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
             )
         payload = json.dumps(data).encode('utf-8')
 
@@ -436,25 +435,29 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
-                request = urllib2.Request(
-                    url, data=payload, headers=headers
-                )
+
+                request = urllib2.Request(url, data=payload, headers=headers)
+
                 response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
+
                 maybe_log_message(
                     'POST request status: %d' % status_code,
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
+
                 response.close()
+
                 maybe_log_message(
                     'Success on attempt %d: %s' % (attempt, result),
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
+
                 return result
             except urllib2.URLError as e:
                 maybe_log_message(
@@ -463,6 +466,7 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     level=logging.ERROR
                 )
+
                 if attempt < max_retries:
                     maybe_log_message(
                         'Retrying in %d seconds...' % delay,
@@ -485,7 +489,6 @@ class ServerAgent(object):
 
     def status_to_controller(
         self,
-        auth_token_type=AUTH_TOKEN_TYPE,
         api_key=None,
         max_retries=MAX_RETRIES,
         delay=RETRY_DELAY,
@@ -521,7 +524,6 @@ class ServerAgent(object):
             result = self.post_data(
                 self.controller_url,
                 payload,
-                auth_token_type,
                 api_key,
                 max_retries,
                 delay,
@@ -551,6 +553,70 @@ class ServerAgent(object):
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+
+    def fetch_command_from_controller(
+        self,
+        api_key=None,
+        suffix='command/',
+        timeout=HTTP_TIMEOUT,
+    ):
+        if not self.controller_url or not self.hostname:
+            maybe_log_message(
+                (
+                    "Couldn't fetch controller command: controller URL or "
+                    'hostname not set'
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return
+
+        url = (
+            self.controller_url
+            + self.api_prefix
+            + suffix
+            + '?hostname=%s' % self.hostname
+        )
+
+        headers = {'Accept': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+            )
+
+        request = urllib2.Request(url, headers=headers)
+
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+
+            data = response.read()
+            response.close()
+
+            return json.loads(data)
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
+            maybe_log_message(
+                (
+                    'Failed to fetch command - GET request failed '
+                    'due to error: %s' % str(e)
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+        except ValueError:
+            maybe_log_message(
+                'Data received from controller is not a valid JSON string',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+        except Exception as e:
+            maybe_log_message(
+                'GET request failed due to unexpected error: %s' % str(e),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True,

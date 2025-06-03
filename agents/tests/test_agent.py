@@ -37,6 +37,9 @@ class MockAgent(ServerAgent):
         if self.log_path:
             os.remove(self.log_path)
 
+    def service_healthy(self, *args, **kwargs):
+        return super(MockAgent, self).service_healthy(*args, **kwargs)
+
 
 def test_type_checks_on_init():
     """Test that type checks fail initialization with bad parameters."""

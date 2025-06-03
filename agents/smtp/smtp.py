@@ -27,10 +27,6 @@ class SMTPAgent(ServerAgent):
             interface=interface,
             controller_url=controller_url,
         )
-        self.setup_logging()
-
-    def collect_server_metadata(self):
-        return super(SMTPAgent, self).collect_server_metadata()
 
     def check_banner(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -51,23 +47,14 @@ class SMTPAgent(ServerAgent):
 
         return banner.strip() if banner else ''
 
-    def check_port(self):
-        return self._is_port_open()
-
-    def check_processes(self):
-        return self._is_process_running()
-
     def service_healthy(self):
-        port_ok = self.check_port()
-        processes_ok = self.check_processes()
-        banner = self.check_banner()
-        return port_ok and processes_ok and bool(banner)
+        status = super(SMTPAgent, self).service_healthy()
+        return status and self.check_banner()
 
     def status_to_dict(self):
-        data = super(SMTPAgent, self).status_to_dict()
+        status = super(SMTPAgent, self).status_to_dict()
+
         banner = self.check_banner()
-        data['banner_check'] = {
-            'status': 'ok' if banner else 'no banner',
-            'banner': banner if banner else None
-        }
-        return data
+        status['banner'] = banner if banner else None
+
+        return status

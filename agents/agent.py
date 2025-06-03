@@ -325,6 +325,7 @@ class ServerAgent(object):
 
             return False
 
+    @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and

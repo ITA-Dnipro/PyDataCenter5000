@@ -106,10 +106,11 @@ def test_status_to_dict_with_missing_fields(smtp_agent):
 def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     Test service_healthy()
-    returns True when all checks (process, port)
-    pass and banner is present
+    returns truthy value (banner string) when all checks pass
     """
-    assert smtp_agent.service_healthy() is True
+    result = smtp_agent.service_healthy()
+    assert result == '220 Hello'
+    assert bool(result) is True
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
@@ -120,10 +121,11 @@ def test_service_healthy_fails_due_to_missing_banner(
 ):
     """
     Test service_healthy()
-    returns False if banner is missing
-    even if others pass.
+    returns empty string (false) if banner is missing
     """
-    assert smtp_agent.service_healthy() is False
+    result = smtp_agent.service_healthy()
+    assert result == ''
+    assert bool(result) is False
 
 
 @patch('agents.smtp.smtp.maybe_log_message')
@@ -136,6 +138,7 @@ def test_check_banner_raises_socket_error(mock_socket, mock_log, smtp_agent):
     """
     mock_sock = MagicMock()
     mock_sock.connect.side_effect = Exception('Mocked error')
+    mock_sock.close = MagicMock()
     mock_socket.return_value = mock_sock
 
     smtp_agent.ip = '127.0.0.1'
@@ -151,8 +154,9 @@ def test_check_banner_success(mock_socket, smtp_agent):
     and returns banner string
     """
     mock_sock = MagicMock()
-    mock_sock.recv.return_value = b'220 smtp.example.com ESMTP'
+    mock_sock.recv.return_value = b'220 smtp.example.com ESMTP\r\n'
     mock_sock.connect.return_value = None
+    mock_sock.close = MagicMock()
     mock_socket.return_value = mock_sock
 
     smtp_agent.ip = '127.0.0.1'

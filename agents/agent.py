@@ -82,7 +82,8 @@ class ServerAgent(object):
         if self.whitelist_commands is None:
             self.whitelist_commands = []
 
-        self.whitelist_commands.extend(whitelist_commands)
+        if whitelist_commands is not None:
+            self.whitelist_commands.extend(whitelist_commands)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.

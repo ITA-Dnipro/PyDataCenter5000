@@ -25,3 +25,6 @@ class WebAgent(ServerAgent):
             interface=interface,
             controller_url=controller_url,
         )
+
+    def service_healthy(self):
+        return super(WebAgent, self).service_healthy()

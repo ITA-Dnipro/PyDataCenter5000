@@ -1,10 +1,12 @@
 import logging
 
+from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .helpers import get_latest_agents
 from .models import CommandHistory
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
 from .utils import extract_status_data, get_client_ip
@@ -149,5 +151,14 @@ def submit_command_result(request):
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def dashboard_view(request):
+    agents = get_latest_agents()
+
+    return render(
+        request,
+        template_name='monitoring/dashboard.html',
+        context={'agents': agents}
+    )

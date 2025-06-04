@@ -103,7 +103,7 @@ def test_status_to_dict_with_missing_fields(smtp_agent):
 
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
-def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
+def test_service_healthy_true(mock_banner, mock_parent_health, smtp_agent):
     """
     Test service_healthy()
     returns True when all checks (process, port)
@@ -138,6 +138,7 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     mock_sock.connect.side_effect = Exception('Mocked error')
     mock_socket.return_value = mock_sock
 
+    smtp_agent.ip = '127.0.0.1'
     result = smtp_agent.check_banner()
     assert result == ''
 
@@ -177,7 +178,7 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
 
 
 @patch('agents.smtp.smtp.urllib2.urlopen')
-@patch('agents.smtp.smtp.json.dumps', return_value='{"ok": true}')
+@patch('json.dumps', return_value='{"ok": true}')
 @patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
 def test_status_to_controller_success(
         mock_dict,
@@ -196,7 +197,7 @@ def test_status_to_controller_success(
 @patch('agents.smtp.smtp.urllib2.urlopen',
        side_effect=Exception('Connection failed'))
 @patch('agents.smtp.smtp.maybe_log_message')
-@patch('agents.smtp.smtp.json.dumps', return_value='{"ok": true}')
+@patch('json.dumps', return_value='{"ok": true}')
 @patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
 def test_status_to_controller_failure(
         mock_dict,

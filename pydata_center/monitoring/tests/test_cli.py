@@ -17,7 +17,14 @@ class TestListAgents(unittest.TestCase):
         ]
         for text, max_len, expected in test_cases:
             with self.subTest(text=text, max_len=max_len):
-                self.assertEqual(truncate(text, max_len), expected)
+                self.assertEqual(
+                    truncate(text, max_len),
+                    expected,
+                    msg=(
+                        f"Expected truncated '{text}' to be '{expected}' "
+                        f'with max_len={max_len}'
+                    )
+                )
 
     @patch('cli.controller_cli.requests.get')
     def test_list_agents_with_mocked_response(self, mock_get):
@@ -43,8 +50,8 @@ class TestListAgents(unittest.TestCase):
         list_agents(username='admin', password='adminpass')
 
         sys.stdout = sys.__stdout__
-
         output = captured_output.getvalue()
+
         self.assertIn('Ubuntu-Server-001', output)
         self.assertIn('Debian-Server-002', output)
         self.assertIn('Kyiv-Server-001', output)
@@ -62,12 +69,7 @@ class TestSendCommand(unittest.TestCase):
         captured_output = StringIO()
         sys.stdout = captured_output
 
-        command_id = send_command(
-            agent_hostname='TestAgent',
-            command='echo Hello',
-            username='user',
-            password='pass'
-        )
+        command_id = send_command('TestAgent', 'echo Hello', 'user', 'pass')
 
         sys.stdout = sys.__stdout__
 
@@ -87,12 +89,7 @@ class TestSendCommand(unittest.TestCase):
         captured_output = StringIO()
         sys.stdout = captured_output
 
-        command_id = send_command(
-            agent_hostname='TestAgent',
-            command='ls -la',
-            username='user',
-            password='pass'
-        )
+        command_id = send_command('TestAgent', 'ls -la', 'user', 'pass')
 
         sys.stdout = sys.__stdout__
 
@@ -210,8 +207,8 @@ class TestPollResult(unittest.TestCase):
         result = poll_result(command_id=3, interval=1, timeout=2)
 
         sys.stdout = sys.__stdout__
-
         output = captured_output.getvalue()
+
         self.assertIn('Waiting for result...', output)
         self.assertIn('Timeout after 2 seconds.', output)
         self.assertEqual(result, {'status': 'pending'})

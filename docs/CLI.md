@@ -1,23 +1,49 @@
-# Code Style & Pre-commit Hooks
+# Controller CLI
 
-This project enforces consistent code style and formatting using pre-commit hooks.\
-Below is a list of hooks that are automatically run before each commit to help maintain clean and readable code.
+A command-line interface to interact with the Django-based controller to manage agents and send commands.
 
-## Enabled Pre-commit Hooks:
+## Commands
 
-- **yapf** — Formats Python code according to a custom style configuration (`.style.yapf`), based on PEP 8.
-- **isort** — Automatically sorts and organizes Python import statements.
-- **trailing-whitespace** — Removes trailing whitespace from all lines.
-- **end-of-file-fixer** — Ensures a single newline at the end of each file.
-- **check-json** — Validates JSON files for syntax correctness.
-- **check-yaml** — Validates YAML files for syntax correctness.
-- **check-merge-conflict** — Detects leftover merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
-- **debug-statements** — Prevents accidental commits of `print()` or `pdb` statements.
-- **double-quote-string-fixer** — Replaces double-quoted strings (`"example"`) with single-quoted ones (`'example'`), where possible.
-
-### Run Pre-commit Hooks Manually
-
-To run all configured pre-commit hooks manually on all files, use:
+Navigate to the project directory:
 
 ```bash
-pre-commit run --all-files
+cd pydata_center
+```
+
+### 1. Login
+
+Store your credentials for authenticated requests.
+
+```bash
+python3 cli/controller_cli.py login --username <your_username> --password <your_password>
+```
+
+### 2. List Active Agents
+
+Retrieve and display the list of active agents.
+
+```bash
+python3 cli/controller_cli.py agents
+```
+
+### 3. Send Command to Agent
+
+Send a command to a specific agent by hostname.
+
+```bash
+python3 cli/controller_cli.py send <hostname> <command>
+```
+
+With optional polling for result:
+
+```bash
+python3 cli/controller_cli.py send <hostname> <command> --poll
+```
+
+### 4. Poll Command Result
+
+Poll the result of a previously sent command by its ID.
+
+```bash
+python3 cli/controller_cli.py poll <command_id>
+```

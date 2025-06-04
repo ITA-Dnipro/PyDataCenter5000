@@ -12,12 +12,18 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='commandhistory',
             name='hostname',
-            field=models.CharField(db_index=True, max_length=100),
+            field=models.CharField(
+                db_index=True,
+                max_length=100,
+            ),
         ),
         migrations.AlterField(
             model_name='commandhistory',
             name='result',
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(
+                blank=True,
+                null=True,
+            ),
         ),
         migrations.AlterField(
             model_name='commandhistory',
@@ -30,38 +36,51 @@ class Migration(migrations.Migration):
                 ],
                 db_index=True,
                 default='pending',
-                max_length=10
+                max_length=10,
             ),
         ),
         migrations.AlterField(
             model_name='serverstatus',
             name='timestamp',
-            field=models.DateTimeField(auto_now_add=True),
+            field=models.DateTimeField(
+                auto_now_add=True,
+            ),
         ),
         migrations.CreateModel(
             name='AgentMetric',
             fields=[
-                ('id', models.BigAutoField(
-                    auto_created=True,
-                    primary_key=True,
-                    serialize=False,
-                    verbose_name='ID')
-                 ),
+                (
+                    'id',
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    )
+                ),
                 ('cpu', models.FloatField(blank=True, null=True)),
                 ('ram', models.FloatField(blank=True, null=True)),
                 ('disk', models.FloatField(blank=True, null=True)),
                 ('load_avg', models.FloatField(blank=True, null=True)),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('server_status', models.ForeignKey(
-                    on_delete=django.db.models.deletion.CASCADE,
-                    related_name='server_status',
-                    to='monitoring.serverstatus')
-                 ),
+                (
+                    'timestamp',
+                    models.DateTimeField(auto_now_add=True),
+                ),
+                (
+                    'server_status',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='server_status',
+                        to='monitoring.serverstatus',
+                    )
+                ),
             ],
             options={
                 'indexes': [
-                    models.Index(fields=['server_status', 'timestamp'],
-                                 name='monitoring__server__0620a3_idx')
+                    models.Index(
+                        fields=['server_status', 'timestamp'],
+                        name='monitoring__server__0620a3_idx',
+                    ),
                 ],
             },
         ),

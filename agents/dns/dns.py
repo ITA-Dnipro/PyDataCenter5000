@@ -10,6 +10,7 @@ class DNSAgent(ServerAgent):
         processes=None,
         interface=None,
         controller_url=None,
+        log_path=None,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -17,4 +18,5 @@ class DNSAgent(ServerAgent):
             processes=processes or ['named', 'bind9'],
             interface=interface,
             controller_url=controller_url,
+            log_path=log_path,
         )

@@ -77,6 +77,7 @@ class ServerAgent(object):
         processes=None,
         interface=None,
         controller_url=None,
+        log_path=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -89,6 +90,20 @@ class ServerAgent(object):
         # to user that collect_server_metadata hasn't been called.
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
+
+        # Initialize logging from logging config file
+        log_path = (
+            log_path or pkg_resources.
+            resource_filename(self.__class__.__module__, 'logs/agent.log')
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -105,10 +120,19 @@ class ServerAgent(object):
         """
         agent = cls()
 
-        agent.setup_logging(path=log_path)
         agent._parse_config_file(filename)
 
         return agent
+
+    @property
+    def logger(self):
+        return logging.getLogger(self.server_name)
+
+    @property
+    def fallback_logger(self):
+        logging.getLogger(
+            '_'.join([self.server_name, 'fallback'])
+        )
 
     @property
     def port(self):
@@ -134,26 +158,6 @@ class ServerAgent(object):
                 )
             )
         self._processes = value
-
-    def setup_logging(self, path=None):
-        # Have each child dump logs inside their own subpackage by default
-        path = (
-            path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
-        )
-
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={
-                'agent_name': self.server_name,
-                'log_path': path
-            },
-        )
-
-        self.logger = logging.getLogger(self.server_name)
-        self.fallback_logger = logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""

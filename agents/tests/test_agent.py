@@ -37,8 +37,8 @@ class MockAgent(ServerAgent):
         if self.log_path:
             os.remove(self.log_path)
 
-    def service_healthy(self, *args, **kwargs):
-        return True
+    def service_healthy(self):
+        return super(MockAgent, self).service_healthy()
 
 
 def test_type_checks_on_init():

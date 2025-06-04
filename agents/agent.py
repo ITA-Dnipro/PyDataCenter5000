@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import logging.config
+import os
 import platform
 import socket
 import subprocess
@@ -22,6 +23,15 @@ log_config_path = pkg_resources.resource_filename(
 )
 
 PROTOCOLS = ('tcp', 'udp')
+
+config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
+config = ConfigParser.ConfigParser()
+config.read(config_path)
+
+MAX_RETRIES = config.getint('retry_settings', 'max_retries')
+RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
+HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
+AUTH_TOKEN_TYPE = config.get('general', 'auth_token_type')
 
 
 def get_ip_from_interface(interface):
@@ -72,7 +82,6 @@ class ServerAgent(object):
         controller_url=None,
     ):
         self.server_name = server_name
-
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
@@ -154,15 +163,16 @@ class ServerAgent(object):
     def setup_logging(self, path=None):
         # Have each child dump logs inside their own subpackage by default
         path = (
-            path
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'logs/agent.log'
-            )
+            path or pkg_resources.
+            resource_filename(self.__class__.__module__, 'logs/agent.log')
         )
 
         logging.config.fileConfig(
             log_config_path,
-            defaults={'agent_name': self.server_name, 'log_path': path},
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': path
+            },
         )
 
         self.logger = logging.getLogger(self.server_name)
@@ -175,10 +185,8 @@ class ServerAgent(object):
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
         filename = (
-            filename
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'config.ini'
-            )
+            filename or pkg_resources.
+            resource_filename(self.__class__.__module__, 'config.ini')
         )
 
         config = ConfigParser.ConfigParser()
@@ -365,17 +373,17 @@ class ServerAgent(object):
         finally:
             s.close()
 
-    def is_process_running(self):
+    def _is_process_running(self):
         try:
-            output = subprocess.Popen(
-                ['ps', 'aux'], stdout=subprocess.PIPE
-            ).communicate()[0]
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
+                                      stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(proc in output.split() for proc in self.processes)
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -387,66 +395,14 @@ class ServerAgent(object):
             return False
 
     @abc.abstractmethod
-    def service_healthy(self, *args, **kwargs):
+    def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        pass
+        return self._is_port_open() and self._is_process_running()
 
-    def post_data(
-            self,
-            url,
-            data,
-            max_retries=3,
-            delay=1
-    ):
-        """
-        Attempt to POST JSON-encoded `data` to `url`.
-        If urllib2.URLError is raised,
-        retry up to max_retries times
-        (waiting `delay` seconds between attempts).
-        On success, return the response body (bytes). On final failure, log and
-        raise RuntimeError("POST failed after N attempts").
-        """
-        headers = {'Content-Type': 'application/json'}
-        payload = json.dumps(data).encode('utf-8')
-        attempt = 0
-
-        while attempt < max_retries:
-            attempt += 1
-            try:
-                request = urllib2.Request(url, payload, headers)
-                response = urllib2.urlopen(request, timeout=10)
-                body = response.read()
-                status_code = response.getcode()
-                response.close()
-
-                # Log success
-                self.logger.info('Success on attempt %d' % attempt)
-                self.logger.info('POST request status: %d' % status_code)
-                return body
-
-            except urllib2.URLError as e:
-                err_text = str(e)
-                if attempt < max_retries:
-                    # Log retry message
-                    self.logger.info('Retrying in %d seconds...' % delay)
-                    time.sleep(delay)
-                else:
-                    # Final failure: log and then raise
-                    self.logger.info(
-                        'All %d attempts failed. Data not sent.' % max_retries
-                    )
-                    self.logger.info(err_text)
-                    raise RuntimeError(
-                        'POST failed after %d attempts' % max_retries
-                    )
-
-        # Should never get here
-        raise RuntimeError('POST failed after %d attempts' % max_retries)
-
-    def status_to_dict(self, *args, **kwargs):
+    def status_to_dict(self):
         return {
             'os': self.os_type,
             'hostname': self.hostname,
@@ -454,10 +410,10 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(*args, **kwargs),
+            'healthy': self.service_healthy(),
         }
 
-    def status_to_json(self, log=False, *args, **kwargs):
+    def status_to_json(self, log=False):
         """
         Dump host metadata to json file.
 
@@ -469,9 +425,7 @@ class ServerAgent(object):
             str: JSON status string.
         """
         try:
-            status = json.dumps(
-                self.status_to_dict(*args, **kwargs), default=str
-            )
+            status = json.dumps(self.status_to_dict(), default=str)
 
             if log:
                 try:
@@ -494,9 +448,9 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_txt(self, *args, **kwargs):
+    def status_to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
-        data = self.status_to_dict(*args, **kwargs)
+        data = self.status_to_dict()
 
         try:
             for k, v in data.items():
@@ -508,13 +462,105 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_controller(self, timeout=5, api_key=None, *args, **kwargs):
+    def post_data(
+        self,
+        url,
+        data,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
         """
-        Send system's metadata to controller.
+        Sends a POST request with JSON data to the specified URL
+        with retry logic. Retries up to `max_retries` times with `delay`
+        seconds between attempts. Logs all attempts and failures.
+        """
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (auth_token_type, api_key)}
+            )
+        payload = json.dumps(data).encode('utf-8')
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                maybe_log_message(
+                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                request = urllib2.Request(
+                    url, data=payload, headers=headers
+                )
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
+                maybe_log_message(
+                    'POST request status: %d' % status_code,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                response.close()
+                maybe_log_message(
+                    'Success on attempt %d: %s' % (attempt, result),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                return result
+            except urllib2.URLError as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.ERROR
+                )
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.WARNING
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not sent. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.CRITICAL
+                    )
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
+    def status_to_controller(
+        self,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
+        """
+        Sends a POST request with JSON data to the specified URL, including
+        optional authentication, and with built-in retry logic.
 
         Parameters:
-            timeout (int): POST request timeout in seconds. Default is 5.
-            api_key (str): Authentication API key. Default is None.
+            url (str): Target URL for the POST request.
+            data (dict): Data to send as JSON payload.
+            auth_token_type (str): Token type prefix for the Authorization
+                header (e.g., 'Bearer').
+            api_key (str): API key to be used for the Authorization header. If
+                None, no auth header is added.
+            max_retries (int): Maximum number of retry attempts on failure.
+                Default is MAX_RETRIES.
+            delay (int | float): Delay (in seconds) between
         """
         if not self.controller_url:
             maybe_log_message(
@@ -522,38 +568,46 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
-
             return
 
-        payload = self.status_to_json(log=False, *args, **kwargs)
-
-        headers = {'Content-Type': 'application/json'}
-        if api_key:
-            headers.update({'X-API-Key': api_key})
-
-        request = urllib2.Request(
-            self.controller_url, payload, headers=headers
-        )
-
-        status_code = None
+        payload_str = self.status_to_json(log=False)
+        payload = json.loads(payload_str)
 
         try:
-            response = urllib2.urlopen(request, timeout=timeout)
-            status_code = response.getcode()
-        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-            status_code = getattr(e, 'code', None)
-
+            result = self.post_data(
+                self.controller_url,
+                payload,
+                auth_token_type,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
                 'POST request to controller failed due to error: %s' % str(e),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
-        finally:
-            if status_code:
-                maybe_log_message(
-                    'POST request status: %s' % str(status_code),
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )

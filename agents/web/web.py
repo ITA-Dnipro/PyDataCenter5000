@@ -26,5 +26,10 @@ class WebAgent(ServerAgent):
             whitelist_commands=whitelist_commands,
         )
 
-    def service_healthy(self):
-        return super(WebAgent, self).service_healthy()
+    def service_healthy(
+            self, timeout=2, payload=None, packet_size=0
+    ):
+        status = super(WebAgent, self).service_healthy()
+        return status and self.is_port_open(
+            timeout=timeout, payload=payload, packet_size=packet_size
+        )

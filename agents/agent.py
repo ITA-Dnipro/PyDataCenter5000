@@ -22,6 +22,8 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
+PROTOCOLS = ('tcp', 'udp')
+
 
 def get_ip_from_interface(interface):
     """
@@ -72,12 +74,16 @@ class ServerAgent(object):
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         whitelist_commands=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        if protocol is not None:
+            self.protocol = protocol
 
         if self.whitelist_commands is None:
             self.whitelist_commands = []
@@ -137,6 +143,22 @@ class ServerAgent(object):
                 )
             )
         self._processes = value
+
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
+
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
+
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
 
     def setup_logging(self, path=None):
         # Have each child dump logs inside their own subpackage by default
@@ -280,10 +302,11 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-        self.timestamp = datetime.datetime.utcnow(
-        ).strftime('%Y-%m-%d %H:%M:%S')
+        self.timestamp = datetime.datetime.utcnow().strftime(
+            '%Y-%m-%d %H:%M:%S'
+        )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -301,15 +324,43 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
+            )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
 
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+                    return False
 
             return True
-        except socket.error as e:
+        except (socket.error, socket.timeout) as e:
             maybe_log_message(
                 'Port check failed due to error: %s' % str(e),
                 logger=self.logger,
@@ -347,7 +398,7 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
     def status_to_dict(self):
         return {

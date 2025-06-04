@@ -1,3 +1,5 @@
+import logging
+
 from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
@@ -6,7 +8,51 @@ from rest_framework.response import Response
 
 from .helpers import get_latest_agents
 from .models import CommandHistory
-from .serializers import CommandHistorySerializer
+from .serializers import CommandHistorySerializer, ServerStatusSerializer
+from .utils import extract_status_data, get_client_ip
+
+logger = logging.getLogger('django')
+
+
+@api_view(['POST'])
+def receive_status(request):
+    """
+    Receive and log server status data sent via POST request.
+    """
+    serializer = ServerStatusSerializer(data=request.data)
+
+    if serializer.is_valid():
+        try:
+            serializer.save()
+            data = extract_status_data(serializer.validated_data, request)
+            logger.info(
+                '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
+                data['hostname'], data['ip'], data['uptime']
+            )
+            return Response(
+                {
+                    'message': 'Status received',
+                    'hostname': data['hostname'],
+                    'ip': data['ip']
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error('[ERROR] Saving status failed: %s', str(e))
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    else:
+        data = extract_status_data(request.data, request)
+        logger.warning(
+            '[INVALID] Host: %s | IP: %s | Errors: %s',
+            data['hostname'], data['ip'], serializer.errors
+        )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class CommandHistoryViewSet(viewsets.ModelViewSet):
@@ -46,14 +92,8 @@ def create_command(request):
     serializer = CommandHistorySerializer(data=request.data)
     if serializer.is_valid():
         serializer.save(status='pending')  # set default status
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED
-        )
-    return Response(
-        serializer.errors,
-        status=status.HTTP_400_BAD_REQUEST
-    )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
@@ -66,8 +106,7 @@ def fetch_pending_command(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     command = CommandHistory.objects.filter(
-        hostname=hostname,
-        status='pending'
+        hostname=hostname, status='pending'
     ).order_by('timestamp').first()
 
     if not command:
@@ -84,41 +123,27 @@ def fetch_pending_command(request):
 def submit_command_result(request):
     command_id = request.data.get('id')
     if not command_id:
-        return Response(
-            {'error': 'id is required'},
-            status=400
-        )
+        return Response({'error': 'id is required'}, status=400)
 
     try:
         command = CommandHistory.objects.get(id=command_id)
     except CommandHistory.DoesNotExist:
-        return Response(
-            {'error': 'Command not found'},
-            status=404
-        )
+        return Response({'error': 'Command not found'}, status=404)
 
     status_update = request.data.get('status')
     allowed_statuses = [choice[0] for choice in CommandHistory.STATUS_CHOICES]
     if status_update and status_update not in allowed_statuses:
-        return Response(
-            {'error': 'Invalid status value'},
-            status=400
-        )
+        return Response({'error': 'Invalid status value'}, status=400)
 
     if status_update in ['done', 'failed']:
         command.timestamp = now()
 
     serializer = CommandHistorySerializer(
-        command,
-        data=request.data,
-        partial=True
+        command, data=request.data, partial=True
     )
     if serializer.is_valid():
         serializer.save()
-        return Response(
-            serializer.data,
-            status=200
-        )
+        return Response(serializer.data, status=200)
 
     return Response(serializer.errors, status=400)
 

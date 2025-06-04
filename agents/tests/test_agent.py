@@ -65,7 +65,8 @@ def test_status_to_json_type_error():
     Test that the TypeError is handled and logged on JSON serialization
     failure.
     """
-    class MockUnserializableParameter:
+
+    class MockUnserializableParameter(object):
         def __str__(self):
             raise TypeError("Can't serialize me")
 
@@ -90,9 +91,7 @@ def test_status_to_json_type_error():
         "Can't serialize me"
     )
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
 def test_status_to_controller_success():
@@ -100,14 +99,25 @@ def test_status_to_controller_success():
     Test that successful POST request to controller is properly handled
     and logged.
     """
+
     def mock_urlopen(request, timeout=5):
+
         class MockResponse(object):
+
             def getcode(self):
                 return 201
+
+            def read(self):
+                return b'{"message":"status received"}'
+
+            def close(self):
+                pass
+
         return MockResponse()
 
     agent = MockAgent(port=12345)
     agent.setup_logging()
+
     agent.collect_server_metadata()
 
     agent.controller_url = 'http://mock/api/status/'
@@ -142,12 +152,10 @@ def test_status_to_controller_missing_url():
 
     msg = "Couldn't send status update: controller URL is not set"
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
 
 
-def test_status_to_controller_error():
+def test_status_to_controller_http_error():
     """
     Test that the HTTP and URL failures of POST request to controller are
     properly handled and logged.
@@ -186,19 +194,111 @@ def test_status_to_controller_error():
         def mock_urlopen(request, timeout=5):
             raise error
 
-        agent = MockAgent(port=12345)
-        agent.setup_logging()
-        agent.collect_server_metadata()
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
 
-        agent.controller_url = 'http://mock/api/status/'
+    agent.collect_server_metadata()
 
-        with mock.patch('urllib2.urlopen', mock_urlopen):
-            agent.status_to_controller()
+    agent.controller_url = 'http://mock/api/status/'
 
-        with open(agent.logfile.name, 'r') as f:
-            f.seek(0)
-            contents = f.read()
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.status_to_controller()
 
-        assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )
+
+
+def test_post_data_success(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    class MockResponse:
+        def getcode(self):
+            return 200
+
+        def read(self):
+            return b'Success'
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        urllib2, 'urlopen', lambda req, timeout=None: MockResponse()
+    )
+
+    result = agent.post_data('http://mock/api', {'test': 'data'})
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert result == b'Success'
+    assert 'POST request status: 200' in contents
+    assert 'Success on attempt 1' in contents
+
+
+def test_post_data_retry(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    call_count = {'count': 0}
+
+    def mock_urlopen(req, timeout=None):
+        call_count['count'] += 1
+        if call_count['count'] < 2:
+            raise urllib2.URLError('Temporary failure')
+
+        class MockResponse:
+
+            def getcode(self):
+                return 200
+
+            def read(self):
+                return b'Retry Success'
+
+            def close(self):
+                pass
+
+        return MockResponse()
+
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
+    result = agent.post_data(
+        'http://mock/api', {'retry': 'test'}, max_retries=3, delay=0
+    )
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert call_count['count'] == 2
+    assert result == b'Retry Success'
+    assert 'Retrying in 0 seconds...' in contents
+    assert 'Success on attempt 2' in contents
+
+
+def test_post_data_max_retries_fail(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.setup_logging()
+
+    monkeypatch.setattr(
+        urllib2,
+        'urlopen',
+        lambda req, timeout=None: (
+            _ for _ in ()
+        ).throw(urllib2.URLError('Permanent error'))
+    )
+
+    with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):
+        agent.post_data(
+            'http://mock/api', {'fail': True}, max_retries=3, delay=0
         )
+
+    with open(agent.logfile.name) as f:
+        contents = f.read()
+
+    assert 'All 3 attempts failed. Data not sent.' in contents
+    assert 'Permanent error' in contents

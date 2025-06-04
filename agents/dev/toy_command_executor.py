@@ -8,6 +8,7 @@ import threading
 import time
 
 import dotenv
+import Queue
 
 from agents.smtp.smtp import SMTPAgent
 
@@ -22,12 +23,12 @@ def fetch(agent, credentials, interval=5, stop=None):
         - Wait
     """
     while not (stop and stop.is_set()):
-        command = agent.fetch_command_from_controller(
+        data = agent.fetch_command_from_controller(
             Authorization='Basic %s' % credentials
         )
 
-        if command:
-            agent.maybe_add_to_queue(command)
+        if data:
+            agent.maybe_add_to_queue(data)
 
         time.sleep(interval)
 
@@ -41,26 +42,37 @@ def execute(agent, max_exec, stop):
         - Communicate that the item has been processed
     """
     for _ in range(max_exec):
-        command = agent.queue.get()
+        try:
+            command_history = agent.queue.get(timeout=10)
+        except Queue.Empty:
+            logging.warning('No command received in allocated time')
+            break
 
-        if command:
-            # Start the process
-            proc = subprocess.Popen(
-                command['command'],
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            stdout, stderr = proc.communicate()
-            output = stdout.decode('utf-8') + stderr.decode('utf-8')
-
-            logging.info(
-                'Command %s finished with status %s' % (
-                    command['command'], proc.returncode
+        if command_history:
+            try:
+                # Start the process
+                proc = subprocess.Popen(
+                    command_history.command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
-            )
-            logging.info('Command output: %s' % output)
+
+                stdout, stderr = proc.communicate()
+                output = stdout.decode('utf-8') + stderr.decode('utf-8')
+
+                logging.info(
+                    'Command %s finished with status %s' % (
+                        command_history.command, proc.returncode
+                    )
+                )
+                logging.info('Command output: %s' % output)
+            except Exception as e:
+                logging.error(
+                    'Failed to execute command '
+                    '%s due to error: %s' % (command_history.command, str(e)),
+                    exc_info=True,
+                )
 
         agent.queue.task_done()
 
@@ -80,7 +92,7 @@ if __name__ == '__main__':
 
     agent.hostname = 'test-smtp-server'
 
-    max_exec = 5
+    max_exec = 1
     stop = threading.Event()
 
     fetcher = threading.Thread(

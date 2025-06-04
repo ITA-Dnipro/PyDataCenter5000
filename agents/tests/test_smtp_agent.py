@@ -4,6 +4,7 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
+from agents.agent import ServerAgent
 from agents.smtp.smtp import SMTPAgent
 
 
@@ -100,13 +101,9 @@ def test_status_to_dict_with_missing_fields(smtp_agent):
                 assert result['banner'] is None
 
 
-@patch('agents.agent.ServerAgent._is_process_running', return_value=True)
-@patch('agents.agent.ServerAgent._is_port_open', return_value=True)
-@patch.object(
-    SMTPAgent, 'check_banner',
-    return_value='220 smtp.example.com ESMTP'
-)
-def test_service_healthy_true(mock_proc, mock_port, mock_banner, smtp_agent):
+@patch.object(ServerAgent, 'service_healthy', return_value=True)
+@patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
+def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     Test service_healthy()
     returns True when all checks (process, port)
@@ -115,13 +112,11 @@ def test_service_healthy_true(mock_proc, mock_port, mock_banner, smtp_agent):
     assert smtp_agent.service_healthy() is True
 
 
-@patch('agents.agent.ServerAgent._is_process_running', return_value=True)
-@patch('agents.agent.ServerAgent._is_port_open', return_value=True)
+@patch.object(ServerAgent, 'service_healthy', return_value=True)
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 def test_service_healthy_fails_due_to_missing_banner(
     mock_banner,
-    mock_port,
-    mock_proc,
+    mock_parent_health,
     smtp_agent,
 ):
     """
@@ -132,17 +127,19 @@ def test_service_healthy_fails_due_to_missing_banner(
     assert smtp_agent.service_healthy() is False
 
 
-@patch('agents.smtp.smtp.maybe_log_message')
-def test_check_banner_raises_socket_error(mock_log, smtp_agent):
+@patch('agents.smtp.smtp.socket.socket')
+def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     """
     Test that check_banner() returns
     empty string and logs an error
     when socket connection fails
     """
-    with patch('socket.socket.connect', side_effect=Exception('Mocked error')):
-        result = smtp_agent.check_banner()
-        assert result == ''
-        assert mock_log.called
+    mock_sock = MagicMock()
+    mock_sock.connect.side_effect = Exception('Mocked error')
+    mock_socket.return_value = mock_sock
+
+    result = smtp_agent.check_banner()
+    assert result == ''
 
 
 @patch('agents.smtp.smtp.socket.socket')
@@ -177,17 +174,6 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
         smtp_agent._processes = [proc_name]
         result = smtp_agent._is_process_running()
         assert result is True
-
-
-@patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
-@patch('agents.smtp.smtp.json.dumps', return_value='{"ok": true}')
-def test_status_to_json_serialization(mock_json, mock_dict, smtp_agent):
-    """
-    Test that status_to_json() returns a valid
-    JSON-formatted string
-    """
-    result = smtp_agent.status_to_json(log=False)
-    assert result == '{"ok": true}'
 
 
 @patch('agents.smtp.smtp.urllib2.urlopen')

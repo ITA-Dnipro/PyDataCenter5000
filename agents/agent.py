@@ -15,7 +15,7 @@ import psutil
 import Queue
 import urllib2
 
-from .utils.helpers import get_config_option, parse_csv_list
+from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(

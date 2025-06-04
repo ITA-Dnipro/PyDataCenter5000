@@ -1,8 +1,27 @@
 import logging
+import sys
 
 import ConfigParser
+import pkg_resources
 
 from .logtools import maybe_log_message
+
+
+def load_global_config():
+    """Attempt loading agents global config file at agents/global.ini."""
+    config = ConfigParser.ConfigParser()
+    files = config.read(
+        pkg_resources.resource_filename('agents', 'global.ini')
+    )
+
+    if not files:
+        sys.stderr.write(
+            '[WARN] Global config file not found - '
+            'falling back to default values'
+        )
+
+    if config.sections():
+        return config
 
 
 def parse_csv_list(value):

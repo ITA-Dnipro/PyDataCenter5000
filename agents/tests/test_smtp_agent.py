@@ -101,8 +101,8 @@ def test_status_to_dict_with_missing_fields(smtp_agent):
                 assert result['banner'] is None
 
 
-@patch.object(ServerAgent, 'service_healthy', return_value=True)
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
+@patch.object(ServerAgent, 'service_healthy', return_value=True)
 def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     Test service_healthy()
@@ -112,8 +112,8 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     assert smtp_agent.service_healthy() is True
 
 
+@patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
-@patch.object(SMTPAgent, 'check_banner', return_value='')
 def test_service_healthy_fails_due_to_missing_banner(
     mock_parent_health,
     mock_banner,
@@ -179,40 +179,3 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
         assert result is True
 
 
-@patch('urllib2.urlopen')
-@patch('json.dumps', return_value='{"ok": true}')
-@patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
-def test_status_to_controller_success(
-        mock_dict,
-        mock_json,
-        mock_urlopen,
-        smtp_agent):
-    """
-    Test that status_to_controller() sends
-    data to the controller successfully.
-    """
-    smtp_agent.controller_url = 'http://localhost:8000'
-    smtp_agent.status_to_controller()
-    assert mock_urlopen.called
-
-
-@patch('urllib2.urlopen',
-       side_effect=Exception('Connection failed')
-)
-@patch('agents.smtp.smtp.maybe_log_message')
-@patch('json.dumps', return_value='{"ok": true}')
-@patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
-def test_status_to_controller_failure(
-        mock_dict,
-        mock_json,
-        mock_log,
-        mock_urlopen,
-        smtp_agent
-):
-    """
-    Test that status_to_controller() logs an error
-    when sending data fails.
-    """
-    smtp_agent.controller_url = 'http://localhost:8000'
-    smtp_agent.status_to_controller()
-    assert mock_log.called

@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
             name='hostname',
             field=models.CharField(
                 db_index=True,
-                max_length=100,
+                max_length=100
             ),
         ),
         migrations.AlterField(
@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
             name='result',
             field=models.TextField(
                 blank=True,
-                null=True,
+                null=True
             ),
         ),
         migrations.AlterField(
@@ -36,14 +36,7 @@ class Migration(migrations.Migration):
                 ],
                 db_index=True,
                 default='pending',
-                max_length=10,
-            ),
-        ),
-        migrations.AlterField(
-            model_name='serverstatus',
-            name='timestamp',
-            field=models.DateTimeField(
-                auto_now_add=True,
+                max_length=10
             ),
         ),
         migrations.CreateModel(
@@ -55,23 +48,49 @@ class Migration(migrations.Migration):
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name='ID'
                     )
                 ),
-                ('cpu', models.FloatField(blank=True, null=True)),
-                ('ram', models.FloatField(blank=True, null=True)),
-                ('disk', models.FloatField(blank=True, null=True)),
-                ('load_avg', models.FloatField(blank=True, null=True)),
+                (
+                    'cpu',
+                    models.FloatField(
+                        blank=True,
+                        null=True
+                    )
+                ),
+                (
+                    'ram',
+                    models.FloatField(
+                        blank=True,
+                        null=True
+                    )
+                ),
+                (
+                    'disk',
+                    models.FloatField(
+                        blank=True,
+                        null=True
+                    )
+                ),
+                (
+                    'load_avg',
+                    models.FloatField(
+                        blank=True,
+                        null=True
+                    )
+                ),
                 (
                     'timestamp',
-                    models.DateTimeField(auto_now_add=True),
+                    models.DateTimeField(
+                        auto_now_add=True
+                    )
                 ),
                 (
                     'server_status',
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='server_status',
-                        to='monitoring.serverstatus',
+                        to='monitoring.serverstatus'
                     )
                 ),
             ],
@@ -79,7 +98,7 @@ class Migration(migrations.Migration):
                 'indexes': [
                     models.Index(
                         fields=['server_status', 'timestamp'],
-                        name='monitoring__server__0620a3_idx',
+                        name='monitoring__server__0620a3_idx'
                     ),
                 ],
             },

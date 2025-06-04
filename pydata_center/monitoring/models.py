@@ -11,7 +11,7 @@ class ServerStatus(models.Model):
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
     uptime = models.FloatField()
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField()
     os = models.CharField(max_length=50)
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)

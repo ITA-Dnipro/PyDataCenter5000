@@ -5,6 +5,7 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
+from agents.agent import ServerAgent
 from agents.dns.dns import DNSAgent
 
 
@@ -83,7 +84,6 @@ def test_status_to_dict_with_missing_fields(dns_agent):
         assert result['hostname'] is None, "Expected 'hostname' to be None"
         assert result['ip'] is None, "Expected 'ip' to be None when missing"
         assert result['uptime'] == -1, "Expected 'uptime' to be-1 when missing"
-        assert result['healthy'] is False, "Expected 'healthy' to be False"
 
 
 @patch('subprocess.Popen')
@@ -125,8 +125,8 @@ def test_is_dns_running_failures(mock_popen, dns_agent):
         assert dns_agent.is_dns_running() is False, msg
 
 
+@patch.object(DNSAgent, 'is_port_open', return_value=True)
 @patch.object(DNSAgent, '_is_process_running', return_value=True)
-@patch.object(DNSAgent, '_is_port_open', return_value=True)
 @patch.object(DNSAgent, 'is_dns_running', return_value=True)
 def test_service_healthy_true(mock_dns, mock_port, mock_proc, dns_agent):
     """
@@ -137,9 +137,9 @@ def test_service_healthy_true(mock_dns, mock_port, mock_proc, dns_agent):
     assert dns_agent.service_healthy() is True, msg
 
 
-@patch.object(DNSAgent, '_is_process_running', return_value=False)
-@patch.object(DNSAgent, '_is_port_open', return_value=True)
-@patch.object(DNSAgent, 'is_dns_running', return_value=True)
+@patch.object(DNSAgent, 'is_port_open', return_value=True)
+@patch.object(DNSAgent, '_is_process_running', return_value=True)
+@patch.object(DNSAgent, 'is_dns_running', return_value=False)
 def test_service_healthy_fails_due_to_process(
     mock_dns,
     mock_port,

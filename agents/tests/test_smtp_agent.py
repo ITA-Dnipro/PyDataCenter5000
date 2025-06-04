@@ -53,7 +53,7 @@ def test_status_to_dict_keys(smtp_agent):
 
                 result = smtp_agent.status_to_dict()
 
-                required_keys = {
+                required_keys = set([
                     'os',
                     'hostname',
                     'ip',
@@ -62,7 +62,7 @@ def test_status_to_dict_keys(smtp_agent):
                     'timestamp',
                     'healthy',
                     'banner'
-                }
+                ])
 
                 assert set(result.keys()) == required_keys
                 assert result['banner'] == '220 smtp.example.com ESMTP'
@@ -185,18 +185,23 @@ def test_is_port_open_failure(mock_socket, smtp_agent):
     assert result is False
 
 
-@pytest.mark.parametrize('proc_name',
-                         ['postfix', 'sendmail', 'exim', 'master'])
+@pytest.mark.parametrize(
+    'proc_name',
+    ['postfix', 'sendmail', 'exim', 'master']
+)
 @patch('subprocess.Popen')
 def test_is_process_running_accepts_default_processes(
-        proc_name, mock_popen, smtp_agent):
+    proc_name, mock_popen, smtp_agent
+):
     """
     Test that _is_process_running() returns True
     if any default SMTP process is found in the system process list.
     """
     process_mock = MagicMock()
     process_mock.communicate.return_value = (
-        'master\nsendmail\npostfix\nexim\n', '')
+        b'master\nsendmail\npostfix\nexim\n',
+        b''
+    )
     mock_popen.return_value = process_mock
 
     smtp_agent._processes = [proc_name]

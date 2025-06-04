@@ -1,7 +1,8 @@
+import re
 import subprocess
 
-from agents.agent import ServerAgent
-from agents.utils.logtools import maybe_log_message
+from ..agent import ServerAgent
+from ..utils.logtools import maybe_log_message
 
 
 class DNSAgent(ServerAgent):
@@ -13,6 +14,7 @@ class DNSAgent(ServerAgent):
         processes=None,
         interface='enp0s3',
         controller_url=None,
+        query_domain='google.com'
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -22,6 +24,31 @@ class DNSAgent(ServerAgent):
             controller_url=controller_url,
         )
 
+        self.query_domain = query_domain
+
+    @staticmethod
+    def is_valid_ip(output):
+        """
+        Validate if the output is a correctly formatted IPv4 address.
+        Returns:
+            bool: True if the output is a valid IP address, False otherwise.
+        """
+        return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None
+
+    def run_dig(self):
+        """
+        Run the dig command to query DNS locally.
+        Returns:
+            tuple: (returncode, stdout, stderr)
+        """
+        process = subprocess.Popen(
+                ['dig', '@localhost', self.query_domain, '+short'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        output, error = process.communicate()
+        return process.returncode, output, error
+
     def is_dns_running(self):
         """
         Check if DNS is responding to queries using dig.
@@ -30,18 +57,13 @@ class DNSAgent(ServerAgent):
         """
         try:
             # Run the dig command
-            process = subprocess.Popen(
-                ['dig', '@localhost', 'google.com', '+short'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            output, error = process.communicate()
+            returncode, output, error = self.run_dig()
 
-            if process.returncode != 0:
+            if returncode != 0:
                 return False
 
-            # If output is not empty, DNS is working
-            return bool(output.strip())
+            # If output is not empty and IP valid, DNS is working
+            return bool(output.strip()) and self.is_valid_ip(output)
 
         except OSError as e:
             # Command not found or failed to execute

@@ -12,6 +12,7 @@ from collections import Sequence
 import ConfigParser
 import pkg_resources
 import psutil
+import Queue
 import urllib2
 
 from .utils.helpers import get_config_option, parse_csv_list
@@ -88,6 +89,9 @@ class ServerAgent(object):
         # to user that collect_server_metadata hasn't been called.
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
+
+        # Initialize thread-safe command queue
+        self.queue = Queue.Queue()
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -537,6 +541,10 @@ class ServerAgent(object):
     def fetch_command_from_controller(
         self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
     ):
+        """
+        Send GET request to controller to fetch the first pending
+        command for a given server.
+        """
         if not self.controller_url or not self.hostname:
             maybe_log_message(
                 (
@@ -613,3 +621,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
+
+    def maybe_add_to_queue(self, command):
+        if command['command'] in self.whitelist_commands:
+            self.queue.put(command)

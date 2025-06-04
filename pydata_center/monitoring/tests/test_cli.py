@@ -5,7 +5,7 @@ from io import StringIO
 from unittest.mock import Mock, patch
 
 import requests
-from cli.controller_cli import list_agents, poll_result, truncate
+from cli.controller_cli import list_agents, poll_result, send_command, truncate
 
 
 class TestListAgents(unittest.TestCase):
@@ -13,7 +13,7 @@ class TestListAgents(unittest.TestCase):
         test_cases = [
             ('Lorem ipsum', 10, 'Lorem i...'),
             ('Lorem ipsum', 15, 'Lorem ipsum'),
-            ('Lorem ipsum', 3, '...'),
+            ('Lorem ipsum', 3, '...')
         ]
         for text, max_len, expected in test_cases:
             with self.subTest(text=text, max_len=max_len):
@@ -34,12 +34,13 @@ class TestListAgents(unittest.TestCase):
                 'server_name': 'Lviv-Server-002'
             }
         ]
+        mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
         captured_output = StringIO()
         sys.stdout = captured_output
 
-        list_agents()
+        list_agents(username='admin', password='adminpass')
 
         sys.stdout = sys.__stdout__
 
@@ -50,8 +51,116 @@ class TestListAgents(unittest.TestCase):
         self.assertIn('Lviv-Server-002', output)
 
 
-class TestPollResult(unittest.TestCase):
+class TestSendCommand(unittest.TestCase):
+    @patch('cli.controller_cli.requests.post')
+    def test_send_command_success(self, mock_post):
+        mock_response = Mock()
+        mock_response.json.return_value = {'command_id': 123}
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
 
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        command_id = send_command(
+            agent_hostname='TestAgent',
+            command='echo Hello',
+            username='user',
+            password='pass'
+        )
+
+        sys.stdout = sys.__stdout__
+
+        self.assertEqual(command_id, 123)
+        self.assertIn(
+            'Command sent to TestAgent successfully. Command ID: 123',
+            captured_output.getvalue()
+        )
+
+    @patch('cli.controller_cli.requests.post')
+    def test_send_command_no_id(self, mock_post):
+        mock_response = Mock()
+        mock_response.json.return_value = {}
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        command_id = send_command(
+            agent_hostname='TestAgent',
+            command='ls -la',
+            username='user',
+            password='pass'
+        )
+
+        sys.stdout = sys.__stdout__
+
+        self.assertIsNone(command_id)
+        self.assertIn(
+            'Command sent, but no command ID returned.',
+            captured_output.getvalue()
+        )
+
+    @patch('cli.controller_cli.requests.post')
+    def test_send_command_http_error(self, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            '500 Server Error'
+        )
+        mock_post.return_value = mock_response
+
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        command_id = send_command('Host', 'cmd', 'user', 'pass')
+
+        sys.stdout = sys.__stdout__
+
+        self.assertIsNone(command_id)
+        self.assertIn(
+            'HTTP error occurred: 500 Server Error',
+            captured_output.getvalue()
+        )
+
+    @patch(
+        'cli.controller_cli.requests.post',
+        side_effect=requests.RequestException('Request error')
+    )
+    def test_send_command_request_exception(self, mock_post):
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        command_id = send_command('Host', 'cmd', 'user', 'pass')
+
+        sys.stdout = sys.__stdout__
+
+        self.assertIsNone(command_id)
+        self.assertIn(
+            'Request failed: Request error',
+            captured_output.getvalue()
+        )
+
+    @patch(
+        'cli.controller_cli.requests.post',
+        side_effect=Exception('Unknown error')
+    )
+    def test_send_command_unexpected_exception(self, mock_post):
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        command_id = send_command('Host', 'cmd', 'user', 'pass')
+
+        sys.stdout = sys.__stdout__
+
+        self.assertIsNone(command_id)
+        self.assertIn(
+            'Unexpected error: Unknown error',
+            captured_output.getvalue()
+        )
+
+
+class TestPollResult(unittest.TestCase):
     @patch('cli.controller_cli.requests.patch')
     def test_result_immediately_available(self, mock_patch):
         mock_response = Mock()

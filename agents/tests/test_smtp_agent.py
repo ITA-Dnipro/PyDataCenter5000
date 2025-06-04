@@ -111,7 +111,7 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     assert smtp_agent.service_healthy() is True
 
-@patch.object(SMTPAgent, 'check_banner', return_value='')  # ВИПРАВЛЕНО: порожній рядок замість '220 Hello'
+@patch.object(SMTPAgent, 'check_banner', return_value='')
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
 def test_service_healthy_fails_due_to_missing_banner(
     mock_parent_health,

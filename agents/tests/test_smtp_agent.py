@@ -1,0 +1,180 @@
+import os
+import tempfile
+
+import pytest
+from mock import MagicMock, patch
+
+from agents.agent import ServerAgent
+from agents.smtp.smtp import SMTPAgent
+
+
+@pytest.yield_fixture
+def smtp_agent():
+    """
+    Create and configure a SMTPAgent instance with logging for use in tests.
+    Cleans up the temporary log file after the test completes.
+    """
+    os.environ['PORT'] = '25'
+    logfile = tempfile.NamedTemporaryFile(delete=False)
+    logfile.close()
+
+    agent = SMTPAgent()
+    agent.setup_logging(logfile.name)
+
+    yield agent
+
+    if os.path.exists(logfile.name):
+        os.remove(logfile.name)
+
+
+def test_status_to_dict_keys(smtp_agent):
+    """
+    Verify that status_to_dict() returns all expected keys
+    in the status dictionary, including banner
+    """
+    with patch.object(smtp_agent, 'collect_server_metadata') as mock_collect:
+        with patch.object(
+            smtp_agent,
+            'check_banner',
+            return_value='220 smtp.example.com ESMTP'
+        ):
+            with patch.object(
+                smtp_agent,
+                'service_healthy',
+                return_value=True
+            ):
+
+                smtp_agent.os_type = 'linux'
+                smtp_agent.hostname = 'test-host'
+                smtp_agent.ip = '127.0.0.1'
+                smtp_agent.server_name = 'smtp'
+                smtp_agent.uptime = 12345
+                smtp_agent.timestamp = '2025-06-03 20:00:00'
+                smtp_agent.healthy = True
+
+                result = smtp_agent.status_to_dict()
+
+                required_keys = set([
+                    'os',
+                    'hostname',
+                    'ip',
+                    'server_name',
+                    'uptime',
+                    'timestamp',
+                    'healthy',
+                    'banner'
+                ])
+
+                assert set(result.keys()) == required_keys
+                assert result['banner'] == '220 smtp.example.com ESMTP'
+                mock_collect.assert_called_once()
+
+
+def test_status_to_dict_with_missing_fields(smtp_agent):
+    """
+    Ensure status_to_dict() handles missing or
+    None fields gracefully.
+    """
+    with patch.object(smtp_agent, 'collect_server_metadata'):
+        with patch.object(smtp_agent, 'check_banner', return_value=''):
+            with patch.object(
+                smtp_agent,
+                'service_healthy',
+                return_value=False
+            ):
+
+                smtp_agent.os_type = None
+                smtp_agent.hostname = None
+                smtp_agent.ip = None
+                smtp_agent.server_name = 'smtp'
+                smtp_agent.uptime = -1
+                smtp_agent.timestamp = None
+                smtp_agent.healthy = False
+
+                result = smtp_agent.status_to_dict()
+
+                assert result['os'] is None
+                assert result['hostname'] is None
+                assert result['ip'] is None
+                assert result['uptime'] == -1
+                assert result['healthy'] is False
+                assert result['banner'] is None
+
+
+@patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
+@patch.object(ServerAgent, 'service_healthy', return_value=True)
+def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
+    """
+    Test service_healthy()
+    returns True when all checks (process, port)
+    pass and banner is present
+    """
+    assert smtp_agent.service_healthy() is True
+
+@patch.object(SMTPAgent, 'check_banner', return_value='')
+@patch.object(ServerAgent, 'service_healthy', return_value=True)
+def test_service_healthy_fails_due_to_missing_banner(
+    mock_parent_health,
+    mock_banner,
+    smtp_agent,
+):
+    """
+    Test service_healthy()
+    returns False if banner is missing
+    even if others pass.
+    """
+    assert smtp_agent.service_healthy() is False
+
+
+@patch('agents.smtp.smtp.maybe_log_message')
+@patch('agents.smtp.smtp.socket.socket')
+def test_check_banner_raises_socket_error(mock_socket, mock_log, smtp_agent):
+    """
+    Test that check_banner() returns
+    empty string and logs an error
+    when socket connection fails
+    """
+    mock_sock = MagicMock()
+    mock_sock.connect.side_effect = Exception('Mocked error')
+    mock_socket.return_value = mock_sock
+
+    smtp_agent.ip = '127.0.0.1'
+    result = smtp_agent.check_banner()
+    assert result == ''
+    assert mock_log.called
+
+
+@patch('agents.smtp.smtp.socket.socket')
+def test_check_banner_success(mock_socket, smtp_agent):
+    """
+    Test that check_banner() successfully reads
+    and returns banner string
+    """
+    mock_sock = MagicMock()
+    mock_sock.recv.return_value = b'220 smtp.example.com ESMTP'
+    mock_sock.connect.return_value = None
+    mock_socket.return_value = mock_sock
+
+    smtp_agent.ip = '127.0.0.1'
+    result = smtp_agent.check_banner()
+
+    assert result == '220 smtp.example.com ESMTP'
+
+
+@patch('subprocess.Popen')
+def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
+    """
+    Test that _is_process_running() returns True
+    if any default SMTP process is found in the system process list.
+    """
+    process_mock = MagicMock()
+    process_mock.communicate.return_value = (
+        b'master\nsendmail\npostfix\nexim\n', b'')
+    mock_popen.return_value = process_mock
+
+    for proc_name in ['postfix', 'sendmail', 'exim', 'master']:
+        smtp_agent._processes = [proc_name]
+        result = smtp_agent._is_process_running()
+        assert result is True
+
+

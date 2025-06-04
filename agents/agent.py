@@ -400,7 +400,7 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
     def status_to_dict(self):
         return {

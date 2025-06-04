@@ -23,9 +23,7 @@ class DNSAgent(ServerAgent):
 
     def service_healthy(self, timeout=2, payload=None, packet_size=0):
         # TODO: extends check - send a DNS query and get a valid DNS response.
-        return (
-            self.is_process_running()
-            and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
-            )
+        status = super(DNSAgent, self).service_healthy()
+        return status and self.is_port_open(
+            timeout=timeout, payload=payload, packet_size=packet_size
         )

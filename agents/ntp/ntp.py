@@ -24,9 +24,7 @@ class NTPAgent(ServerAgent):
     def service_healthy(
         self, timeout=2, payload=b'\x1b' + 47 * b'\0', packet_size=48
     ):
-        return (
-            self.is_process_running()
-            and self.is_port_open(
+        status = super(NTPAgent, self).service_healthy()
+        return status and self.is_port_open(
                 timeout=timeout, payload=payload, packet_size=packet_size
             )
-        )

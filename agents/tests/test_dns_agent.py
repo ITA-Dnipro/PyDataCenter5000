@@ -53,9 +53,14 @@ def test_status_to_dict_keys(dns_agent):
             'timestamp',
             'healthy',
             ])
-        mock_collect.assert_called_once()
+        msg_mock = 'Expected collect_server_metadata() to be called only once'
+        mock_collect.assert_called_once(), msg_mock
 
-        assert set(result.keys()) == required_keys
+        msg_keys = (
+            'Expected status_to_dict() keys to match required keys: {}'
+            .format(required_keys)
+        )
+        assert set(result.keys()) == required_keys, msg_keys
 
 
 def test_status_to_dict_with_missing_fields(dns_agent):
@@ -73,11 +78,11 @@ def test_status_to_dict_with_missing_fields(dns_agent):
 
         result = dns_agent.status_to_dict()
 
-        assert result['os'] is None
-        assert result['hostname'] is None
-        assert result['ip'] is None
-        assert result['uptime'] == -1
-        assert result['healthy'] is False
+        assert result['os'] is None, "Expected 'os' to be None when missing"
+        assert result['hostname'] is None, "Expected 'hostname' to be None"
+        assert result['ip'] is None, "Expected 'ip' to be None when missing"
+        assert result['uptime'] == -1, "Expected 'uptime' to be-1 when missing"
+        assert result['healthy'] is False, "Expected 'healthy' to be False"
 
 
 @patch('subprocess.Popen')
@@ -91,34 +96,32 @@ def test_is_dns_running_success(mock_popen, dns_agent):
     process_mock.returncode = 0
     mock_popen.return_value = process_mock
 
-    assert dns_agent.is_dns_running() is True
+    result = dns_agent.is_dns_running()
+    msg = 'Expected is_dns_running() to return True for valid dig output'
+    assert result, msg
 
 
 @patch('subprocess.Popen')
-def test_is_dns_running_no_output(mock_popen, dns_agent):
+def test_is_dns_running_failures(mock_popen, dns_agent):
     """
-    Test that is_dns_running() returns False when dig returns 0 but no output.
+    Test that is_dns_running() returns False in various failure scenarios:
+    - returncode is non-zero
+    - output is empty
+    - output is not a valid IP address
     """
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (b'', b'')
-    process_mock.returncode = 0
-    mock_popen.return_value = process_mock
+    test_cases = [
+        (1, b'8.8.8.8', b'', 'Non-zero return code should return False'),
+        (0, b'', b'', 'Empty output should return False'),
+        (0, b'invalid-response', b'', 'Invalid IP output should return False'),
+    ]
 
-    assert dns_agent.is_dns_running() is False
+    for returncode, stdout, stderr, msg in test_cases:
+        process_mock = MagicMock()
+        process_mock.communicate.return_value = (stdout, stderr)
+        process_mock.returncode = returncode
+        mock_popen.return_value = process_mock
 
-
-@patch('subprocess.Popen')
-def test_is_dns_running_error_code(mock_popen, dns_agent):
-    """
-    Test that is_dns_running()
-    returns False when the dig command fails or returns an error.
-    """
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (b'', b'Some error')
-    process_mock.returncode = 1
-    mock_popen.return_value = process_mock
-
-    assert dns_agent.is_dns_running() is False
+        assert dns_agent.is_dns_running() is False, msg
 
 
 @patch.object(DNSAgent, '_is_process_running', return_value=True)
@@ -129,7 +132,8 @@ def test_service_healthy_true(mock_dns, mock_port, mock_proc, dns_agent):
     Test service_healthy()
     returns True when all checks (process, port, DNS) pass.
     """
-    assert dns_agent.service_healthy() is True
+    msg = 'Expected service_healthy() to return True when all checks pass'
+    assert dns_agent.service_healthy() is True, msg
 
 
 @patch.object(DNSAgent, '_is_process_running', return_value=False)
@@ -145,19 +149,32 @@ def test_service_healthy_fails_due_to_process(
     Test service_healthy()
     returns False when the process check fails, even if others pass.
     """
-    assert dns_agent.service_healthy() is False
+    msg = (
+        'Expected service_healthy() to return False when process check fails'
+    )
+    assert dns_agent.service_healthy() is False, msg
 
 
-@patch('agents.dns.dns.maybe_log_message')
-def test_is_dns_running_raises_oserror(mock_log, dns_agent):
+def test_is_dns_running_raises_oserror(dns_agent):
     """
     Test that is_dns_running() returns False and logs an error
     when subprocess.Popen raises an OSError.
-    Ensures proper error handling and logging in case the 'dig' command
-    cannot be executed.
     """
     with patch('agents.dns.dns.subprocess.Popen',
                side_effect=OSError('Mocked OSError')):
         result = dns_agent.is_dns_running()
-        assert result is False
-        assert mock_log.called
+
+    msg_result = (
+        'Expected is_dns_running() to return False when Popen raises OSError'
+    )
+    assert result is False, msg_result
+
+    # Check if message about errors exist in temp logfile
+    with open(dns_agent.logger.handlers[0].baseFilename, 'r') as f:
+        log_content = f.read()
+
+    msg_log_dns_failed = "Log should include 'DNS check failed' after OSError"
+    msg_log_oserror = "Log should include 'Mocked OSError' after OSError"
+
+    assert 'DNS check failed' in log_content, msg_log_dns_failed
+    assert 'Mocked OSError' in log_content, msg_log_oserror

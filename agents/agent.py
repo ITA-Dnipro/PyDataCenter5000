@@ -384,7 +384,7 @@ class ServerAgent(object):
 
         try:
             for k, v in data.items():
-                self.logger.info('%s: %s' % (k, v))
+                self.logger.info(u'%s: %s' % (k, v))
         except (IOError, OSError) as e:
             maybe_log_message(
                 'Error logging to file: %s' % str(e),

@@ -1,4 +1,5 @@
 import logging
+import re
 
 import ConfigParser
 
@@ -67,3 +68,12 @@ def get_config_option(
                 level=logging.WARNING,
             )
     return value or default
+
+
+def is_valid_ip(output):
+    """
+    Validate if the output is a correctly formatted IPv4 address.
+    Returns:
+        bool: True if the output is a valid IP address, False otherwise.
+    """
+    return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None

@@ -141,8 +141,6 @@ env.bak/
 venv.bak/
 .vagrant
 !env.*.example
-pyproject.toml
-
 
 # Spyder project settings
 .spyderproject
@@ -190,4 +188,3 @@ status_log.txt
 
 # VSCode and other IDE-related ignores
 .vscode
-start_dns_agent.py

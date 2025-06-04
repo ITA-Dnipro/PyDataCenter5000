@@ -2,6 +2,7 @@ import re
 import subprocess
 
 from ..agent import ServerAgent
+from ..utils.helpers import is_valid_ip
 from ..utils.logtools import maybe_log_message
 
 
@@ -12,7 +13,7 @@ class DNSAgent(ServerAgent):
         server_name='dns',
         port=53,
         processes=None,
-        interface='enp0s3',
+        interface=None,
         controller_url=None,
         query_domain='google.com'
     ):
@@ -25,15 +26,6 @@ class DNSAgent(ServerAgent):
         )
 
         self.query_domain = query_domain
-
-    @staticmethod
-    def is_valid_ip(output):
-        """
-        Validate if the output is a correctly formatted IPv4 address.
-        Returns:
-            bool: True if the output is a valid IP address, False otherwise.
-        """
-        return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None
 
     def run_dig(self):
         """
@@ -63,7 +55,7 @@ class DNSAgent(ServerAgent):
                 return False
 
             # If output is not empty and IP valid, DNS is working
-            return bool(output.strip()) and self.is_valid_ip(output)
+            return bool(output.strip()) and is_valid_ip(output)
 
         except OSError as e:
             # Command not found or failed to execute

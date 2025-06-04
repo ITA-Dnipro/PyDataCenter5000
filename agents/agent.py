@@ -14,6 +14,7 @@ import pkg_resources
 import psutil
 import Queue
 import urllib2
+from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
@@ -615,12 +616,9 @@ class ServerAgent(object):
             )
             return
 
-        url = (
-            self.controller_url
-            + self.api_prefix
-            + suffix
-            + '?hostname=%s' % self.hostname
-        )
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        fetch_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
 
         headers = {'Accept': 'application/json'}
         if api_key:

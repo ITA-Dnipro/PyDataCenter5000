@@ -1,12 +1,15 @@
 import logging
 
+from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .helpers import get_latest_agents
 from .models import CommandHistory
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
+from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -14,26 +17,42 @@ logger = logging.getLogger(__name__)
 @api_view(['POST'])
 def receive_status(request):
     """
-    Accepts server health status reports and saves them to the database.
+    Receive and log server status data sent via POST request.
     """
-
     serializer = ServerStatusSerializer(data=request.data)
 
     if serializer.is_valid():
-        instance = serializer.save()
-        logger.info(
-            f'Status received from {instance.hostname}'
-            f' ({instance.ip}) - Healthy: {instance.healthy}'
+        try:
+            serializer.save()
+            data = extract_status_data(serializer.validated_data, request)
+            logger.info(
+                '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
+                data['hostname'], data['ip'], data['uptime']
+            )
+            return Response(
+                {
+                    'message': 'Status received',
+                    'hostname': data['hostname'],
+                    'ip': data['ip']
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error('[ERROR] Saving status failed: %s', str(e))
+            return Response(
+                {'error': 'Internal server error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    else:
+        data = extract_status_data(request.data, request)
+        logger.warning(
+            '[INVALID] Host: %s | IP: %s | Errors: %s',
+            data['hostname'], data['ip'], serializer.errors
         )
         return Response(
-            {'message': 'Status received'},
-            status=status.HTTP_201_CREATED
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
         )
-
-    logger.warning(
-        f'Invalid status data from: {serializer.errors}'
-    )
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CommandHistoryViewSet(viewsets.ModelViewSet):
@@ -127,3 +146,13 @@ def submit_command_result(request):
         return Response(serializer.data, status=200)
 
     return Response(serializer.errors, status=400)
+
+
+def dashboard_view(request):
+    agents = get_latest_agents()
+
+    return render(
+        request,
+        template_name='monitoring/dashboard.html',
+        context={'agents': agents}
+    )

@@ -1,7 +1,5 @@
 import os
 
-import pkg_resources
-
 from ..agent import ServerAgent
 
 
@@ -10,7 +8,7 @@ class WebAgent(ServerAgent):
     def __init__(
         self,
         server_name='web',
-        port=None,
+        port=8000,
         processes=None,
         interface=None,
         controller_url=None,
@@ -26,4 +24,12 @@ class WebAgent(ServerAgent):
             processes=processes or ['uvicorn'],
             interface=interface,
             controller_url=controller_url,
+        )
+
+    def service_healthy(
+            self, timeout=2, payload=None, packet_size=0
+    ):
+        status = super(WebAgent, self).service_healthy()
+        return status and self.is_port_open(
+            timeout=timeout, payload=payload, packet_size=packet_size
         )

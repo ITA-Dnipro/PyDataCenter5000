@@ -1,3 +1,4 @@
+import socket
 import os
 import tempfile
 
@@ -137,7 +138,7 @@ def test_check_banner_raises_socket_error(mock_socket, mock_log, smtp_agent):
     when socket connection fails
     """
     mock_sock = MagicMock()
-    mock_sock.connect.side_effect = Exception('Mocked error')
+    mock_sock.connect.side_effect = socket.error('Mocked socket error')
     mock_sock.close = MagicMock()
     mock_socket.return_value = mock_sock
 

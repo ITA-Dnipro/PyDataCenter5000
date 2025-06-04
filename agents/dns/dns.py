@@ -13,6 +13,7 @@ class DNSAgent(ServerAgent):
         port=53,
         processes=None,
         interface=None,
+        protocol='udp',
         controller_url=None,
         query_domain='google.com'
     ):
@@ -21,6 +22,7 @@ class DNSAgent(ServerAgent):
             port=port,
             processes=processes or ['named', 'bind9'],
             interface=interface,
+            protocol=protocol,
             controller_url=controller_url,
         )
 

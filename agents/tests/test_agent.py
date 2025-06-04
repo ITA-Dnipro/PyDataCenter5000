@@ -34,8 +34,8 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).setup_logging(path)
 
     def __del__(self):
-        if self.log_path:
-            os.remove(self.log_path)
+        if self.logfile:
+            os.remove(self.logfile.name)
 
     def service_healthy(self):
         return super(MockAgent, self).service_healthy()

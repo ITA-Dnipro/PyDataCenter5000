@@ -57,8 +57,9 @@ def test_status_to_dict_keys(dns_agent):
         mock_collect.assert_called_once(), msg_mock
 
         msg_keys = (
-            'Expected status_to_dict() keys to match required keys: {}'
-            .format(required_keys)
+            'Expected status_to_dict() keys to match required: {0}'.format(
+                required_keys
+            )
         )
         assert set(result.keys()) == required_keys, msg_keys
 

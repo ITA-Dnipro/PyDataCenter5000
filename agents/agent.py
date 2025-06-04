@@ -96,9 +96,6 @@ class ServerAgent(object):
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # Ensure log_path always exists as an attribute (tests expect it)
-        self.log_path = ''
-
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -179,8 +176,6 @@ class ServerAgent(object):
         self.fallback_logger = logging.getLogger(
             '_'.join([self.server_name, 'fallback'])
         )
-        # Record where the logfile actually is, so tests can delete it:
-        self.log_path = path
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""

@@ -103,7 +103,7 @@ def test_status_to_dict_with_missing_fields(smtp_agent):
 
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
-def test_service_healthy_true(mock_banner, mock_parent_health, smtp_agent):
+def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     Test service_healthy()
     returns True when all checks (process, port)
@@ -115,8 +115,8 @@ def test_service_healthy_true(mock_banner, mock_parent_health, smtp_agent):
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 def test_service_healthy_fails_due_to_missing_banner(
-    mock_banner,
     mock_parent_health,
+    mock_banner,
     smtp_agent,
 ):
     """
@@ -127,8 +127,9 @@ def test_service_healthy_fails_due_to_missing_banner(
     assert smtp_agent.service_healthy() is False
 
 
+@patch('agents.smtp.smtp.maybe_log_message')
 @patch('agents.smtp.smtp.socket.socket')
-def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
+def test_check_banner_raises_socket_error(mock_socket, mock_log, smtp_agent):
     """
     Test that check_banner() returns
     empty string and logs an error
@@ -141,6 +142,7 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     smtp_agent.ip = '127.0.0.1'
     result = smtp_agent.check_banner()
     assert result == ''
+    assert mock_log.called
 
 
 @patch('agents.smtp.smtp.socket.socket')
@@ -177,7 +179,7 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
         assert result is True
 
 
-@patch('agents.smtp.smtp.urllib2.urlopen')
+@patch('urllib2.urlopen')
 @patch('json.dumps', return_value='{"ok": true}')
 @patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
 def test_status_to_controller_success(
@@ -194,8 +196,9 @@ def test_status_to_controller_success(
     assert mock_urlopen.called
 
 
-@patch('agents.smtp.smtp.urllib2.urlopen',
-       side_effect=Exception('Connection failed'))
+@patch('urllib2.urlopen',
+       side_effect=Exception('Connection failed')
+)
 @patch('agents.smtp.smtp.maybe_log_message')
 @patch('json.dumps', return_value='{"ok": true}')
 @patch.object(SMTPAgent, 'status_to_dict', return_value={'ok': True})
@@ -204,7 +207,8 @@ def test_status_to_controller_failure(
         mock_json,
         mock_log,
         mock_urlopen,
-        smtp_agent):
+        smtp_agent
+):
     """
     Test that status_to_controller() logs an error
     when sending data fails.

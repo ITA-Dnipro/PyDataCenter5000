@@ -185,28 +185,21 @@ def test_is_port_open_failure(mock_socket, smtp_agent):
     assert result is False
 
 
-@pytest.mark.parametrize(
-    'proc_name',
-    ['postfix', 'sendmail', 'exim', 'master']
-)
 @patch('subprocess.Popen')
-def test_is_process_running_accepts_default_processes(
-    proc_name, mock_popen, smtp_agent
-):
+def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
     """
     Test that _is_process_running() returns True
     if any default SMTP process is found in the system process list.
     """
     process_mock = MagicMock()
     process_mock.communicate.return_value = (
-        b'master\nsendmail\npostfix\nexim\n',
-        b''
-    )
+        b'master\nsendmail\npostfix\nexim\n', b'')
     mock_popen.return_value = process_mock
 
-    smtp_agent._processes = [proc_name]
-    result = smtp_agent._is_process_running()
-    assert result is True
+    for proc_name in ['postfix', 'sendmail', 'exim', 'master']:
+        smtp_agent._processes = [proc_name]
+        result = smtp_agent._is_process_running()
+        assert result is True
 
 
 @patch('subprocess.Popen', side_effect=OSError('ps failed'))

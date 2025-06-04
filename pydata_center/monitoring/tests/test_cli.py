@@ -1,9 +1,11 @@
 import sys
+import time
 import unittest
 from io import StringIO
 from unittest.mock import Mock, patch
 
-from cli.controller_cli import list_agents, truncate
+import requests
+from cli.controller_cli import list_agents, poll_result, truncate
 
 
 class TestListAgents(unittest.TestCase):
@@ -46,3 +48,77 @@ class TestListAgents(unittest.TestCase):
         self.assertIn('Debian-Server-002', output)
         self.assertIn('Kyiv-Server-001', output)
         self.assertIn('Lviv-Server-002', output)
+
+
+class TestPollResult(unittest.TestCase):
+
+    @patch('cli.controller_cli.requests.patch')
+    def test_result_immediately_available(self, mock_patch):
+        mock_response = Mock()
+        mock_response.json.return_value = {'result': 'success'}
+        mock_response.raise_for_status.return_value = None
+        mock_patch.return_value = mock_response
+
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        result = poll_result(command_id=1, interval=1, timeout=5)
+
+        sys.stdout = sys.__stdout__
+
+        self.assertEqual(result, {'result': 'success'})
+        self.assertNotIn('Waiting for result...', captured_output.getvalue())
+        self.assertNotIn('Timeout', captured_output.getvalue())
+
+    @patch('cli.controller_cli.requests.patch')
+    def test_status_done(self, mock_patch):
+        mock_response = Mock()
+        mock_response.json.return_value = {'status': 'done'}
+        mock_response.raise_for_status.return_value = None
+        mock_patch.return_value = mock_response
+
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        result = poll_result(command_id=2, interval=1, timeout=5)
+
+        sys.stdout = sys.__stdout__
+
+        self.assertEqual(result, {'status': 'done'})
+        self.assertNotIn('Waiting for result...', captured_output.getvalue())
+        self.assertNotIn('Timeout', captured_output.getvalue())
+
+    @patch('cli.controller_cli.requests.patch')
+    def test_timeout_reached(self, mock_patch):
+        mock_response = Mock()
+        mock_response.json.return_value = {'status': 'pending'}
+        mock_response.raise_for_status.return_value = None
+        mock_patch.return_value = mock_response
+
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        result = poll_result(command_id=3, interval=1, timeout=2)
+
+        sys.stdout = sys.__stdout__
+
+        output = captured_output.getvalue()
+        self.assertIn('Waiting for result...', output)
+        self.assertIn('Timeout after 2 seconds.', output)
+        self.assertEqual(result, {'status': 'pending'})
+
+    @patch(
+        'cli.controller_cli.requests.patch',
+        side_effect=requests.ConnectionError('Connection error')
+    )
+    def test_request_exception(self, mock_patch):
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        result = poll_result(command_id=4, interval=1, timeout=2)
+
+        sys.stdout = sys.__stdout__
+
+        output = captured_output.getvalue()
+        self.assertIn('Request failed: Connection error', output)
+        self.assertIsNone(result)

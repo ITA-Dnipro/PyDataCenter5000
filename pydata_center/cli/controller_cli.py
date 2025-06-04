@@ -1,6 +1,8 @@
 import argparse
 import configparser
 import os
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -15,16 +17,23 @@ server_name_width = int(config['display']['server_name_width'])
 default_interval = int(config['polling']['interval'])
 default_timeout = int(config['polling']['timeout'])
 
+base_url = str(config['urls']['base_url'])
+get_agent_lists_url = str(config['urls']['get_agent_lists'])
+poll_request_url = str(config['urls']['poll_request'])
+send_command_url = str(config['urls']['send_command'])
 
-def truncate(text, max_length):
+
+def truncate(text: str, max_length: int) -> str:
     """Truncate text to fit max_length with ellipsis if needed."""
     return text if len(text) <= max_length else text[:max_length - 3] + '...'
 
 
-def list_agents(url: str = None):
+def list_agents(url: Optional[str] = None) -> None:
     """
     List active agents as a formatted table, truncating long values.
     """
+    if url is None:
+        url = base_url.rstrip('/') + '/' + send_command_url.lstrip('/')
     print('Available agents:')
     print(
         f"{'ID':<{id_width}} {'Hostname':<{hostname_width}} "
@@ -47,7 +56,7 @@ def list_agents(url: str = None):
         )
 
 
-def send_command(agent_hostname, command):
+def send_command(agent_hostname: str, command: str) -> None:
     """
     Send a command to a selected agent via POST 'commands'
     """
@@ -55,15 +64,48 @@ def send_command(agent_hostname, command):
 
 
 def poll_result(
-        command_id, interval=default_interval, timeout=default_timeout
-):
-    """
-    Poll for the result from 'submit_command_result'
-    """
-    pass
+    command_id: int,
+    interval: int = 5,
+    timeout: int = 30,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    url: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    if url is None:
+        url = base_url.rstrip('/') + '/' + poll_request_url.lstrip('/')
+    payload = {'id': command_id}
+    start_time = time.time()
+
+    auth = (username, password) if username and password else None
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
+
+    while True:
+        try:
+            response = requests.patch(
+                url, json=payload, auth=auth, headers=headers
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('result') is not None or data.get('status') == 'done':
+                return data
+
+            if time.time() - start_time > timeout:
+                print(f'Timeout after {timeout} seconds.')
+                return data
+
+            print('Waiting for result...')
+            time.sleep(interval)
+
+        except requests.RequestException as e:
+            print(f'Request failed: {e}')
+            return None
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             'CLI for interaction with Django Controller '
@@ -80,6 +122,12 @@ def main():
 
     poll_parser = subparsers.add_parser('poll', help='Poll result of command')
     poll_parser.add_argument('id', help='Command ID', type=int)
+    poll_parser.add_argument(
+        '--username', help='Username', type=str, required=True
+    )
+    poll_parser.add_argument(
+        '--password', help='Password', type=str, required=True
+    )
 
     args = parser.parse_args()
 
@@ -88,7 +136,7 @@ def main():
     elif args.command == 'send':
         send_command(args.hostname, args.command)
     elif args.command == 'poll':
-        poll_result(args.id)
+        poll_result(args.id, username=args.username, password=args.password)
     else:
         parser.print_help()
 

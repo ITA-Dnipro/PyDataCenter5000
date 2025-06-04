@@ -31,64 +31,73 @@ def test_status_to_dict_keys(smtp_agent):
     Verify that status_to_dict() returns all expected keys
     in the status dictionary, including banner
     """
-    with patch.object(smtp_agent, 'collect_server_metadata') as mock_collect, \
-            patch.object(
+    with patch.object(smtp_agent, 'collect_server_metadata') as mock_collect:
+        with patch.object(
+            smtp_agent,
+            'check_banner',
+            return_value='220 smtp.example.com ESMTP'
+        ):
+            with patch.object(
                 smtp_agent,
-                'check_banner',
-                return_value='220 smtp.example.com ESMTP'
-                ), \
-            patch.object(smtp_agent, 'service_healthy', return_value=True):
+                'service_healthy',
+                return_value=True
+            ):
 
-        smtp_agent.os_type = 'linux'
-        smtp_agent.hostname = 'test-host'
-        smtp_agent.ip = '127.0.0.1'
-        smtp_agent.server_name = 'smtp'
-        smtp_agent.uptime = 12345
-        smtp_agent.timestamp = '2025-06-03 20:00:00'
-        smtp_agent.healthy = True
+                smtp_agent.os_type = 'linux'
+                smtp_agent.hostname = 'test-host'
+                smtp_agent.ip = '127.0.0.1'
+                smtp_agent.server_name = 'smtp'
+                smtp_agent.uptime = 12345
+                smtp_agent.timestamp = '2025-06-03 20:00:00'
+                smtp_agent.healthy = True
 
-        result = smtp_agent.status_to_dict()
+                result = smtp_agent.status_to_dict()
 
-        required_keys = {
-            'os',
-            'hostname',
-            'ip',
-            'server_name',
-            'uptime',
-            'timestamp',
-            'healthy',
-            'banner'
-        }
+                required_keys = {
+                    'os',
+                    'hostname',
+                    'ip',
+                    'server_name',
+                    'uptime',
+                    'timestamp',
+                    'healthy',
+                    'banner'
+                }
 
-        assert set(result.keys()) == required_keys
-        assert result['banner'] == '220 smtp.example.com ESMTP'
-        mock_collect.assert_called_once()
+                assert set(result.keys()) == required_keys
+                assert result['banner'] == '220 smtp.example.com ESMTP'
+                mock_collect.assert_called_once()
 
 
 def test_status_to_dict_with_missing_fields(smtp_agent):
     """
-    Ensure status_to_dict() handles missing or None fields gracefully.
+    Ensure status_to_dict() handles missing or
+    None fields gracefully.
     """
-    with patch.object(smtp_agent, 'collect_server_metadata'), \
-            patch.object(smtp_agent, 'check_banner', return_value=''), \
-            patch.object(smtp_agent, 'service_healthy', return_value=False):
+    with patch.object(smtp_agent, 'collect_server_metadata'):
+        with patch.object(smtp_agent, 'check_banner', return_value=''):
+            with patch.object(
+                smtp_agent,
+                'service_healthy',
+                return_value=False
+            ):
 
-        smtp_agent.os_type = None
-        smtp_agent.hostname = None
-        smtp_agent.ip = None
-        smtp_agent.server_name = 'smtp'
-        smtp_agent.uptime = -1
-        smtp_agent.timestamp = None
-        smtp_agent.healthy = False
+                smtp_agent.os_type = None
+                smtp_agent.hostname = None
+                smtp_agent.ip = None
+                smtp_agent.server_name = 'smtp'
+                smtp_agent.uptime = -1
+                smtp_agent.timestamp = None
+                smtp_agent.healthy = False
 
-        result = smtp_agent.status_to_dict()
+                result = smtp_agent.status_to_dict()
 
-        assert result['os'] is None
-        assert result['hostname'] is None
-        assert result['ip'] is None
-        assert result['uptime'] == -1
-        assert result['healthy'] is False
-        assert result['banner'] is None
+                assert result['os'] is None
+                assert result['hostname'] is None
+                assert result['ip'] is None
+                assert result['uptime'] == -1
+                assert result['healthy'] is False
+                assert result['banner'] is None
 
 
 @patch.object(SMTPAgent, '_is_process_running', return_value=True)

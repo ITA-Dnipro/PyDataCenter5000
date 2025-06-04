@@ -25,3 +25,6 @@ class WebAgent(ServerAgent):
             interface=interface,
             whitelist_commands=whitelist_commands,
         )
+
+    def service_healthy(self):
+        return super(WebAgent, self).service_healthy()

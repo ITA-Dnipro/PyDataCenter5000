@@ -58,6 +58,9 @@ class MockAgent(ServerAgent):
         if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)
 
+    def service_healthy(self):
+        return super(MockAgent, self).service_healthy()
+
 
 def test_type_checks_on_init():
     """Test that type checks fail initialization with bad parameters."""

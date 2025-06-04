@@ -307,23 +307,30 @@ class ServerAgent(object):
         try:
             s.settimeout(2)
             s.connect((self.ip, self.port))
-        except socket.error:
+
+            return True
+        except socket.error as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
         finally:
             s.close()
 
-        return True
-
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(['ps', 'aux'],
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
                                       stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(proc in output.split() for proc in self.processes)
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -334,6 +341,7 @@ class ServerAgent(object):
 
             return False
 
+    @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and

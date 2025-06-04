@@ -1,5 +1,5 @@
-import socket
 import os
+import socket
 import tempfile
 
 import pytest
@@ -113,6 +113,7 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     assert result == '220 Hello'
     assert bool(result) is True
 
+
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 @patch.object(ServerAgent, 'service_healthy', return_value=True)
 def test_service_healthy_fails_due_to_missing_banner(
@@ -181,5 +182,3 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
         smtp_agent._processes = [proc_name]
         result = smtp_agent._is_process_running()
         assert result is True
-
-

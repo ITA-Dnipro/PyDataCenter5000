@@ -250,6 +250,7 @@ class ServerAgent(object):
                 'server',
                 'interface',
                 logger=self.logger,
+                default=self.interface,
                 fallback_logger=self.fallback_logger,
             )
 

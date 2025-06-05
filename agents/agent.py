@@ -3,9 +3,11 @@ import datetime
 import json
 import logging
 import logging.config
+import os
 import platform
 import socket
 import subprocess
+import time
 from collections import Sequence
 
 import ConfigParser
@@ -19,6 +21,17 @@ from .utils.logtools import maybe_log_message
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
+
+PROTOCOLS = ('tcp', 'udp')
+
+config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
+config = ConfigParser.ConfigParser()
+config.read(config_path)
+
+MAX_RETRIES = config.getint('retry_settings', 'max_retries')
+RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
+HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
+AUTH_TOKEN_TYPE = config.get('general', 'auth_token_type')
 
 
 def get_ip_from_interface(interface):
@@ -65,12 +78,17 @@ class ServerAgent(object):
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         controller_url=None,
+        log_path=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        if protocol is not None:
+            self.protocol = protocol
 
         self.controller_url = controller_url
 
@@ -78,6 +96,20 @@ class ServerAgent(object):
         # to user that collect_server_metadata hasn't been called.
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
+
+        # Initialize logging from logging config file
+        log_path = (
+            log_path or pkg_resources.
+            resource_filename(self.__class__.__module__, 'logs/agent.log')
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -94,10 +126,19 @@ class ServerAgent(object):
         """
         agent = cls()
 
-        agent.setup_logging(path=log_path)
         agent._parse_config_file(filename)
 
         return agent
+
+    @property
+    def logger(self):
+        return logging.getLogger(self.server_name)
+
+    @property
+    def fallback_logger(self):
+        return logging.getLogger(
+            '_'.join([self.server_name, 'fallback'])
+        )
 
     @property
     def port(self):
@@ -124,32 +165,27 @@ class ServerAgent(object):
             )
         self._processes = value
 
-    def setup_logging(self, path=None):
-        # Have each child dump logs inside their own subpackage by default
-        path = (
-            path
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'logs/agent.log'
-            )
-        )
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
 
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={'agent_name': self.server_name, 'log_path': path},
-        )
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
 
-        self.logger = logging.getLogger(self.server_name)
-        self.fallback_logger = logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
         filename = (
-            filename
-            or pkg_resources.resource_filename(
-                self.__class__.__module__, 'config.ini'
-            )
+            filename or pkg_resources.
+            resource_filename(self.__class__.__module__, 'config.ini')
         )
 
         config = ConfigParser.ConfigParser()
@@ -271,7 +307,7 @@ class ServerAgent(object):
             '%Y-%m-%d %H:%M:%S'
         )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -289,30 +325,64 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
+            )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
 
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
-        except socket.error:
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+                    return False
+
+            return True
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
         finally:
             s.close()
 
-        return True
-
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(
-                ['ps', 'aux'], stdout=subprocess.PIPE
-            ).communicate()[0]
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
+                                      stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(proc in output.split() for proc in self.processes)
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -323,12 +393,13 @@ class ServerAgent(object):
 
             return False
 
+    @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
     def status_to_dict(self):
         return {
@@ -390,13 +461,105 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    def status_to_controller(self, timeout=5, api_key=None):
+    def post_data(
+        self,
+        url,
+        data,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
         """
-        Send system's metadata to controller.
+        Sends a POST request with JSON data to the specified URL
+        with retry logic. Retries up to `max_retries` times with `delay`
+        seconds between attempts. Logs all attempts and failures.
+        """
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (auth_token_type, api_key)}
+            )
+        payload = json.dumps(data).encode('utf-8')
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                maybe_log_message(
+                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                request = urllib2.Request(
+                    url, data=payload, headers=headers
+                )
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
+                maybe_log_message(
+                    'POST request status: %d' % status_code,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                response.close()
+                maybe_log_message(
+                    'Success on attempt %d: %s' % (attempt, result),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+                return result
+            except urllib2.URLError as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.ERROR
+                )
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.WARNING
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not sent. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.CRITICAL
+                    )
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
+    def status_to_controller(
+        self,
+        auth_token_type=AUTH_TOKEN_TYPE,
+        api_key=None,
+        max_retries=MAX_RETRIES,
+        delay=RETRY_DELAY,
+        timeout=HTTP_TIMEOUT
+    ):
+        """
+        Sends a POST request with JSON data to the specified URL, including
+        optional authentication, and with built-in retry logic.
 
         Parameters:
-            timeout (int): POST request timeout in seconds. Default is 5.
-            api_key (str): Authentication API key. Default is None.
+            url (str): Target URL for the POST request.
+            data (dict): Data to send as JSON payload.
+            auth_token_type (str): Token type prefix for the Authorization
+                header (e.g., 'Bearer').
+            api_key (str): API key to be used for the Authorization header. If
+                None, no auth header is added.
+            max_retries (int): Maximum number of retry attempts on failure.
+                Default is MAX_RETRIES.
+            delay (int | float): Delay (in seconds) between
         """
         if not self.controller_url:
             maybe_log_message(
@@ -404,38 +567,46 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
-
             return
 
-        payload = self.status_to_json(log=False)
-
-        headers = {'Content-Type': 'application/json'}
-        if api_key:
-            headers.update({'X-API-Key': api_key})
-
-        request = urllib2.Request(
-            self.controller_url, payload, headers=headers
-        )
-
-        status_code = None
+        payload_str = self.status_to_json(log=False)
+        payload = json.loads(payload_str)
 
         try:
-            response = urllib2.urlopen(request, timeout=timeout)
-            status_code = response.getcode()
-        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-            status_code = getattr(e, 'code', None)
-
+            result = self.post_data(
+                self.controller_url,
+                payload,
+                auth_token_type,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
                 'POST request to controller failed due to error: %s' % str(e),
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
-        finally:
-            if status_code:
-                maybe_log_message(
-                    'POST request status: %s' % str(status_code),
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )

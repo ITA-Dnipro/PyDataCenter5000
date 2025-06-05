@@ -268,3 +268,10 @@ else:
             },
         },
     }
+
+CELERY_BEAT_SCHEDULE = {
+    'evaluate-agent-alerts-every-5-minutes': {
+        'task': 'pydata_center.monitoring.tasks.evaluate_agent_alerts',
+        'schedule': 300.0,
+    },
+}

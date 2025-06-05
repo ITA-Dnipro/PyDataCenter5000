@@ -1,8 +1,10 @@
+import logging
 import os
 import tempfile
+from logging.handlers import MemoryHandler
 
 import pytest
-from mock import MagicMock, patch
+from mock import patch
 
 from agents.web.web import WebAgent
 
@@ -15,10 +17,13 @@ def web_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = WebAgent()
-    agent.setup_logging(logfile.name)
+    agent = WebAgent(log_path=logfile.name)
 
-    yield agent
+    handler = MemoryHandler(capacity=10000)
+    agent.logger.addHandler(handler)
+    agent.logger.setLevel(logging.INFO)
+
+    yield agent, handler
 
     if os.path.exists(logfile.name):
         os.remove(logfile.name)
@@ -26,6 +31,8 @@ def web_agent():
 
 def test_to_dict_format(web_agent):
     """Test that to_dict returns a dictionary with correct key-value types"""
+    web_agent, _ = web_agent
+
     web_agent.collect_server_metadata()  # Initialize metadata
     result = web_agent.status_to_dict()
 
@@ -50,6 +57,8 @@ def test_to_dict_format(web_agent):
 
 def test_to_dict_timestamp_format(web_agent):
     """Test that timestamp in to_dict follows the correct format"""
+    web_agent, _ = web_agent
+
     web_agent.collect_server_metadata()  # Initialize metadata
     result = web_agent.status_to_dict()
     timestamp = result['timestamp']
@@ -64,6 +73,8 @@ def test_to_dict_timestamp_format(web_agent):
 @patch('agents.web.web.WebAgent.service_healthy')
 def test_to_dict_healthy_status(mock_healthy, web_agent):
     """Test that healthy status is correctly reflected in to_dict"""
+    web_agent, _ = web_agent
+
     # Test when service is healthy
     mock_healthy.return_value = True
     result = web_agent.status_to_dict()
@@ -77,14 +88,12 @@ def test_to_dict_healthy_status(mock_healthy, web_agent):
 
 def test_to_txt(web_agent):
     """Test that to_txt logs each key-value pair"""
-    # Create a mock logger
-    mock_logger = MagicMock()
-    web_agent.logger = mock_logger
+    web_agent, handler = web_agent
 
     web_agent.status_to_txt()
 
     # Get all logged messages
-    logged_messages = [call[0][0] for call in mock_logger.info.call_args_list]
+    logged_messages = [record.getMessage() for record in handler.buffer]
 
     # Check that each key-value pair from to_dict is logged
     dict_data = web_agent.status_to_dict()

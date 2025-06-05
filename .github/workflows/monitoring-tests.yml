@@ -21,6 +21,12 @@ on:
 permissions:
   contents: read
 
+
+defaults:
+  run:
+    working-directory: pydata_center
+
+
 jobs:
   build:
 
@@ -33,7 +39,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('pydata_center/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
 
@@ -48,7 +54,7 @@ jobs:
         pip install pytest pytest-cov==2.4.0 codecov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Test with pytest and generate coverage report
+    - name: Test only monitoring app with pytest and coverage
       run: |
         pytest --cov=pydata_center.monitoring --cov-report=xml --cov-report=term
 

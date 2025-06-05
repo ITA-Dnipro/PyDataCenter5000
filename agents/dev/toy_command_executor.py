@@ -80,7 +80,10 @@ def execute(agent, max_exec, stop):
 
 
 def main():
-    dotenv.load_dotenv('.env')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '../.env'
+    )
+    dotenv.load_dotenv(path)
 
     credentials = (
         '%s:%s' % (os.getenv('DJANGO_USER'), os.getenv('DJANGO_PASSWORD'))
@@ -92,7 +95,7 @@ def main():
 
     agent.hostname = 'test-smtp-server'
 
-    max_exec = 5
+    max_exec = 1
     stop = threading.Event()
 
     fetcher = threading.Thread(

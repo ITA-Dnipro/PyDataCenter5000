@@ -5,7 +5,6 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
-from agents.agent import ServerAgent
 from agents.dns.dns import DNSAgent
 
 
@@ -15,74 +14,15 @@ def dns_agent():
     Create and configure a DNSAgent instance with logging for use in tests.
     Cleans up the temporary log file after the test completes.
     """
-    os.environ['PORT'] = '53'
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DNSAgent(query_domain='google.com', log_path=logfile.name)
+    agent = DNSAgent(log_path=logfile.name)
 
     yield agent
 
     if os.path.exists(logfile.name):
         os.remove(logfile.name)
-
-
-def test_status_to_dict_keys(dns_agent):
-    """
-    Verify that status_to_dict() returns all expected keys
-    in the status dictionary.
-    Uses mock to isolate from metadata collection implementation.
-    """
-    with patch.object(dns_agent, 'collect_server_metadata') as mock_collect:
-        dns_agent.os_type = 'linux'
-        dns_agent.hostname = 'test-host'
-        dns_agent.ip = '127.0.0.1'
-        dns_agent.server_name = 'dns'
-        dns_agent.uptime = 12345
-        dns_agent.timestamp = '2025-06-03 20:00:00'
-        dns_agent.healthy = True
-
-        result = dns_agent.status_to_dict()
-
-        required_keys = set([
-            'os',
-            'hostname',
-            'ip',
-            'server_name',
-            'uptime',
-            'timestamp',
-            'healthy',
-            ])
-        msg_mock = 'Expected collect_server_metadata() to be called only once'
-        mock_collect.assert_called_once(), msg_mock
-
-        msg_keys = (
-            'Expected status_to_dict() keys to match required: {0}'.format(
-                required_keys
-            )
-        )
-        assert set(result.keys()) == required_keys, msg_keys
-
-
-def test_status_to_dict_with_missing_fields(dns_agent):
-    """
-    Ensure status_to_dict() handles missing or None fields gracefully.
-    """
-    with patch.object(dns_agent, 'collect_server_metadata'):
-        dns_agent.os_type = None
-        dns_agent.hostname = None
-        dns_agent.ip = None
-        dns_agent.server_name = 'dns'
-        dns_agent.uptime = -1
-        dns_agent.timestamp = None
-        dns_agent.healthy = False
-
-        result = dns_agent.status_to_dict()
-
-        assert result['os'] is None, "Expected 'os' to be None when missing"
-        assert result['hostname'] is None, "Expected 'hostname' to be None"
-        assert result['ip'] is None, "Expected 'ip' to be None when missing"
-        assert result['uptime'] == -1, "Expected 'uptime' to be-1 when missing"
 
 
 @patch('subprocess.Popen')

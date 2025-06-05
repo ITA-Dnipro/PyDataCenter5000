@@ -16,7 +16,6 @@ class DNSAgent(ServerAgent):
         protocol='udp',
         controller_url=None,
         log_path=None,
-        query_domain='google.com'
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -28,16 +27,14 @@ class DNSAgent(ServerAgent):
             log_path=log_path,
         )
 
-        self.query_domain = query_domain
-
-    def run_dig(self):
+    def run_dig(self, query_domain):
         """
         Run the dig command to query DNS locally.
         Returns:
             tuple: (returncode, stdout, stderr)
         """
         process = subprocess.Popen(
-                ['dig', '@localhost', self.query_domain, '+short'],
+                ['dig', '@localhost', query_domain, '+short'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -52,7 +49,7 @@ class DNSAgent(ServerAgent):
         """
         try:
             # Run the dig command
-            returncode, output, error = self.run_dig()
+            returncode, output, error = self.run_dig(query_domain='google.com')
 
             if returncode != 0:
                 return False

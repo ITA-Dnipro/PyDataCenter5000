@@ -81,11 +81,15 @@ class ServerAgent(object):
         protocol=None,
         controller_url=None,
         log_path=None,
+        critical_processes=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        # Always initialize to avoid AttributeError
+        self.critical_processes = critical_processes or []
 
         if protocol is not None:
             self.protocol = protocol
@@ -166,6 +170,22 @@ class ServerAgent(object):
         self._processes = value
 
     @property
+    def critical_processes(self):
+        return getattr(self, '_critical_processes', [])
+
+    @critical_processes.setter
+    def critical_processes(self, value):
+        if not isinstance(value, Sequence):
+            raise TypeError(
+                (
+                    'Critical process names must be a sequence '
+                    '(list, tuple etc.), not %s' % type(value)
+                )
+            )
+
+        self._critical_processes = value
+
+    @property
     def protocol(self):
         return getattr(self, '_protocol', None)
 
@@ -231,6 +251,21 @@ class ServerAgent(object):
                 'interface',
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
+            )
+
+            self.critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                default=self.critical_processes,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=(
+                    lambda procs: [
+                        proc.strip() for proc in procs.split(',')
+                    ] if procs else []
+                ),
+
             )
 
             self.controller_url = get_config_option(

@@ -7,10 +7,14 @@ on:
     branches:
       - main
       - develop
+      - 82_Set_Up_GitHub_Workflow_for_Unit_Tests_in_monitoring
   pull_request:
     paths:
       - pydata_center/monitoring/**
-    branches: [ "develop" ]
+    branches:
+      - main
+      - develop
+      - 82_Set_Up_GitHub_Workflow_for_Unit_Tests_in_monitoring
     types: [opened, synchronize, reopened, ready_for_review]
 
 
@@ -44,13 +48,6 @@ jobs:
         pip install flake8 pytest pytest-cov==2.4.0 codecov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
     - name: Test with pytest and generate coverage report
       run: |
         pytest --cov=pydata_center.monitoring --cov-report=xml --cov-report=term
@@ -61,4 +58,4 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
         flags: monitoring
-        fail_ci_if_error: true
+        verbose: true

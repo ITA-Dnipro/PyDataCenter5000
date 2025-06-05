@@ -41,6 +41,7 @@ def get_config_option(
         Note that by default, section names are case-sensitive, whereas
         option-names are case-insensitive.
     """
+    value = None
     try:
         value = config.get(section, option)
 
@@ -66,4 +67,4 @@ def get_config_option(
                 fallback_logger=fallback_logger,
                 level=logging.WARNING,
             )
-    return value or default
+    return value if value is not None else default

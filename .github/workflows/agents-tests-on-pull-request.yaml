@@ -1,64 +1,62 @@
-# name: monitoring tests
+name: agents tests
 
 on:
-  push:
-    paths:
-      - pydata_center/monitoring/**
-    branches:
-      - main
-      - develop
-      - 82_Set_Up_GitHub_Workflow_for_Unit_Tests_in_monitoring
   pull_request:
     paths:
-      - pydata_center/monitoring/**
+      - agents/**
+      - .github/**
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - agents/**
+      - .github/**
     branches:
       - main
       - develop
-      - 82_Set_Up_GitHub_Workflow_for_Unit_Tests_in_monitoring
-    types: [opened, synchronize, reopened, ready_for_review]
-
-permissions:
-  contents: read
-
-defaults:
-  run:
-    working-directory: pydata_center
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [2.6, 2.7]
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-    - name: Cache Pip Environment
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('pydata_center/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Agents Unit Tests (Python 2.6 - Custom Docker Image)
+        if: matrix.python-version == '2.6'
+        run: |
+          docker run --rm \
+          -v "$PWD":/pydata \
+          ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
+          bash -c "cd /pydata && python -m pytest agents"
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.8"
+      - name: Cache Pip Environment
+        if: matrix.python-version == '2.7'
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest pytest-cov==2.4.0 codecov
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
+        if: matrix.python-version == '2.7'
+        run: |
+          docker run --rm \
+          -v "$PWD":/pydata \
+          python:2.7 \
+          bash -c "
+            cd /pydata && \
+            pip install -r agents/requirements.txt && \
+            pip install pytest pytest-cov==2.4.0 && \
+            python -m pytest agents --cov=agents --cov-config=.coveragerc --cov-report=xml:/pydata/agents/coverage.xml
+          "
 
-    - name: Test only monitoring app with pytest and coverage
-      run: |
-        pytest monitoring --cov=monitoring --cov-report=xml --cov-report=term
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.xml
-        flags: monitoring
-        verbose: true
+      - name: Upload Coverage Report to Codecov
+        if: matrix.python-version == '2.7'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml

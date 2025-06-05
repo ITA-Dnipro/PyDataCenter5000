@@ -19,8 +19,7 @@ def dns_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DNSAgent(query_domain='google.com')
-    agent.setup_logging(logfile.name)
+    agent = DNSAgent(query_domain='google.com', log_path=logfile.name)
 
     yield agent
 

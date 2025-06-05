@@ -3,7 +3,7 @@
 <a href="https://softserve.academy/"><img src="https://s.057.ua/section/newsInternalIcon/upload/images/news/icon/000/050/792/vnutr_5ce4f980ef15f.jpg" title="SoftServe IT Academy" alt="SoftServe IT Academy"></a>
 
 [![agents tests](https://github.com/ITA-Dnipro/PyDataCenter5000/actions/workflows/agents-tests-on-pull-request.yaml/badge.svg)](https://github.com/ITA-Dnipro/PyDataCenter5000/actions/workflows/agents-tests-on-pull-request.yaml)
-[![agents test coverage](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000/branch/develop/graph/badge.svg?token=IYV4B8RAZE)](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000)
+[![agents test coverage](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000/branch/develop/graph/badge.svg?token=IYV4B8RAZE&label=agents)](https://codecov.io/github/ITA-Dnipro/PyDataCenter5000)
 
 # PyDataCenter5000
 > PyDataCenter: Smart Monitoring and Remote Ops
@@ -52,28 +52,6 @@ Develop a system that simulates a mini data center using VirtualBox. Each virtua
 * `controller/` — Central monitoring station (GUI or CLI)
 * `docs/` — Installation and configuration documentation
 * `vagrant/` — Scripts for setting up the infrastructure
-
----
-
-**Badges will go here**
-
-- build status
-- coverage
-- issues (waffle.io maybe)
-- devDependencies
-- npm package
-- slack
-- downloads
-- gitter chat
-- license
-- etc.
-
-[![Coverage Status](https://img.shields.io/gitlab/coverage/ita-social-projects/Forum/master?style=flat-square)](https://coveralls.io)
-[![Github Issues](https://img.shields.io/github/issues/ita-social-projects/Forum?style=flat-square)](https://github.com/ita-social-projects/Forum/issues)
-[![Pending Pull-Requests](https://img.shields.io/github/issues-pr/ita-social-projects/Forum?style=flat-square)](https://github.com/ita-social-projects/Forum/pulls)
-[![License](http://img.shields.io/:license-mit-blue.svg?style=flat-square)](http://badges.mit-license.org)
-
----
 
 ## Table of Contents (Optional)
 

@@ -11,6 +11,7 @@ class DNSAgent(ServerAgent):
         interface=None,
         protocol='udp',
         controller_url=None,
+        log_path=None,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -19,6 +20,7 @@ class DNSAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             controller_url=controller_url,
+            log_path=log_path,
         )
 
     def service_healthy(self, timeout=2, payload=None, packet_size=0):

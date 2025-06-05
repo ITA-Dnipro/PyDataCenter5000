@@ -92,7 +92,7 @@ if __name__ == '__main__':
 
     agent.hostname = 'test-smtp-server'
 
-    max_exec = 1
+    max_exec = 5
     stop = threading.Event()
 
     fetcher = threading.Thread(
@@ -100,10 +100,19 @@ if __name__ == '__main__':
     )
     executor = threading.Thread(target=execute, args=(agent, max_exec, stop))
 
-    fetcher.start()
-    executor.start()
+    try:
+        fetcher.start()
+        executor.start()
 
-    executor.join()
-    fetcher.join()
+        executor.join()
+        fetcher.join()
+    except KeyboardInterrupt:
+        logging.info('Interrupted. Exiting...')
 
-    logging.info('Threads finished executing %d commands' % max_exec)
+        stop.set()
+
+        # Let threads clean up
+        fetcher.join()
+        executor.join()
+
+    logging.info('Threads finished executing')

@@ -13,19 +13,24 @@ class SMTPAgent(ServerAgent):
     - attempts to receive the SMTP banner
     Compatible with Python 2.6.
     """
-    def __init__(self,
-                 server_name='smtp',
-                 port=25,
-                 processes=None,
-                 interface=None,
-                 controller_url=None):
-        ServerAgent.__init__(
-            self,
+    def __init__(
+        self,
+        server_name='smtp',
+        port=25,
+        processes=None,
+        interface=None,
+        protocol='tcp',
+        controller_url=None,
+        log_path=None,
+    ):
+        super(SMTPAgent, self).__init__(
             server_name=server_name,
             port=port,
             processes=processes or self.DEFAULT_PROCESSES,
             interface=interface,
+            protocol=protocol,
             controller_url=controller_url,
+            log_path=log_path,
         )
 
     def check_banner(self):

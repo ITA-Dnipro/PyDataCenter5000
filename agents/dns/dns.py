@@ -15,6 +15,7 @@ class DNSAgent(ServerAgent):
         interface=None,
         protocol='udp',
         controller_url=None,
+        log_path=None,
         query_domain='google.com'
     ):
         super(DNSAgent, self).__init__(
@@ -24,6 +25,7 @@ class DNSAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             controller_url=controller_url,
+            log_path=log_path,
         )
 
         self.query_domain = query_domain

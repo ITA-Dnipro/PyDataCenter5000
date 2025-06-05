@@ -534,3 +534,47 @@ def test_fetch_command_from_controller_error(monkeypatch):
                 msg, contents
             )
         )
+
+
+def test_maybe_add_to_queue_logs_bad_input():
+    data = {
+        'command': None,
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
+
+    agent = MockAgent(port=12345)
+
+    agent.maybe_add_to_queue(data)
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Command validation failed due to error'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+    with agent.queue.mutex:
+        assert len(agent.queue.queue) == 0
+
+
+def test_maybe_add_to_queue_adds_item():
+    data = {
+        'command': 'ls',
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
+
+    agent = MockAgent(port=12345)
+
+    agent.maybe_add_to_queue(data)
+
+    with agent.queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.queue.queue

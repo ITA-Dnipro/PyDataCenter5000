@@ -17,25 +17,27 @@ class MockAgent(ServerAgent):
         server_name='mock',
         port=None,
         processes=None,
+        interface=None,
+        protocol=None,
         controller_url=None,
-        config_file=None,
+        log_path=None,
     ):
+        self.logfile = tempfile.NamedTemporaryFile(delete=False)
+        self.logfile.close()
+
         super(MockAgent, self).__init__(
-            server_name, port, processes, controller_url, config_file
+            server_name,
+            port,
+            processes,
+            interface,
+            protocol,
+            controller_url,
+            log_path or self.logfile.name,
         )
 
-    def setup_logging(self, path=None):
-        if not path:
-            self.logfile = tempfile.NamedTemporaryFile(delete=False)
-            self.logfile.close()
-
-            path = self.logfile.name
-
-        return super(MockAgent, self).setup_logging(path)
-
     def __del__(self):
-        if self.log_path:
-            os.remove(self.log_path)
+        if self.logfile:
+            os.remove(self.logfile.name)
 
     def service_healthy(self):
         return super(MockAgent, self).service_healthy()
@@ -79,7 +81,6 @@ def test_status_to_json_type_error():
         return status
 
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
 
@@ -119,7 +120,6 @@ def test_status_to_controller_success():
         return MockResponse()
 
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     agent.collect_server_metadata()
 
@@ -140,7 +140,6 @@ def test_status_to_controller_success():
 def test_status_to_controller_missing_url():
     """Test that missing controller URL is properly handled and logged."""
     agent = MockAgent(port=12345)
-    agent.setup_logging()
     agent.collect_server_metadata()
 
     # Set controller's URL explicitly to be independent of changes
@@ -198,7 +197,6 @@ def test_status_to_controller_http_error():
             raise error
 
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     agent.collect_server_metadata()
 
@@ -218,7 +216,6 @@ def test_status_to_controller_http_error():
 
 def test_post_data_success(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     class MockResponse:
         def getcode(self):
@@ -246,7 +243,6 @@ def test_post_data_success(monkeypatch):
 
 def test_post_data_retry(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     call_count = {'count': 0}
 
@@ -285,7 +281,6 @@ def test_post_data_retry(monkeypatch):
 
 def test_post_data_max_retries_fail(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     monkeypatch.setattr(
         urllib2,

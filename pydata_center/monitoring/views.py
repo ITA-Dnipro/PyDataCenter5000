@@ -11,7 +11,7 @@ from .models import CommandHistory
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
 from .utils import extract_status_data, get_client_ip
 
-logger = logging.getLogger('django')
+logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])

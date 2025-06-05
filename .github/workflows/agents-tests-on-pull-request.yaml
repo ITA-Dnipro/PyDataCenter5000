@@ -48,10 +48,10 @@ jobs:
           -v "$PWD":/pydata \
           python:2.7 \
           bash -c "
-            cd /pydata/agents && \
-            pip install -r requirements.txt && \
+            cd /pydata && \
+            pip install -r agents/requirements.txt && \
             pip install pytest pytest-cov==2.4.0 && \
-            python -m pytest --cov=. --cov-report=xml:/pydata/coverage.xml
+            python -m pytest agents --cov=agents --cov-config=.coveragerc --cov-report=xml:/pydata/agents/coverage.xml
           "
 
       - name: Upload Coverage Report to Codecov

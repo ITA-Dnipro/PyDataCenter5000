@@ -356,6 +356,39 @@ def test_fetch_command_from_controller_success(monkeypatch):
         )
 
 
+def test_fetch_command_from_controller_emty_response(monkeypatch):
+    class MockResponse(object):
+        def getcode(self):
+            return 200
+
+        def read(self):
+            return ' '
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        urllib2, 'urlopen', lambda req, timeout: MockResponse()
+    )
+
+    agent = MockAgent(port=12345)
+
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+
+    agent.fetch_command_from_controller()
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'No pending commands for server %s' % agent.hostname
+
+    assert msg in contents, (
+        'Expected %s in logs, got:\n%s' % (msg, contents)
+    )
+
+
 def test_fetch_command_from_controller_missing_data():
     """
     Test proper handling and logging of missing data

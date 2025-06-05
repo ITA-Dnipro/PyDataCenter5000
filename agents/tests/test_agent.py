@@ -7,7 +7,7 @@ import types
 import pytest
 import urllib2
 
-from agents.agent import ServerAgent
+from agents.agent import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -71,6 +71,72 @@ def test_type_checks_on_init():
 
     with pytest.raises(TypeError):
         MockAgent(processes=0)
+
+
+def test_command_history_valid_data():
+    data = {
+        'command': 'ls',
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+        'result': 'ok',
+        'id': 1,
+    }
+
+    command_history = CommandHistory.from_dict(data)
+
+    assert command_history.command == 'ls'
+    assert command_history.hostname == 'test-server'
+    assert command_history.status == 'pending'
+    assert command_history.timestamp == '2025-06-03T18:25:35.418746Z'
+    assert command_history.result == 'ok'
+    assert command_history.id == 1
+
+
+def test_command_history_missing_data():
+    parameters = [
+        {
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+    ]
+
+    for data in parameters:
+        with pytest.raises(TypeError):
+            CommandHistory.from_dict(data)
+
+
+def test_command_history_bad_input_error():
+    parameters = [
+        {
+            'command': None,
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'hostname': 'test-server',
+            'status': None,
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': 'bad date',
+        },
+    ]
+
+    for data in parameters:
+        with pytest.raises((TypeError, ValueError)):
+            CommandHistory.from_dict(data)
 
 
 def test_type_checks_on_config_parse():

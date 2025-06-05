@@ -64,16 +64,8 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).service_healthy()
 
 
-def test_type_checks_on_init():
-    """Test that type checks fail initialization with bad parameters."""
-    with pytest.raises(TypeError):
-        MockAgent(port='invalid')
-
-    with pytest.raises(TypeError):
-        MockAgent(processes=0)
-
-
 def test_command_history_valid_data():
+    """Test that command history is properly instantiated."""
     data = {
         'command': 'ls',
         'hostname': 'test-server',
@@ -94,6 +86,10 @@ def test_command_history_valid_data():
 
 
 def test_command_history_missing_data():
+    """
+    Test that error is raised on command history input with missing
+    fields.
+    """
     parameters = [
         {
             'hostname': 'test-server',
@@ -113,6 +109,7 @@ def test_command_history_missing_data():
 
 
 def test_command_history_bad_input_error():
+    """Test that error is raised on bad command history input."""
     parameters = [
         {
             'command': None,
@@ -137,6 +134,15 @@ def test_command_history_bad_input_error():
     for data in parameters:
         with pytest.raises((TypeError, ValueError)):
             CommandHistory.from_dict(data)
+
+
+def test_type_checks_on_init():
+    """Test that type checks fail initialization with bad parameters."""
+    with pytest.raises(TypeError):
+        MockAgent(port='invalid')
+
+    with pytest.raises(TypeError):
+        MockAgent(processes=0)
 
 
 def test_type_checks_on_config_parse():
@@ -536,7 +542,28 @@ def test_fetch_command_from_controller_error(monkeypatch):
         )
 
 
+def test_maybe_add_to_queue_adds_item():
+    """Test that good command history input is added to queue."""
+    data = {
+        'command': 'ls',
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
+
+    agent = MockAgent(port=12345)
+
+    agent.maybe_add_to_queue(data)
+
+    with agent.queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.queue.queue
+
+
 def test_maybe_add_to_queue_logs_bad_input():
+    """
+    Test that bad command history input is logged by server agent and
+    not added to queue.
+    """
     data = {
         'command': None,
         'hostname': 'test-server',
@@ -562,19 +589,3 @@ def test_maybe_add_to_queue_logs_bad_input():
 
     with agent.queue.mutex:
         assert len(agent.queue.queue) == 0
-
-
-def test_maybe_add_to_queue_adds_item():
-    data = {
-        'command': 'ls',
-        'hostname': 'test-server',
-        'status': 'pending',
-        'timestamp': '2025-06-03T18:25:35.418746Z',
-    }
-
-    agent = MockAgent(port=12345)
-
-    agent.maybe_add_to_queue(data)
-
-    with agent.queue.mutex:
-        assert CommandHistory.from_dict(data) in agent.queue.queue

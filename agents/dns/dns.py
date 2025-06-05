@@ -10,7 +10,7 @@ class DNSAgent(ServerAgent):
         processes=None,
         interface=None,
         protocol='udp',
-        controller_url=None,
+        whitelist_commands=None,
         log_path=None,
     ):
         super(DNSAgent, self).__init__(
@@ -19,7 +19,7 @@ class DNSAgent(ServerAgent):
             processes=processes or ['named', 'bind9'],
             interface=interface,
             protocol=protocol,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
             log_path=log_path,
         )
 

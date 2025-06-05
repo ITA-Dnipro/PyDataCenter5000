@@ -80,7 +80,7 @@ def execute(agent, max_exec, stop):
 
 
 def main():
-    dotenv.load_dotenv()
+    dotenv.load_dotenv('.env')
 
     credentials = (
         '%s:%s' % (os.getenv('DJANGO_USER'), os.getenv('DJANGO_PASSWORD'))

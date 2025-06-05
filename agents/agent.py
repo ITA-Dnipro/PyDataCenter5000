@@ -130,7 +130,7 @@ class ServerAgent(object):
 
     @property
     def fallback_logger(self):
-        logging.getLogger(
+        return logging.getLogger(
             '_'.join([self.server_name, 'fallback'])
         )
 

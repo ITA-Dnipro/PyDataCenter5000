@@ -12,7 +12,7 @@ class WebAgent(ServerAgent):
         processes=None,
         interface=None,
         protocol='tcp',
-        controller_url=None,
+        whitelist_commands=None,
         log_path=None,
     ):
         if port is None and 'PORT' not in os.environ:
@@ -26,7 +26,7 @@ class WebAgent(ServerAgent):
             processes=processes or ['uvicorn'],
             interface=interface,
             protocol=protocol,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
             log_path=log_path,
         )
 

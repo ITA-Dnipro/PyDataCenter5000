@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AlertRule, CommandHistory, ServerStatus
+from .models import AgentMetric, AlertRule, CommandHistory, ServerStatus
 
 
 @admin.register(CommandHistory)
@@ -18,6 +18,17 @@ class ServerStatusAdmin(admin.ModelAdmin):
     search_fields = ('hostname', 'server_name')
     readonly_fields = ('hostname', 'ip', 'uptime', 'server_name', 'timestamp')
     ordering = ('-timestamp', )
+
+
+@admin.register(AgentMetric)
+class AgentMetricAdmin(admin.ModelAdmin):
+    list_display = (
+        'server_status', 'timestamp', 'cpu', 'ram', 'disk', 'load_avg'
+    )
+    search_fields = ('server_status__hostname', 'server_status__server_name')
+    list_filter = ('server_status__server_name', )
+    ordering = ('-timestamp', )
+    readonly_fields = ('timestamp', )
 
 
 @admin.register(AlertRule)

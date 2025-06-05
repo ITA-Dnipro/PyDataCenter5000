@@ -91,6 +91,14 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     
     assert result == ''
 
+    mock_sock.close.assert_called_once()
+
+    with open(log_path, 'r') as f:
+        log_content = f.read()
+
+    assert 'mocked socket error' in log_content.lower()
+    assert 'error' in log_content.lower()
+
 
 @patch('agents.smtp.smtp.socket.socket')
 def test_check_banner_success(mock_socket, smtp_agent):

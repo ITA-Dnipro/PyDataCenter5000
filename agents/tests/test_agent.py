@@ -18,6 +18,7 @@ class MockAgent(ServerAgent):
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         controller_url=None,
         log_path=None,
     ):
@@ -29,13 +30,17 @@ class MockAgent(ServerAgent):
             port,
             processes,
             interface,
+            protocol,
             controller_url,
             log_path or self.logfile.name,
         )
 
     def __del__(self):
         if self.logfile:
-            os.remove(self.logfile)
+            os.remove(self.logfile.name)
+
+    def service_healthy(self):
+        return super(MockAgent, self).service_healthy()
 
 
 def test_type_checks_on_init():

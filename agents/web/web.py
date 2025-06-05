@@ -11,6 +11,7 @@ class WebAgent(ServerAgent):
         port=8000,
         processes=None,
         interface=None,
+        protocol='tcp',
         controller_url=None,
         log_path=None,
     ):
@@ -24,6 +25,16 @@ class WebAgent(ServerAgent):
             port=port,
             processes=processes or ['uvicorn'],
             interface=interface,
+            protocol=protocol,
             controller_url=controller_url,
             log_path=log_path,
+        )
+
+    def service_healthy(
+            self, timeout=2, payload=None, packet_size=0
+    ):
+        # TODO: extend health check.
+        status = super(WebAgent, self).service_healthy()
+        return status and self.is_port_open(
+            timeout=timeout, payload=payload, packet_size=packet_size
         )

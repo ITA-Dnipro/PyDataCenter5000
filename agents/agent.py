@@ -22,6 +22,8 @@ log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
+PROTOCOLS = ('tcp', 'udp')
+
 config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
 config = ConfigParser.ConfigParser()
 config.read(config_path)
@@ -76,6 +78,7 @@ class ServerAgent(object):
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         controller_url=None,
         log_path=None,
     ):
@@ -83,6 +86,9 @@ class ServerAgent(object):
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+
+        if protocol is not None:
+            self.protocol = protocol
 
         self.controller_url = controller_url
 
@@ -159,6 +165,22 @@ class ServerAgent(object):
             )
         self._processes = value
 
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
+
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
+
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
+
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
         filename = (
@@ -197,7 +219,9 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=(
-                    lambda procs: [proc.strip() for proc in procs.split(',')]
+                    lambda procs: [
+                        proc.strip() for proc in procs.split(',')
+                    ]
                 ),
             )
 
@@ -279,10 +303,11 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-        self.timestamp = datetime.datetime.utcnow(
-        ).strftime('%Y-%m-%d %H:%M:%S')
+        self.timestamp = datetime.datetime.utcnow().strftime(
+            '%Y-%m-%d %H:%M:%S'
+        )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -300,29 +325,64 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
+            )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
 
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
-        except socket.error:
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+                    return False
+
+            return True
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
             return False
         finally:
             s.close()
 
-        return True
-
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(['ps', 'aux'],
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
                                       stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(proc in output.split() for proc in self.processes)
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -333,12 +393,13 @@ class ServerAgent(object):
 
             return False
 
+    @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
     def status_to_dict(self):
         return {

@@ -1,0 +1,38 @@
+body {
+  font-family: sans-serif;
+  padding: 2rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+tr.offline {
+  color: red;
+}
+
+h1 {
+  margin-bottom: 1rem;
+}
+
+.status-dot {
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green {
+  background-color: #4CAF50;
+}
+
+.status-dot.red {
+  background-color: #F44336;
+}

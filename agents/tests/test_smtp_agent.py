@@ -1,8 +1,8 @@
+import logging
 import logging.handlers
 import os
 import socket
 import tempfile
-import logging
 
 import pytest
 from mock import MagicMock, patch
@@ -21,7 +21,7 @@ def smtp_agent():
     logfile.close()
 
     agent = SMTPAgent()
-    
+
     logger = logging.getLogger('smtp_agent')
     logger.setLevel(logging.DEBUG)
 
@@ -30,10 +30,12 @@ def smtp_agent():
 
     file_handler = logging.FileHandler(logfile.name)
     file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    
+
     yield agent, logfile.name
 
     logger.removeHandler(file_handler)
@@ -86,7 +88,9 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
 
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     file_handler.setFormatter(formatter)
 
     smtp_logger.addHandler(file_handler)
@@ -99,9 +103,9 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     mock_sock.close = MagicMock()
     mock_socket.return_value = mock_sock
     agent.ip = '127.0.0.1'
-    
+
     result = agent.check_banner()
-    
+
     assert result == ''
 
     mock_sock.close.assert_called_once()
@@ -136,10 +140,7 @@ def test_check_banner_success(mock_socket, smtp_agent):
 
     assert result == '220 smtp.example.com ESMTP'
 
-    with open(log_path, 'r') as f:
-        log_content = f.read()
-
-    assert '220 smtp.example.com ESMTP' in result
+    mock_sock.close.assert_called_once()
 
 
 @patch('subprocess.Popen')

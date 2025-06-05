@@ -79,7 +79,7 @@ def execute(agent, max_exec, stop):
     stop.set()
 
 
-if __name__ == '__main__':
+def main():
     dotenv.load_dotenv()
 
     credentials = (
@@ -116,3 +116,7 @@ if __name__ == '__main__':
         executor.join()
 
     logging.info('Threads finished executing')
+
+
+if __name__ == '__main__':
+    main()

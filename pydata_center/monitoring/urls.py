@@ -12,7 +12,7 @@ router.register(r'commands', CommandHistoryViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('status/', receive_status, name='receive_status'),
+    path('server/status/', receive_status, name='receive_status'),
     path('command/', create_command, name='create_command'),
     path(
         'command/fetch/',

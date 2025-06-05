@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: pydata_center
+
 jobs:
   build:
 

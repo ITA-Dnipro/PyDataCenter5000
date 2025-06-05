@@ -116,7 +116,11 @@ def test_status_to_json_type_error():
         "Can't serialize me"
     )
 
-    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
 def test_status_to_controller_success(monkeypatch):
@@ -176,7 +180,11 @@ def test_status_to_controller_missing_url():
 
     msg = "Couldn't send status update: controller URL is not set"
 
-    assert msg in contents, 'Expected %s in logs, got:\n%s' % (msg, contents)
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
 def test_status_to_controller_error(monkeypatch):
@@ -208,8 +216,8 @@ def test_status_to_controller_error(monkeypatch):
             contents = f.read()
 
         assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (
-                'Attempt 1 failed: %s' % msg, contents
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
             )
         )
 
@@ -352,7 +360,9 @@ def test_fetch_command_from_controller_success(monkeypatch):
         msg = 'GET request to controller succeded with status: %s' % code
 
         assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
         )
 
 
@@ -385,7 +395,9 @@ def test_fetch_command_from_controller_emty_response(monkeypatch):
     msg = 'No pending commands for server %s' % agent.hostname
 
     assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
     )
 
 
@@ -414,7 +426,9 @@ def test_fetch_command_from_controller_missing_data():
         )
 
         assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % (msg, contents)
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
         )
 
 
@@ -450,5 +464,7 @@ def test_fetch_command_from_controller_error(monkeypatch):
             contents = f.read()
 
         assert msg in contents, (
-            'Expected %s in logs, got:\n%s' % msg, contents
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
             )
+        )

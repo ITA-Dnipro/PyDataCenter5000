@@ -15,7 +15,6 @@ def smtp_agent():
     Create and configure a SMTPAgent instance with logging for use in tests.
     Cleans up the temporary log file after the test completes.
     """
-    os.environ['PORT'] = '25'
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 

@@ -17,19 +17,15 @@ on:
       - 82_Set_Up_GitHub_Workflow_for_Unit_Tests_in_monitoring
     types: [opened, synchronize, reopened, ready_for_review]
 
-
 permissions:
   contents: read
-
 
 defaults:
   run:
     working-directory: pydata_center
 
-
 jobs:
-  build:
-
+  monitoring-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -54,14 +50,14 @@ jobs:
         pip install pytest pytest-cov==2.4.0 codecov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Test only monitoring app with pytest and coverage
+    - name: Run monitoring tests with coverage
       run: |
-        pytest --cov=pydata_center.monitoring --cov-report=xml --cov-report=term
+        pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.xml
+        files: coverage.xml
         flags: monitoring
         verbose: true

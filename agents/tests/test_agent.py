@@ -39,20 +39,22 @@ class MockAgent(ServerAgent):
         port=None,
         processes=None,
         interface=None,
+        protocol=None,
         whitelist_commands=None,
+        log_path=None,
     ):
+        self.logfile = tempfile.NamedTemporaryFile(delete=False)
+        self.logfile.close()
+
         super(MockAgent, self).__init__(
-            server_name, port, processes, interface, whitelist_commands
+            server_name,
+            port,
+            processes,
+            interface,
+            protocol,
+            whitelist_commands,
+            log_path or self.logfile.name,
         )
-
-    def setup_logging(self, path=None):
-        if not path:
-            self.logfile = tempfile.NamedTemporaryFile(delete=False)
-            self.logfile.close()
-
-            path = self.logfile.name
-
-        return super(MockAgent, self).setup_logging(path)
 
     def __del__(self):
         if hasattr(self, 'logfile'):
@@ -100,7 +102,6 @@ def test_status_to_json_type_error():
         return status
 
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
 
@@ -142,7 +143,6 @@ def test_status_to_controller_success(monkeypatch):
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     agent.collect_server_metadata()
 
@@ -162,7 +162,6 @@ def test_status_to_controller_success(monkeypatch):
 def test_status_to_controller_missing_url():
     """Test that missing controller URL is properly handled and logged."""
     agent = MockAgent(port=12345)
-    agent.setup_logging()
     agent.collect_server_metadata()
 
     # Set controller's URL explicitly to be independent of changes
@@ -197,7 +196,6 @@ def test_status_to_controller_error(monkeypatch):
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
         agent = MockAgent(port=12345)
-        agent.setup_logging()
 
         agent.collect_server_metadata()
 
@@ -218,7 +216,6 @@ def test_status_to_controller_error(monkeypatch):
 
 def test_post_data_success(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     class MockResponse:
         def getcode(self):
@@ -247,7 +244,6 @@ def test_post_data_success(monkeypatch):
 
 def test_post_data_retry(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     call_count = {'count': 0}
 
@@ -286,7 +282,6 @@ def test_post_data_retry(monkeypatch):
 
 def test_post_data_max_retries_fail(monkeypatch):
     agent = MockAgent(port=12345)
-    agent.setup_logging()
 
     monkeypatch.setattr(
         urllib2,
@@ -342,7 +337,6 @@ def test_fetch_command_from_controller_success(monkeypatch):
         )
 
         agent = MockAgent(port=12345)
-        agent.setup_logging()
 
         agent.hostname = 'mock_server'
         agent.controller_url = 'http://mock/'
@@ -371,7 +365,6 @@ def test_fetch_command_from_controller_missing_data():
 
     for controller_url, hostname in parameters:
         agent = MockAgent(port=12345)
-        agent.setup_logging()
 
         agent.hostname = hostname
         agent.controller_url = controller_url
@@ -409,7 +402,6 @@ def test_fetch_command_from_controller_error(monkeypatch):
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
         agent = MockAgent(port=12345)
-        agent.setup_logging()
 
         agent.collect_server_metadata()
 

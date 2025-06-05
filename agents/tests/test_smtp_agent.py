@@ -80,6 +80,10 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     when socket connection fails
     """
     agent, log_path = smtp_agent
+
+    smtp_logger = logging.getLogger('smtp_agent')
+    agent.logger = smtp_logger
+    agent.fallback_logger = smtp_logger
     
     mock_sock = MagicMock()
     mock_sock.connect.side_effect = socket.error('Mocked socket error')

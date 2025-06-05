@@ -25,7 +25,7 @@ def smtp_agent():
     logger = logging.getLogger('smtp_agent')
     logger.setLevel(logging.DEBUG)
 
-    for handler in logging.handlers[:]:
+    for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
     file_handler = logging.FileHandler(logfile.name)
@@ -118,6 +118,8 @@ def test_check_banner_success(mock_socket, smtp_agent):
 
     with open(log_path, 'r') as f:
         log_content = f.read()
+
+    assert '220 smtp.example.com ESMTP' in result
 
 
 @patch('subprocess.Popen')

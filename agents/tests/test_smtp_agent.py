@@ -1,6 +1,8 @@
+import logging.handlers
 import os
 import socket
 import tempfile
+import logging
 
 import pytest
 from mock import MagicMock, patch
@@ -19,10 +21,23 @@ def smtp_agent():
     logfile.close()
 
     agent = SMTPAgent()
-    agent.setup_logging(logfile.name)
+    
+    logger = logging.getLogger('smtp_agent')
+    logger.setLevel(logging.DEBUG)
 
+    for handler in logging.handlers[:]:
+        logger.removeHandler(handler)
+
+    file_handler = logging.FileHandler(logfile.name)
+    file_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
     yield agent, logfile.name
 
+    logger.removeHandler(file_handler)
+    file_handler.close()
     if os.path.exists(logfile.name):
         os.remove(logfile.name)
 

@@ -36,7 +36,7 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     agent, log_path = smtp_agent
     result = agent.service_healthy()
-    assert result == '220 Hello'
+    assert result is True
 
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
@@ -52,7 +52,7 @@ def test_service_healthy_fails_due_to_missing_banner(
     """
     agent, log_path = smtp_agent
     result = agent.service_healthy()
-    assert result == ''
+    assert result is False
 
 
 @patch('agents.smtp.smtp.socket.socket')

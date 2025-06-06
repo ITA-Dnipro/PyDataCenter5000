@@ -7,6 +7,7 @@ import types
 import mock
 import pytest
 import urllib2
+import psutil
 
 from agents.agent import CommandHistory, ServerAgent
 
@@ -705,3 +706,76 @@ def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
     mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
     mock_socket.recvfrom.assert_called_once_with(8)
     mock_socket.close.assert_called_once()
+
+
+def test_get_ip_from_interface_not_found(monkeypatch):
+    """Test that None is returned when interface is not found."""
+    def mock_net_if_addrs():
+        return {'mock_interface': []}
+    
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+    
+    from agents.agent import get_ip_from_interface
+    assert get_ip_from_interface('nonexistent_interface') is None
+
+
+def test_get_ip_from_interface_loopback_only(monkeypatch):
+    """Test that None is returned when only loopback address is present."""
+    def mock_net_if_addrs():
+        return {
+            'mock_interface': [
+                mock.MagicMock(
+                    address='127.0.0.1',
+                    family=socket.AF_INET
+                )
+            ]
+        }
+    
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+    
+    from agents.agent import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') is None
+
+
+def test_get_ip_from_interface_valid_ipv4(monkeypatch):
+    """Test that valid IPv4 address is returned."""
+    def mock_net_if_addrs():
+        return {
+            'mock_interface': [
+                mock.MagicMock(
+                    address='192.168.1.1',
+                    family=socket.AF_INET
+                )
+            ]
+        }
+    
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+    
+    from agents.agent import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') == '192.168.1.1'
+
+
+def test_get_ip_from_interface_multiple_addresses(monkeypatch):
+    """Test that first non-loopback IPv4 address is returned."""
+    def mock_net_if_addrs():
+        return {
+            'mock_interface': [
+                mock.MagicMock(
+                    address='127.0.0.1',
+                    family=socket.AF_INET
+                ),
+                mock.MagicMock(
+                    address='192.168.1.1',
+                    family=socket.AF_INET
+                ),
+                mock.MagicMock(
+                    address='fe80::1',
+                    family=socket.AF_INET6
+                )
+            ]
+        }
+    
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+    
+    from agents.agent import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') == '192.168.1.1'

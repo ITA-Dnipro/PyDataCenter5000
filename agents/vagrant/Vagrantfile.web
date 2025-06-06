@@ -34,21 +34,28 @@ Vagrant.configure("2") do |config|
     pip install -r /home/vagrant/server/requirements.txt
 
     # Create systemd service for FastAPI
-    sudo tee /etc/systemd/system/fastapi.service << 'EOF'
+    sudo tee /etc/systemd/system/fastapi.service << EOF
 [Unit]
-Description=FastAPI application
+Description=FastAPI via Gunicorn
 After=network.target
 
 [Service]
 User=vagrant
 WorkingDirectory=/home/vagrant/server
 Environment="PATH=/opt/fastapi/venv/bin"
-ExecStart=/opt/fastapi/venv/bin/uvicorn main:app --host 0.0.0.0 --port #{ENV_WEB["PORT"]}
+Environment="VIRTUAL_ENV=/opt/fastapi/venv"
+Environment="PORT=#{ENV_WEB["PORT"]}"
+ExecStart=/opt/fastapi/venv/bin/gunicorn main:app \\
+  -k uvicorn.workers.UvicornWorker \\
+  --bind 0.0.0.0:\${PORT} \\
+  --workers 4 \\
+  --pythonpath /home/vagrant/server
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
 
     # Enable and start the service
     sudo systemctl daemon-reload

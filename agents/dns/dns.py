@@ -1,7 +1,7 @@
 import subprocess
 
 from ..agent import ServerAgent
-from ..utils.helpers import is_valid_ip
+from ..utils.configtools import is_valid_ip
 from ..utils.logtools import maybe_log_message
 
 

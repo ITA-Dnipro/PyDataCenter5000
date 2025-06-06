@@ -3,33 +3,29 @@ import datetime
 import json
 import logging
 import logging.config
-import os
 import platform
 import socket
 import subprocess
 import time
 from collections import Sequence
 
+import attr
 import ConfigParser
 import pkg_resources
 import psutil
+import Queue
 import urllib2
+from dateutil import parser
+from urlparse import urljoin
 
-from .utils.helpers import get_config_option
+from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
-config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
-config = ConfigParser.ConfigParser()
-config.read(config_path)
-
-MAX_RETRIES = config.getint('retry_settings', 'max_retries')
-RETRY_DELAY = config.getint('retry_settings', 'retry_delay')
-HTTP_TIMEOUT = config.getint('retry_settings', 'http_timeout')
-AUTH_TOKEN_TYPE = config.get('general', 'auth_token_type')
+PROTOCOLS = ('tcp', 'udp')
 
 
 def get_ip_from_interface(interface):
@@ -63,6 +59,23 @@ def get_linux_uptime():
         return float(f.readline().split()[0])
 
 
+@attr.s
+class CommandHistory(object):
+    """Helper class used to validate command fields."""
+    command = attr.ib(validator=attr.validators.instance_of(basestring))
+    hostname = attr.ib(validator=attr.validators.instance_of(basestring))
+    status = attr.ib(validator=attr.validators.instance_of(basestring))
+    timestamp = attr.ib(
+        validator=lambda instance, attribute, value: parser.parse(value)
+    )
+    result = attr.ib(default=None)
+    id = attr.ib(default=None)
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
+
 class ServerAgent(object):
     """
     Base class for all agents. Handles operations common for all
@@ -70,25 +83,56 @@ class ServerAgent(object):
     """
     __metaclass__ = abc.ABCMeta
 
+    controller_url = None
+    api_prefix = 'api/'
+    auth_token_type = 'Bearer'
+    whitelist_commands = None
+
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
         interface=None,
-        controller_url=None,
+        protocol=None,
+        whitelist_commands=None,
+        log_path=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
 
-        self.controller_url = controller_url
+        if protocol is not None:
+            self.protocol = protocol
+
+        if self.whitelist_commands is None:
+            self.whitelist_commands = []
+
+        if whitelist_commands is not None:
+            self.whitelist_commands.extend(whitelist_commands)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
+
+        # Initialize thread-safe command queue
+        self.queue = Queue.Queue()
+
+        # Initialize logging from logging config file
+        log_path = (
+            log_path or pkg_resources.
+            resource_filename(self.__class__.__module__, 'logs/agent.log')
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -105,10 +149,19 @@ class ServerAgent(object):
         """
         agent = cls()
 
-        agent.setup_logging(path=log_path)
         agent._parse_config_file(filename)
 
         return agent
+
+    @property
+    def logger(self):
+        return logging.getLogger(self.server_name)
+
+    @property
+    def fallback_logger(self):
+        return logging.getLogger(
+            '_'.join([self.server_name, 'fallback'])
+        )
 
     @property
     def port(self):
@@ -135,25 +188,21 @@ class ServerAgent(object):
             )
         self._processes = value
 
-    def setup_logging(self, path=None):
-        # Have each child dump logs inside their own subpackage by default
-        path = (
-            path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
-        )
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
 
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={
-                'agent_name': self.server_name,
-                'log_path': path
-            },
-        )
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
 
-        self.logger = logging.getLogger(self.server_name)
-        self.fallback_logger = logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
@@ -192,9 +241,7 @@ class ServerAgent(object):
                 default=self.processes,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
-                cast=(
-                    lambda procs: [proc.strip() for proc in procs.split(',')]
-                ),
+                cast=parse_csv_list,
             )
 
             self.interface = get_config_option(
@@ -205,14 +252,18 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-            self.controller_url = get_config_option(
+            whitelist_commands = get_config_option(
                 config,
                 'controller',
-                'url',
-                self.controller_url,
+                'whitelist_commands',
+                [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
             )
+            # Add commands to the list of globally allowed commands.
+            if whitelist_commands:
+                self.whitelist_commands.extend(whitelist_commands)
 
     def collect_server_metadata(self):
         """
@@ -275,10 +326,11 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-        self.timestamp = datetime.datetime.utcnow(
-        ).strftime('%Y-%m-%d %H:%M:%S')
+        self.timestamp = datetime.datetime.utcnow().strftime(
+            '%Y-%m-%d %H:%M:%S'
+        )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -296,15 +348,43 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
+            )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
 
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                    )
+
+                    return False
 
             return True
-        except socket.error as e:
+        except (socket.error, socket.timeout) as e:
             maybe_log_message(
                 'Port check failed due to error: %s' % str(e),
                 logger=self.logger,
@@ -342,7 +422,7 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
     def status_to_dict(self):
         return {
@@ -405,14 +485,7 @@ class ServerAgent(object):
             )
 
     def post_data(
-        self,
-        url,
-        data,
-        auth_token_type=AUTH_TOKEN_TYPE,
-        api_key=None,
-        max_retries=MAX_RETRIES,
-        delay=RETRY_DELAY,
-        timeout=HTTP_TIMEOUT
+        self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
     ):
         """
         Sends a POST request with JSON data to the specified URL
@@ -422,7 +495,7 @@ class ServerAgent(object):
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
-                {'Authorization': '%s %s' % (auth_token_type, api_key)}
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
             )
         payload = json.dumps(data).encode('utf-8')
 
@@ -434,33 +507,38 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
-                request = urllib2.Request(
-                    url, data=payload, headers=headers
-                )
+
+                request = urllib2.Request(url, data=payload, headers=headers)
+
                 response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
+
                 maybe_log_message(
                     'POST request status: %d' % status_code,
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
+
                 response.close()
+
                 maybe_log_message(
                     'Success on attempt %d: %s' % (attempt, result),
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
+
                 return result
-            except urllib2.URLError as e:
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
                 maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.ERROR
                 )
+
                 if attempt < max_retries:
                     maybe_log_message(
                         'Retrying in %d seconds...' % delay,
@@ -477,17 +555,13 @@ class ServerAgent(object):
                         fallback_logger=self.fallback_logger,
                         level=logging.CRITICAL
                     )
+
                     raise RuntimeError(
                         'POST failed after %d attempts' % max_retries
                     )
 
     def status_to_controller(
-        self,
-        auth_token_type=AUTH_TOKEN_TYPE,
-        api_key=None,
-        max_retries=MAX_RETRIES,
-        delay=RETRY_DELAY,
-        timeout=HTTP_TIMEOUT
+        self, api_key=None, max_retries=3, delay=5, timeout=5
     ):
         """
         Sends a POST request with JSON data to the specified URL, including
@@ -519,12 +593,12 @@ class ServerAgent(object):
             result = self.post_data(
                 self.controller_url,
                 payload,
-                auth_token_type,
                 api_key,
                 max_retries,
                 delay,
                 timeout
             )
+
             if result:
                 maybe_log_message(
                     'POST request to controller succeeded.',
@@ -539,13 +613,6 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     exc_info=True,
                 )
-        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
-            maybe_log_message(
-                'POST request to controller failed due to error: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),
@@ -553,3 +620,103 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
+
+    def fetch_command_from_controller(
+        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+    ):
+        """
+        Send GET request to controller to fetch the first pending
+        command for a given server.
+        """
+        if not self.controller_url or not self.hostname:
+            maybe_log_message(
+                (
+                    "Couldn't fetch controller command: controller URL or "
+                    'hostname not set'
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return
+
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        fetch_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
+
+        headers = {'Accept': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+            )
+        if kwargs:
+            headers.update(kwargs)
+
+        request = urllib2.Request(url, headers=headers)
+
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+
+            data = response.read()
+            response.close()
+
+            status_code = response.getcode()
+
+            maybe_log_message(
+                (
+                    'GET request to controller succeded with '
+                    'status: %s' % status_code
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO,
+            )
+
+            if status_code == 204 or not data.strip():
+                maybe_log_message(
+                    'No pending commands for server %s' % self.hostname,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+
+                return
+
+            data = json.loads(data)
+
+            return data
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
+            maybe_log_message(
+                (
+                    'Failed to fetch command - GET request failed '
+                    'due to error: %s' % str(e)
+                ),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+        except Exception as e:
+            maybe_log_message(
+                'GET request failed due to unexpected error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+
+    def maybe_add_to_queue(self, data):
+        """
+        Add command to queue if it passes field validation and if
+        whitelisted by the server.
+        """
+        try:
+            command_history = CommandHistory.from_dict(data)
+        except (TypeError, ValueError) as e:
+            maybe_log_message(
+                'Command validation failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            return
+
+        if command_history.command in self.whitelist_commands:
+            self.queue.put(command_history)

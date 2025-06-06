@@ -4,20 +4,20 @@ import os
 import discord
 from discord.ext import commands
 
-# Load bot credentials from environment variables
 DISCORD_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', 0))
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Queue for pending alerts
-alert_queue = asyncio.Queue()
+alert_queue = None
 
 
 @bot.event
 async def on_ready():
+    global alert_queue
     print(f'Bot is online as {bot.user}')
+    alert_queue = asyncio.Queue()
     bot.loop.create_task(alert_worker())
 
 
@@ -37,13 +37,11 @@ async def alert_worker():
 
 
 async def enqueue_alert(message: str):
-    await alert_queue.put(message)
+    if alert_queue is not None:
+        await alert_queue.put(message)
 
 
 def send_alert(message: str):
-    """
-    Puts message into alert queue from sync Django context.
-    """
     loop = asyncio.get_event_loop()
     if loop.is_running():
         asyncio.ensure_future(enqueue_alert(message))

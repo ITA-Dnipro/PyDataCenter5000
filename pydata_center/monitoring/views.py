@@ -6,6 +6,7 @@ from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .alerts import alert_if_command_failed, alert_if_unhealthy
 from .helpers import get_latest_agents
 from .models import CommandHistory
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
@@ -25,6 +26,7 @@ def receive_status(request):
         try:
             serializer.save()
             data = extract_status_data(serializer.validated_data, request)
+            alert_if_unhealthy(data['hostname'], data['healthy'])
             logger.info(
                 '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
                 data['hostname'], data['ip'], data['uptime']
@@ -73,6 +75,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        alert_if_command_failed(instance.hostname, data.get('result', ''))
         return Response(serializer.data)
 
     def get_queryset(self):
@@ -143,6 +146,10 @@ def submit_command_result(request):
     )
     if serializer.is_valid():
         serializer.save()
+        alert_if_command_failed(
+            command.hostname,
+            request.data.get('result', '')
+        )
         return Response(serializer.data, status=200)
 
     return Response(serializer.errors, status=400)

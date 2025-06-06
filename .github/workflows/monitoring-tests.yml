@@ -7,12 +7,14 @@ on:
     branches:
       - main
       - develop
+      - 109-hotfix-github-tests-for-monitoring-app
   pull_request:
     paths:
       - pydata_center/monitoring/**
     branches:
       - main
       - develop
+      - 109-hotfix-github-tests-for-monitoring-app
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:

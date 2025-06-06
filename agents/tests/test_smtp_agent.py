@@ -20,11 +20,7 @@ def smtp_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = SMTPAgent(log_path=logfile.name)
-
-    handler = MemoryHandler(capacity=10000)
-    agent.logger.addHandler(handler)
-    agent.logger.setLevel(logging.INFO)
+    agent = SMTPAgent(server_name='smtp_agent', log_path=logfile.name)
 
     yield agent, logfile.name
 

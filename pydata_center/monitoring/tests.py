@@ -6,8 +6,6 @@ from rest_framework.test import APIClient, APITestCase
 
 from .models import ServerStatus
 
-# Coment for testing GitHub Actions
-
 
 class ServerStatusAPITest(TestCase):
 

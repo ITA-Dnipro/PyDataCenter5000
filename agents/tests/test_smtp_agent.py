@@ -1,9 +1,8 @@
-import logging
-import logging.handlers
 import os
 import socket
+import logging
 import tempfile
-
+from logging.handlers import MemoryHandler
 import pytest
 from mock import MagicMock, patch
 
@@ -20,8 +19,11 @@ def smtp_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = SMTPAgent()
-    agent.setup_logging(logfile.name)
+    agent = SMTPAgent(log_path=logfile.name)
+    
+    handler = MemoryHandler(capacity=10000)
+    agent.logger.addHandler(handler)
+    agent.logger.setLevel(logging.INFO)
 
     yield agent, logfile.name
 

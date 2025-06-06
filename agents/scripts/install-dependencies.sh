@@ -157,6 +157,21 @@ if ! python -c "import mock"; then
     install_python_package_from_src mock
 fi
 
+if ! python -c "import attr"; then
+    get_package_src_from_tar attr "https://files.pythonhosted.org/packages/8b/76/c57eefda827b981135ccacd4328fceaa3693f79d9da1e5d78fbe59ebd0c4/attrs-15.2.0.tar.gz"
+    install_python_package_from_src attr
+fi
+
+if ! python -c "import six"; then
+    get_package_src_from_tar six "https://files.pythonhosted.org/packages/16/d8/bc6316cf98419719bd59c91742194c111b6f2e85abac88e496adefaf7afe/six-1.11.0.tar.gz"
+    install_python_package_from_src six
+fi
+
+if ! python -c "import dateutil"; then
+    get_package_src_from_tar dateutil "https://files.pythonhosted.org/packages/54/bb/f1db86504f7a49e1d9b9301531181b00a1c7325dc85a29160ee3eaa73a54/python-dateutil-2.6.1.tar.gz"
+    install_python_package_from_src dateutil
+fi
+
 echo "[INFO] Setup completed successfully."
 echo "[INFO] Cleaning up build directories..."
 rm -rf /python-build/src

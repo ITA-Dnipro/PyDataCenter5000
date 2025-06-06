@@ -21,25 +21,10 @@ def smtp_agent():
     logfile.close()
 
     agent = SMTPAgent()
-
-    logger = logging.getLogger('smtp_agent')
-    logger.setLevel(logging.DEBUG)
-
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-
-    file_handler = logging.FileHandler(logfile.name)
-    file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    agent.setup_logging(logfile.name)
 
     yield agent, logfile.name
 
-    logger.removeHandler(file_handler)
-    file_handler.close()
     if os.path.exists(logfile.name):
         os.remove(logfile.name)
 
@@ -54,7 +39,6 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     agent, log_path = smtp_agent
     result = agent.service_healthy()
     assert result == '220 Hello'
-    assert bool(result) is True
 
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
@@ -71,7 +55,6 @@ def test_service_healthy_fails_due_to_missing_banner(
     agent, log_path = smtp_agent
     result = agent.service_healthy()
     assert result == ''
-    assert bool(result) is False
 
 
 @patch('agents.smtp.smtp.socket.socket')
@@ -82,21 +65,6 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     when socket connection fails
     """
     agent, log_path = smtp_agent
-
-    smtp_logger = agent.logger
-    smtp_logger.setLevel(logging.DEBUG)
-
-    file_handler = logging.FileHandler(log_path)
-    file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    file_handler.setFormatter(formatter)
-
-    smtp_logger.addHandler(file_handler)
-    fallback = agent.fallback_logger
-    fallback.setLevel(logging.DEBUG)
-    fallback.addHandler(file_handler)
 
     mock_sock = MagicMock()
     mock_sock.connect.side_effect = socket.error('Mocked socket error')
@@ -115,10 +83,6 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
 
     assert 'mocked socket error' in log_content.lower()
     assert 'error' in log_content.lower()
-
-    smtp_logger.removeHandler(file_handler)
-    fallback.removeHandler(file_handler)
-    file_handler.close()
 
 
 @patch('agents.smtp.smtp.socket.socket')

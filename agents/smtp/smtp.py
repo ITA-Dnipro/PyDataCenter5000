@@ -54,7 +54,7 @@ class SMTPAgent(ServerAgent):
 
     def service_healthy(self):
         status = super(SMTPAgent, self).service_healthy()
-        return status and self.check_banner()
+        return status and bool(self.check_banner())
 
     def status_to_dict(self):
         status = super(SMTPAgent, self).status_to_dict()

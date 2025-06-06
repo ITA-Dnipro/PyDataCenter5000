@@ -29,3 +29,4 @@ tzdata==2025.2
 uritemplate==4.1.1
 virtualenv==20.31.2
 zipp==3.20.2
+discord.py==2.5.2

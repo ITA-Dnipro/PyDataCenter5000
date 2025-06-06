@@ -589,3 +589,118 @@ def test_maybe_add_to_queue_logs_bad_input():
 
     with agent.queue.mutex:
         assert len(agent.queue.queue) == 0
+
+
+def test_is_port_open_invalid_port():
+    """Test that is_port_open raises ValueError for invalid port."""
+    agent = MockAgent()
+    agent.port = -1
+    
+    with pytest.raises(ValueError, match='Port not set'):
+        agent.is_port_open()
+
+
+def test_is_port_open_missing_ip():
+    """Test that is_port_open returns False when IP is not set."""
+    agent = MockAgent(port=12345)
+    agent.ip = None
+    
+    assert not agent.is_port_open()
+
+
+def test_is_port_open_missing_protocol():
+    """Test that is_port_open raises ValueError when protocol is not set."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    
+    with pytest.raises(ValueError, match='Protocol not set'):
+        agent.is_port_open()
+
+
+def test_is_port_open_tcp_success(monkeypatch):
+    """Test successful TCP port check."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    agent.protocol = 'tcp'
+    
+    mock_socket = mock.MagicMock()
+    mock_socket.connect = mock.MagicMock()
+    mock_socket.close = mock.MagicMock()
+    
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+    
+    assert agent.is_port_open()
+    mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
+    mock_socket.close.assert_called_once()
+
+
+def test_is_port_open_tcp_failure(monkeypatch):
+    """Test failed TCP port check."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    agent.protocol = 'tcp'
+    
+    mock_socket = mock.MagicMock()
+    mock_socket.connect = mock.MagicMock(side_effect=socket.error('Connection refused'))
+    mock_socket.close = mock.MagicMock()
+    
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+    
+    assert not agent.is_port_open()
+    mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
+    mock_socket.close.assert_called_once()
+
+
+def test_is_port_open_udp_success(monkeypatch):
+    """Test successful UDP port check."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    agent.protocol = 'udp'
+    
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.close = mock.MagicMock()
+    
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+    
+    assert agent.is_port_open()
+    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.close.assert_called_once()
+
+
+def test_is_port_open_udp_with_packet_size(monkeypatch):
+    """Test UDP port check with packet size verification."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    agent.protocol = 'udp'
+    
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.recvfrom = mock.MagicMock(return_value=(b'response', ('127.0.0.1', 12345)))
+    mock_socket.close = mock.MagicMock()
+    
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+    
+    assert agent.is_port_open(packet_size=8)
+    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.recvfrom.assert_called_once_with(8)
+    mock_socket.close.assert_called_once()
+
+
+def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
+    """Test UDP port check with packet size mismatch."""
+    agent = MockAgent(port=12345)
+    agent.ip = '127.0.0.1'
+    agent.protocol = 'udp'
+    
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.recvfrom = mock.MagicMock(return_value=(b'short', ('127.0.0.1', 12345)))
+    mock_socket.close = mock.MagicMock()
+    
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+    
+    assert not agent.is_port_open(packet_size=8)
+    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.recvfrom.assert_called_once_with(8)
+    mock_socket.close.assert_called_once()

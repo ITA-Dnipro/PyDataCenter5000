@@ -72,21 +72,21 @@ def get_config_option(
         option-names are case-insensitive.
     """
     try:
-        value = config.get(section, option)
+        option_value = config.get(section, option)
 
         if cast:
             try:
-                value = cast(value)
+                option_value = cast(option_value)
             except (TypeError, ValueError) as e:
                 maybe_log_message(
                     (
                         'Could not cast option value '
-                        '%s due to error: %s' % (value, str(e))
+                        '%s due to error: %s' % (option_value, str(e))
                     ),
                     logger,
                     fallback_logger=fallback_logger,
                 )
-                return value
+                return option_value
 
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
@@ -97,4 +97,4 @@ def get_config_option(
                 level=logging.WARNING,
             )
 
-    return value or default
+    return option_value or default

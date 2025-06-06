@@ -1,9 +1,46 @@
 from rest_framework import serializers
 
-from .models import CommandHistory, ServerStatus
+from .models import AgentMetric, CommandHistory, ServerStatus
+
+
+class AgentMetricSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentMetric
+        fields = (
+            'id',
+            'timestamp',
+            'cpu',
+            'ram',
+            'disk',
+            'load_avg',
+            'server_status',
+        )
+        read_only_fields = ('id', 'timestamp')
+
+    def validate_cpu(self, value):
+        if value is not None and not (0 <= value <= 100):
+            raise serializers.ValidationError('CPU usage must be 0–100%.')
+        return value
+
+    def validate_ram(self, value):
+        if value is not None and not (0 <= value <= 100):
+            raise serializers.ValidationError('RAM usage must be 0–100%.')
+        return value
+
+    def validate_disk(self, value):
+        if value is not None and not (0 <= value <= 100):
+            raise serializers.ValidationError('Disk usage must be 0–100%.')
+        return value
+
+    def validate_load_avg(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError('Load average must be ≥ 0.')
+        return value
 
 
 class ServerStatusSerializer(serializers.ModelSerializer):
+    metrics = AgentMetricSerializer(many=True, read_only=True)
+
     class Meta:
         model = ServerStatus
         fields = '__all__'

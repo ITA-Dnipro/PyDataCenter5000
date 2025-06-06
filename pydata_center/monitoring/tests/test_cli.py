@@ -44,18 +44,14 @@ class TestListAgents(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
+        with self.assertLogs('cli.controller_cli', level='INFO') as log:
+            list_agents(username='admin', password='adminpass')
 
-        list_agents(username='admin', password='adminpass')
-
-        sys.stdout = sys.__stdout__
-        output = captured_output.getvalue()
-
-        self.assertIn('Ubuntu-Server-001', output)
-        self.assertIn('Debian-Server-002', output)
-        self.assertIn('Kyiv-Server-001', output)
-        self.assertIn('Lviv-Server-002', output)
+        log_output = '\n'.join(log.output)
+        self.assertIn('Ubuntu-Server-001', log_output)
+        self.assertIn('Debian-Server-002', log_output)
+        self.assertIn('Kyiv-Server-001', log_output)
+        self.assertIn('Lviv-Server-002', log_output)
 
 
 class TestSendCommand(unittest.TestCase):
@@ -66,17 +62,15 @@ class TestSendCommand(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        command_id = send_command('TestAgent', 'echo Hello', 'user', 'pass')
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='INFO') as log:
+            command_id = send_command(
+                'TestAgent', 'echo Hello', 'user', 'pass'
+            )
 
         self.assertEqual(command_id, 123)
         self.assertIn(
             'Command sent to TestAgent successfully. Command ID: 123',
-            captured_output.getvalue()
+            '\n'.join(log.output)
         )
 
     @patch('cli.controller_cli.requests.post')
@@ -86,17 +80,14 @@ class TestSendCommand(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        command_id = send_command('TestAgent', 'ls -la', 'user', 'pass')
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='WARNING') as log:
+            command_id = send_command(
+                'TestAgent', 'ls -la', 'user', 'pass'
+            )
 
         self.assertIsNone(command_id)
         self.assertIn(
-            'Command sent, but no command ID returned.',
-            captured_output.getvalue()
+            'Command sent, but no command ID returned.', '\n'.join(log.output)
         )
 
     @patch('cli.controller_cli.requests.post')
@@ -107,17 +98,12 @@ class TestSendCommand(unittest.TestCase):
         )
         mock_post.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        command_id = send_command('Host', 'cmd', 'user', 'pass')
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            command_id = send_command('Host', 'cmd', 'user', 'pass')
 
         self.assertIsNone(command_id)
         self.assertIn(
-            'HTTP error occurred: 500 Server Error',
-            captured_output.getvalue()
+            'HTTP error occurred: 500 Server Error', '\n'.join(log.output)
         )
 
     @patch(
@@ -125,36 +111,22 @@ class TestSendCommand(unittest.TestCase):
         side_effect=requests.RequestException('Request error')
     )
     def test_send_command_request_exception(self, mock_post):
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        command_id = send_command('Host', 'cmd', 'user', 'pass')
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            command_id = send_command('Host', 'cmd', 'user', 'pass')
 
         self.assertIsNone(command_id)
-        self.assertIn(
-            'Request failed: Request error',
-            captured_output.getvalue()
-        )
+        self.assertIn('Request failed: Request error', '\n'.join(log.output))
 
     @patch(
         'cli.controller_cli.requests.post',
         side_effect=Exception('Unknown error')
     )
     def test_send_command_unexpected_exception(self, mock_post):
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        command_id = send_command('Host', 'cmd', 'user', 'pass')
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            command_id = send_command('Host', 'cmd', 'user', 'pass')
 
         self.assertIsNone(command_id)
-        self.assertIn(
-            'Unexpected error: Unknown error',
-            captured_output.getvalue()
-        )
+        self.assertIn('Unexpected error: Unknown error', '\n'.join(log.output))
 
 
 class TestPollResult(unittest.TestCase):
@@ -165,16 +137,13 @@ class TestPollResult(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_patch.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        result = poll_result(command_id=1, interval=1, timeout=5)
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='INFO') as log:
+            result = poll_result(command_id=1, interval=1, timeout=5)
 
         self.assertEqual(result, {'result': 'success'})
-        self.assertNotIn('Waiting for result...', captured_output.getvalue())
-        self.assertNotIn('Timeout', captured_output.getvalue())
+        output = '\n'.join(log.output)
+        self.assertNotIn('Waiting for result...', output)
+        self.assertNotIn('Timeout', output)
 
     @patch('cli.controller_cli.requests.patch')
     def test_status_done(self, mock_patch):
@@ -183,16 +152,13 @@ class TestPollResult(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_patch.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
-
-        result = poll_result(command_id=2, interval=1, timeout=5)
-
-        sys.stdout = sys.__stdout__
+        with self.assertLogs('cli.controller_cli', level='INFO') as log:
+            result = poll_result(command_id=2, interval=1, timeout=5)
 
         self.assertEqual(result, {'status': 'done'})
-        self.assertNotIn('Waiting for result...', captured_output.getvalue())
-        self.assertNotIn('Timeout', captured_output.getvalue())
+        output = '\n'.join(log.output)
+        self.assertNotIn('Waiting for result...', output)
+        self.assertNotIn('Timeout', output)
 
     @patch('cli.controller_cli.requests.patch')
     def test_timeout_reached(self, mock_patch):
@@ -201,15 +167,10 @@ class TestPollResult(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_patch.return_value = mock_response
 
-        captured_output = StringIO()
-        sys.stdout = captured_output
+        with self.assertLogs('cli.controller_cli', level='WARNING') as log:
+            result = poll_result(command_id=3, interval=1, timeout=2)
 
-        result = poll_result(command_id=3, interval=1, timeout=2)
-
-        sys.stdout = sys.__stdout__
-        output = captured_output.getvalue()
-
-        self.assertIn('Waiting for result...', output)
+        output = '\n'.join(log.output)
         self.assertIn('Timeout after 2 seconds.', output)
         self.assertEqual(result, {'status': 'pending'})
 
@@ -218,13 +179,9 @@ class TestPollResult(unittest.TestCase):
         side_effect=requests.ConnectionError('Connection error')
     )
     def test_request_exception(self, mock_patch):
-        captured_output = StringIO()
-        sys.stdout = captured_output
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            result = poll_result(command_id=4, interval=1, timeout=2)
 
-        result = poll_result(command_id=4, interval=1, timeout=2)
-
-        sys.stdout = sys.__stdout__
-
-        output = captured_output.getvalue()
+        output = '\n'.join(log.output)
         self.assertIn('Request failed: Connection error', output)
         self.assertIsNone(result)

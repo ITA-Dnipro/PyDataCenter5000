@@ -67,8 +67,11 @@ class DNSAgent(ServerAgent):
             )
             return False
 
-    def service_healthy(self):
-        return (
-            super(DNSAgent, self).service_healthy()
-            and self.is_dns_running()
-            )
+    def service_healthy(self, timeout=2, payload=None, packet_size=0):
+        process_status = super(DNSAgent, self).service_healthy()
+        port = self.is_port_open(
+            timeout=timeout, payload=payload, packet_size=packet_size
+        )
+        dns_status = self.is_dns_running()
+
+        return process_status and port and dns_status

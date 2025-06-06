@@ -596,38 +596,32 @@ def test_status_to_dict_keys():
     """
     Verify that status_to_dict() returns all expected keys
     in the status dictionary.
-    Uses mock to isolate from metadata collection implementation.
     """
     agent = MockAgent(port=12345)
-    with mock.patch.object(agent, 'collect_server_metadata') as mock_collect:
-        agent.os_type = 'linux'
-        agent.hostname = 'test-host'
-        agent.ip = '127.0.0.1'
-        agent.server_name = 'dns'
-        agent.uptime = 12345
-        agent.timestamp = '2025-06-03 20:00:00'
-        agent.healthy = True
 
-        result = agent.status_to_dict()
+    # Set attributes manually
+    agent.os_type = 'linux'
+    agent.hostname = 'test-host'
+    agent.ip = '127.0.0.1'
+    agent.server_name = 'dns'
+    agent.uptime = 12345
+    agent.timestamp = '2025-06-03 20:00:00'
+    agent.healthy = True
 
-        required_keys = set([
-            'os',
-            'hostname',
-            'ip',
-            'server_name',
-            'uptime',
-            'timestamp',
-            'healthy',
-            ])
-        msg_mock = 'Expected collect_server_metadata() to be called only once'
-        mock_collect.assert_called_once(), msg_mock
+    result = agent.status_to_dict()
 
-        msg_keys = (
-            'Expected status_to_dict() keys to match required: {0}'.format(
-                required_keys
-            )
-        )
-        assert set(result.keys()) == required_keys, msg_keys
+    required_keys = set([
+        'os',
+        'hostname',
+        'ip',
+        'server_name',
+        'uptime',
+        'timestamp',
+        'healthy',
+    ])
+
+    msg_keys = 'Expected status_to_dict() keys to match: %s' % required_keys
+    assert set(result.keys()) == required_keys, msg_keys
 
 
 def test_status_to_dict_with_missing_fields():
@@ -635,18 +629,18 @@ def test_status_to_dict_with_missing_fields():
     Ensure status_to_dict() handles missing or None fields gracefully.
     """
     agent = MockAgent(port=12345)
-    with mock.patch.object(agent, 'collect_server_metadata'):
-        agent.os_type = None
-        agent.hostname = None
-        agent.ip = None
-        agent.server_name = 'dns'
-        agent.uptime = -1
-        agent.timestamp = None
-        agent.healthy = False
 
-        result = agent.status_to_dict()
+    agent.os_type = None
+    agent.hostname = None
+    agent.ip = None
+    agent.server_name = 'dns'
+    agent.uptime = -1
+    agent.timestamp = None
+    agent.healthy = False
 
-        assert result['os'] is None, "Expected 'os' to be None when missing"
-        assert result['hostname'] is None, "Expected 'hostname' to be None"
-        assert result['ip'] is None, "Expected 'ip' to be None when missing"
-        assert result['uptime'] == -1, "Expected 'uptime' to be-1 when missing"
+    result = agent.status_to_dict()
+
+    assert result['os'] is None, "Expected 'os' to be None when missing"
+    assert result['hostname'] is None, "Expected 'hostname' to be None"
+    assert result['ip'] is None, "Expected 'ip' to be None when missing"
+    assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"

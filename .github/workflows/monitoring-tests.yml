@@ -31,6 +31,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set fake secret key
+      run: echo "DJANGO_SECRET_KEY=test-secret-key" >> $GITHUB_ENV
+
     - name: Cache Pip Environment
       uses: actions/cache@v3
       with:

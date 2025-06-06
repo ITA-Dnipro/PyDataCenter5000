@@ -57,6 +57,8 @@ jobs:
     - name: Run monitoring tests with coverage
       run: |
         pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
+      env:
+        DJANGO_SECRET_KEY: ${{ secrets.DEV_SECRET_KEY }}
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

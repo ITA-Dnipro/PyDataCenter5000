@@ -147,7 +147,7 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls()
+        agent = cls(log_path=log_path)
 
         agent._parse_config_file(filename)
 

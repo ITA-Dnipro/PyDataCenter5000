@@ -160,3 +160,15 @@ def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
         agent._processes = [proc_name]
         result = agent._is_process_running()
         assert result is True
+
+
+@patch('subprocess.Popen')
+def test_is_process_running_false_if_not_found(mock_popen, smtp_agent):
+    agent, _ = smtp_agent
+    agent._processes = ['postfix']
+
+    process_mock = MagicMock()
+    process_mock.communicate.return_value = (b'otherproc\n', b'')
+    mock_popen.return_value = process_mock
+
+    assert agent._is_process_running() is False

@@ -19,8 +19,7 @@ class SMTPAgent(ServerAgent):
                  processes=None,
                  interface=None,
                  controller_url=None):
-        ServerAgent.__init__(
-            self,
+        super(SMTPAgent, self).__init__(
             server_name=server_name,
             port=port,
             processes=processes or self.DEFAULT_PROCESSES,

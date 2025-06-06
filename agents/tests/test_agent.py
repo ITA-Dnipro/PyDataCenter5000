@@ -4,6 +4,7 @@ import socket
 import tempfile
 import types
 
+import mock
 import pytest
 import urllib2
 

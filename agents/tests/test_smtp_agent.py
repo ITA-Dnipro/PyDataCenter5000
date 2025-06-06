@@ -2,7 +2,6 @@ import logging
 import os
 import socket
 import tempfile
-from logging.handlers import MemoryHandler
 
 import pytest
 from mock import MagicMock, patch

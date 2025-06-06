@@ -405,7 +405,10 @@ class ServerAgent(object):
 
             output = output.lower()
 
-            return any(proc in output.split() for proc in self.processes)
+            return any(
+                any(proc in p for p in output.split())
+                for proc in self.processes
+            )
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,

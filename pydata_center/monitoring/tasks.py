@@ -4,8 +4,7 @@ from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
-
-from pydata_center.monitoring.models import AgentMetric, AlertRule
+from monitoring.models import AgentMetric, AlertRule
 
 logger = logging.getLogger(__name__)
 

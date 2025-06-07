@@ -153,7 +153,13 @@ class TestPollResult(unittest.TestCase):
         mock_patch.return_value = mock_response
 
         with self.assertLogs('cli.controller_cli', level='INFO') as log:
-            result = poll_result(command_id=2, interval=1, timeout=5)
+            result = poll_result(
+                command_id=2,
+                interval=1,
+                timeout=5,
+                username='admin',
+                password='adminpass'
+            )
 
         self.assertEqual(result, {'status': 'done'})
         output = '\n'.join(log.output)
@@ -168,7 +174,13 @@ class TestPollResult(unittest.TestCase):
         mock_patch.return_value = mock_response
 
         with self.assertLogs('cli.controller_cli', level='WARNING') as log:
-            result = poll_result(command_id=3, interval=1, timeout=2)
+            result = poll_result(
+                command_id=3,
+                interval=1,
+                timeout=2,
+                username='admin',
+                password='adminpass'
+            )
 
         output = '\n'.join(log.output)
         self.assertIn('Timeout after 2 seconds.', output)
@@ -180,7 +192,13 @@ class TestPollResult(unittest.TestCase):
     )
     def test_request_exception(self, mock_patch):
         with self.assertLogs('cli.controller_cli', level='ERROR') as log:
-            result = poll_result(command_id=4, interval=1, timeout=2)
+            result = poll_result(
+                command_id=4,
+                interval=1,
+                timeout=2,
+                username='admin',
+                password='adminpass'
+            )
 
         output = '\n'.join(log.output)
         self.assertIn('Request failed: Connection error', output)

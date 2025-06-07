@@ -1,9 +1,13 @@
 import logging
 import operator
 from datetime import timedelta
+from functools import singledispatchmethod
 
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone
+from monitoring.discord import DiscordMessage, send_async_discord_message
+from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
 
 logger = logging.getLogger(__name__)
@@ -14,6 +18,48 @@ OPERATOR_MAP = {
     '==': operator.eq,
     '!=': operator.ne,
 }
+
+ALERT_DESTINATION_MAP = {
+    'email': lambda rule: EmailMessage(
+        subject='[ALERT]',
+        body=rule.notify_message,
+        recepients=settings.ALERT_EMAIL_RECEPIENTS,
+        sender=settings.ALERT_EMAIL_SENDER,
+    ),
+    'discord': lambda rule: DiscordMessage(
+        content=f'[ALERT] {rule.notify_message}',
+        webhook=settings.ALERT_DISCORD_WEBHOOK,
+    )
+}
+
+
+class AlertDispatcher:
+    """Class responsible for routing alert messages."""
+    @singledispatchmethod
+    def send(self, message, **kwargs):
+        pass
+
+    @send.register
+    def _(self, message: EmailMessage, **kwargs):
+        send_async_email.apply_async(
+            kwargs={
+                'subject': message.subject,
+                'body': message.body,
+                'recepients': message.recepients,
+                'sender': message.sender,
+                'fail_silently': message.fail_silently,
+            }
+        )
+
+    @send.register
+    def _(self, message: DiscordMessage, **kwargs):
+        send_async_discord_message.apply_async(
+            kwargs={'content': message.content, 'webhook': message.webhook}
+        )
+
+
+# At the moment, a module-level singleton is sufficient.
+dispatcher = AlertDispatcher()
 
 
 @shared_task
@@ -34,7 +80,7 @@ def evaluate_agent_alerts():
         ]
 
         if not values:
-            logger.debug(f'No data for rule: {rule}')
+            logger.info(f'No data for rule: {rule}')
 
             continue
 
@@ -45,5 +91,14 @@ def evaluate_agent_alerts():
         if triggered:
             logger.warning(f'Alert triggered for rule: {rule}')
             logger.warning(f'Alert message: {rule.notify_message}')
+
+            for destination in rule.destinations:
+                factory = ALERT_DESTINATION_MAP.get(destination)
+                if not factory:
+                    logger.error(f'Unknown alert destination {destination}')
+                    continue
+
+                msg = factory(rule)
+                dispatcher.send(msg)
         else:
-            logger.debug(f'No alerts triggered since {time_window_start}')
+            logger.info(f'No alerts triggered since {time_window_start}')

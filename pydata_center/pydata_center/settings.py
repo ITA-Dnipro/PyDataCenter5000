@@ -261,6 +261,7 @@ else:
             },
         },
         'loggers': {
+            'root': {'handlers': ['console'], 'level': 'DEBUG'},
             'django': {
                 'handlers': ['file', 'console'],
                 'level': 'INFO',
@@ -272,6 +273,11 @@ else:
 CELERY_BEAT_SCHEDULE = {
     'evaluate-agent-alerts-every-5-minutes': {
         'task': 'monitoring.tasks.evaluate_agent_alerts',
-        'schedule': 300.0,
+        'schedule': 30.0,
     },
 }
+
+ALERT_EMAIL_RECEPIENTS = []
+ALERT_EMAIL_SENDER = ''
+
+ALERT_DISCORD_WEBHOOK = os.environ.get('DISCORD_ALERT_WEBHOOK')

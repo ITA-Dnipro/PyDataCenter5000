@@ -1,3 +1,4 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -98,6 +99,16 @@ class AlertRule(models.Model):
 
     notify_message = models.CharField(
         max_length=255, default='Alert triggered!'
+    )
+
+    destinations = ArrayField(
+        models.CharField(max_length=32),
+        blank=True,
+        default=list,
+        help_text=(
+            'Rule-specific list of alert destinations, '
+            'e.g. ["email", "discord"]'
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

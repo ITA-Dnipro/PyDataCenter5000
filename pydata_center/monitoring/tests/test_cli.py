@@ -138,7 +138,13 @@ class TestPollResult(unittest.TestCase):
         mock_patch.return_value = mock_response
 
         with self.assertLogs('cli.controller_cli', level='INFO') as log:
-            result = poll_result(command_id=1, interval=1, timeout=5)
+            result = poll_result(
+                command_id=1,
+                interval=1,
+                timeout=5,
+                username='admin',
+                password='adminpass'
+            )
 
         self.assertEqual(result, {'result': 'success'})
         output = '\n'.join(log.output)

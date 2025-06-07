@@ -768,6 +768,18 @@ class ServerAgent(object):
         except (AttributeError, OSError):
             return -1.0
 
+    def get_disk_usage(self):
+        """
+        Get the current disk usage percentage for the root filesystem.
+
+        Uses psutil.disk_usage('/') to retrieve disk usage statistics.
+        The 'percent' field indicates the percentage of used disk space.
+
+        :return: float - Disk usage percentage (0.0 to 100.0)
+        """
+        usage = psutil.disk_usage('/')
+        return usage.percent
+
     def generate_report(self):
         """
         Generate a report containing server resource usage.

@@ -21,14 +21,15 @@ OPERATOR_MAP = {
 }
 
 ALERT_DESTINATION_MAP = {
-    'email': lambda rule: EmailMessage(
-        subject='[ALERT]',
+    'email': lambda rule, fail_silently=True, **kwargs: EmailMessage(
+        subject=f'[{rule.metric.upper()} ALERT]',
         body=rule.notify_message,
         recepients=settings.ALERT_EMAIL_RECEPIENTS,
         sender=settings.ALERT_EMAIL_SENDER,
+        **kwargs,
     ),
-    'discord': lambda rule: DiscordMessage(
-        content=f'[ALERT] {rule.notify_message}',
+    'discord': lambda rule, **kwargs: DiscordMessage(
+        content=f'[{rule.metric.upper()} ALERT] {rule.notify_message}',
         webhook=settings.ALERT_DISCORD_WEBHOOK,
     )
 }
@@ -103,7 +104,12 @@ def evaluate_agent_alerts():
                     logger.error(f'Unknown alert destination {destination}')
                     continue
 
-                msg = factory(rule)
+                # In ALERT_DESTINATION_MAP, we use the combination of
+                # parameters with default values and kwargs to pass optional
+                # arguments to different factories.
+                msg = factory(
+                    rule, fail_silently=settings.ALERT_EMAIL_FAIL_SILENTLY
+                )
                 dispatcher.send(msg)
 
             cache.set(

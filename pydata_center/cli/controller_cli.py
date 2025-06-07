@@ -75,7 +75,13 @@ def get_auth_from_env() -> Optional[Tuple[str, str]]:
 
 def truncate(text: str, max_length: int) -> str:
     """Truncate text to fit max_length with ellipsis if needed."""
-    return text if len(text) <= max_length else text[:max_length - 3] + '...'
+    if max_length < 0:
+        raise ValueError('max_length must be non-negative')
+    if len(text) <= max_length:
+        return text
+    if max_length < 4:
+        return '.' * max_length
+    return text[:max_length - 3] + '...'
 
 
 # === Commands ===
@@ -210,6 +216,9 @@ def poll_result(
             data = response.json()
 
             if data.get('result') is not None or data.get('status') == 'done':
+                logger.info(
+                    f"Result: {data.get('result', '[no result returned]')}"
+                )
                 return data
 
             if time.time() - start_time > timeout:
@@ -269,9 +278,7 @@ def handle_poll(args):
     if not auth:
         logger.error("You must login first using the 'login' command.")
         return
-    result = poll_result(args.id, username=auth[0], password=auth[1])
-    if result:
-        logger.info(f"Result: {result.get('result', '[no result returned]')}")
+    poll_result(args.id, username=auth[0], password=auth[1])
 
 
 # === Main ===

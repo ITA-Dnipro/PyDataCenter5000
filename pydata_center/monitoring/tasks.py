@@ -5,6 +5,7 @@ from functools import singledispatchmethod
 
 from celery import shared_task
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import EmailMessage, send_async_email
@@ -68,6 +69,10 @@ def evaluate_agent_alerts():
     rules = AlertRule.objects.filter(is_active=True)
 
     for rule in rules:
+        cache_key = f'alert_sent_{rule.id}'
+        if cache.get(cache_key):
+            continue  # Still in cooldown
+
         time_window_start = (
             timezone.now() - timedelta(minutes=rule.time_window_minutes)
         )
@@ -100,5 +105,9 @@ def evaluate_agent_alerts():
 
                 msg = factory(rule)
                 dispatcher.send(msg)
+
+            cache.set(
+                cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
+            )
         else:
             logger.info(f'No alerts triggered since {time_window_start}')

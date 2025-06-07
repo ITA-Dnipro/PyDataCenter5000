@@ -270,6 +270,8 @@ else:
         },
     }
 
+ALERT_RATE_LIMIT_SECONDS = 300
+
 CELERY_BEAT_SCHEDULE = {
     'evaluate-agent-alerts-every-5-minutes': {
         'task': 'monitoring.tasks.evaluate_agent_alerts',

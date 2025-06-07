@@ -21,16 +21,17 @@ OPERATOR_MAP = {
 }
 
 ALERT_DESTINATION_MAP = {
-    'email': lambda rule, fail_silently=True, **kwargs: EmailMessage(
+    'email': lambda rule, fail_silently=True: EmailMessage(
         subject=f'[{rule.metric.upper()} ALERT]',
         body=rule.notify_message,
         recepients=settings.ALERT_EMAIL_RECEPIENTS,
         sender=settings.ALERT_EMAIL_SENDER,
-        **kwargs,
+        fail_silently=fail_silently,
     ),
-    'discord': lambda rule, **kwargs: DiscordMessage(
+    'discord': lambda rule, fail_silently=True: DiscordMessage(
         content=f'[{rule.metric.upper()} ALERT] {rule.notify_message}',
         webhook=settings.ALERT_DISCORD_WEBHOOK,
+        fail_silently=fail_silently,
     )
 }
 
@@ -56,7 +57,11 @@ class AlertDispatcher:
     @send.register
     def _(self, message: DiscordMessage, **kwargs):
         send_async_discord_message.apply_async(
-            kwargs={'content': message.content, 'webhook': message.webhook}
+            kwargs={
+                'content': message.content,
+                'webhook': message.webhook,
+                'fail_silently': message.fail_silently,
+            }
         )
 
 

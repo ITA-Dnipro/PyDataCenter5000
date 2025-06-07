@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import logging.config
+import os
 import platform
 import socket
 import subprocess
@@ -74,6 +75,11 @@ class CommandHistory(object):
     @classmethod
     def from_dict(cls, data):
         return cls(**data)
+
+
+def get_disk_usage():
+    usage = psutil.disk_usage('/')
+    return usage.percent
 
 
 class ServerAgent(object):
@@ -721,3 +727,66 @@ class ServerAgent(object):
 
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
+
+    def get_cpu_usage(self):
+        """
+        Get the average CPU usage percentage over the last minute.
+
+        Uses psutil.cpu_percent with a 60-second interval,
+        meaning this call blocks for 60 seconds and returns
+        the average CPU usage over that time.
+
+        :return: float - CPU usage percentage (0.0 to 100.0)
+        """
+        return psutil.cpu_percent(interval=60)
+
+    def get_ram_usage(self):
+        """
+        Get the current RAM usage percentage.
+
+        Uses psutil.virtual_memory() which returns various
+        memory statistics. The 'percent' field indicates
+        the percentage of used RAM.
+
+        :return: float - RAM usage percentage (0.0 to 100.0)
+        """
+        mem = psutil.virtual_memory()
+        return mem.percent
+
+    def get_load_average(self):
+        """
+        Get the system load average over the last 1 minute.
+
+        Uses os.getloadavg() which returns a tuple of load averages
+        over 1, 5, and 15 minutes. Returns the 1-minute average.
+        If the function is unavailable (e.g., on Windows), returns -1.0.
+
+        :return: float - 1-minute load average or -1.0 if unsupported
+        """
+        try:
+            return os.getloadavg()[0]
+        except (AttributeError, OSError):
+            return -1.0
+
+    def generate_report(self):
+        """
+        Generate a report containing server resource usage.
+
+        Collects data on:
+        - Hostname,
+        - CPU usage percentage,
+        - RAM usage percentage,
+        - Disk usage percentage,
+        - 1-minute load average.
+
+        :return: dict - A dictionary with keys:
+                 'hostname', 'cpu_usage_percent', 'ram_usage_percent',
+                 'disk_usage_percent', 'load_avg_1min'
+        """
+        return {
+            'hostname': self.hostname,
+            'cpu_usage_percent': self.get_cpu_usage(),
+            'ram_usage_percent': self.get_ram_usage(),
+            'disk_usage_percent': self.get_disk_usage(),
+            'load_avg_1min': self.get_load_average()
+        }

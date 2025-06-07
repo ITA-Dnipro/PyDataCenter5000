@@ -81,6 +81,7 @@ class ServerAgent(object):
     Base class for all agents. Handles operations common for all
     servers, such as getting server metadata and writing it to logfile.
     """
+
     __metaclass__ = abc.ABCMeta
 
     controller_url = None
@@ -206,9 +207,8 @@ class ServerAgent(object):
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
-        filename = (
-            filename or pkg_resources.
-            resource_filename(self.__class__.__module__, 'config.ini')
+        filename = filename or pkg_resources.resource_filename(
+            self.__class__.__module__, 'config.ini'
         )
 
         config = ConfigParser.ConfigParser()
@@ -405,7 +405,10 @@ class ServerAgent(object):
 
             output = output.lower()
 
-            return any(proc in output.split() for proc in self.processes)
+            return any(
+                any(proc in p for p in output.split())
+                for proc in self.processes
+            )
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -462,10 +465,8 @@ class ServerAgent(object):
             return status
         except TypeError as e:
             maybe_log_message(
-                (
-                    'JSON serialization of status failed '
-                    'due to error: %s' % str(e)
-                ),
+                ('JSON serialization of status failed '
+                 'due to error: %s' % str(e)),
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )

@@ -10,7 +10,8 @@ class NTPAgent(ServerAgent):
         processes=None,
         interface='enp0s3',
         protocol='udp',
-        controller_url=None,
+        whitelist_commands=None,
+        log_path=None,
     ):
         super(NTPAgent, self).__init__(
             server_name=server_name,
@@ -18,7 +19,8 @@ class NTPAgent(ServerAgent):
             processes=processes or ['ntpd', 'chronyd', 'systemd-timesyncd'],
             interface=interface,
             protocol=protocol,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
+            log_path=log_path,
         )
 
     def service_healthy(

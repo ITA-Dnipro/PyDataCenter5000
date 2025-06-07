@@ -71,6 +71,7 @@ def get_config_option(
         Note that by default, section names are case-sensitive, whereas
         option-names are case-insensitive.
     """
+    option_value = None
     try:
         option_value = config.get(section, option)
 

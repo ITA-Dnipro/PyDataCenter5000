@@ -112,10 +112,14 @@ class AlertRule(models.Model):
 
     metric = models.CharField(max_length=32, choices=METRIC_CHOICES)
     operator = models.CharField(max_length=2, choices=OPERATOR_CHOICES)
-    threshold = models.FloatField()
-    time_window_minutes = models.IntegerField(default=5)
+    threshold = models.FloatField(validators=[MinValueValidator(0)])
+    time_window_minutes = models.IntegerField(
+        default=5, validators=[MinValueValidator(0)]
+    )
     frequency = models.IntegerField(
-        help_text='Check system every N minutes', default=5
+        help_text='Check system every N minutes',
+        default=5,
+        validators=[MinValueValidator(0)],
     )
     is_active = models.BooleanField(default=True)
 

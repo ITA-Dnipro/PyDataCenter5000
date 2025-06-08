@@ -68,6 +68,11 @@ class CommandHistory(models.Model):
 
 
 class AlertRule(models.Model):
+    """
+    Rule for triggering alerts based on server metrics evaluated by the
+    agent. Alerts are triggered when rule's condition is met within a
+    specified time window.
+    """
 
     class Meta:
         indexes = [models.Index(fields=['metric', 'is_active'])]

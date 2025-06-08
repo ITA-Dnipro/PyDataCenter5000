@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -22,18 +23,33 @@ class ServerStatus(models.Model):
 
 
 class AgentMetric(models.Model):
+    """Server metric collected by the agent."""
 
     class Meta:
         indexes = [
             models.Index(fields=['server_status', 'timestamp']),
         ]
 
-    cpu = models.FloatField(null=True, blank=True)
-    ram = models.FloatField(null=True, blank=True)
-    disk = models.FloatField(null=True, blank=True)
-    load_avg = models.FloatField(null=True, blank=True)
-    nginx_down_count = models.IntegerField(null=True, blank=True)
-    uptime = models.FloatField(null=True, blank=True)
+    cpu = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    ram = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    disk = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    load_avg = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    nginx_down_count = models.IntegerField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    uptime = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
 
     timestamp = models.DateTimeField(auto_now_add=True)
 

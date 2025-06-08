@@ -45,25 +45,11 @@ class AlertDispatcher:
 
     @send.register
     def _(self, message: EmailMessage, **kwargs):
-        send_async_email.apply_async(
-            kwargs={
-                'subject': message.subject,
-                'body': message.body,
-                'recepients': message.recepients,
-                'sender': message.sender,
-                'fail_silently': message.fail_silently,
-            }
-        )
+        send_async_email.apply_async(kwargs={'message': message})
 
     @send.register
     def _(self, message: DiscordMessage, **kwargs):
-        send_async_discord_message.apply_async(
-            kwargs={
-                'content': message.content,
-                'webhook': message.webhook,
-                'fail_silently': message.fail_silently,
-            }
-        )
+        send_async_discord_message.apply_async(kwargs={'message': message})
 
 
 # At the moment, a module-level singleton is sufficient.

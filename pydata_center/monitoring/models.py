@@ -75,6 +75,8 @@ class AlertRule(models.Model):
     """
 
     class Meta:
+        verbose_name = 'Alert Rule'
+        verbose_name_plural = 'Alert Rules'
         indexes = [models.Index(fields=['metric', 'is_active'])]
 
     METRIC_CHOICES = [
@@ -115,8 +117,11 @@ class AlertRule(models.Model):
 
 
 class TriggeredAlert(models.Model):
+    """Alert triggered based on specific alert rule."""
 
     class Meta:
+        verbose_name = 'Triggered Alert'
+        verbose_name_plural = 'Triggered Alerts'
         indexes = [
             models.Index(fields=['rule', 'triggered_at']),
         ]
@@ -126,3 +131,9 @@ class TriggeredAlert(models.Model):
     )
     message = models.CharField(max_length=255)
     triggered_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return (
+            f'{self.rule} triggered at {self.triggered_at} '
+            f'with message {self.message}'
+        )

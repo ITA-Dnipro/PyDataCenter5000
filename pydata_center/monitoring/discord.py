@@ -29,11 +29,17 @@ def send_async_discord_message(message: DiscordMessage):
             message.webhook, json={'content': message.content}
         )
         response.raise_for_status()
+
+        if response.status_code not in [200, 204]:
+            logger.warning(
+                f'Unexpected Discord reponse: '
+                f'{response.status_code} {response.text}'
+            )
     except (
         requests.exceptions.ConnectionError,
         requests.exceptions.InvalidURL,
         requests.exceptions.HTTPError,
-    ):
+    ) as e:
         logger.error(
             f'Sending Discord message failed due to error: {sys.exc_info()[0]}'
         )
@@ -44,4 +50,4 @@ def send_async_discord_message(message: DiscordMessage):
         )
 
         if not message.fail_silently:
-            raise
+            raise type(e)('Sending Discord message failed.')

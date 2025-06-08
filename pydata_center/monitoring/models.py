@@ -1,4 +1,3 @@
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -69,11 +68,6 @@ class CommandHistory(models.Model):
 
 
 class AlertRule(models.Model):
-    """
-    Rule for triggering alerts based on server metrics evaluated by the
-    agent. Alerts are triggered when rule's condition is met within a
-    specified time window.
-    """
 
     class Meta:
         indexes = [models.Index(fields=['metric', 'is_active'])]
@@ -104,16 +98,6 @@ class AlertRule(models.Model):
 
     notify_message = models.CharField(
         max_length=255, default='Alert triggered!'
-    )
-
-    destinations = ArrayField(
-        models.CharField(max_length=32),
-        blank=True,
-        default=list,
-        help_text=(
-            'Rule-specific list of alert destinations, '
-            'e.g. ["email", "discord"]'
-        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

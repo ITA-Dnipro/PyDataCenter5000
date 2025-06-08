@@ -2,6 +2,7 @@ import logging
 import operator
 from datetime import timedelta
 from functools import singledispatchmethod
+from typing import Union
 
 from celery import shared_task
 from django.conf import settings
@@ -70,8 +71,11 @@ dispatcher = AlertDispatcher()
 
 
 @shared_task
-def evaluate_agent_alerts():
+def evaluate_agent_alerts(destinations: Union[list, None] = None):
     """Task to evaluate alert rules and trigger notification."""
+    if destinations is None:
+        destinations = settings.DEFAULT_ALERT_DESTINATIONS
+
     rules = AlertRule.objects.filter(is_active=True)
 
     for rule in rules:
@@ -103,7 +107,7 @@ def evaluate_agent_alerts():
             logger.warning(f'Alert triggered for rule: {rule}')
             logger.warning(f'Alert message: {rule.notify_message}')
 
-            for destination in rule.destinations:
+            for destination in destinations:
                 factory = ALERT_DESTINATION_MAP.get(destination)
                 if not factory:
                     logger.error(f'Unknown alert destination {destination}')

@@ -174,3 +174,10 @@ def evaluate_agent_alerts(
             fail_silently=settings.ALERT_FAIL_SILENTLY,
         )
         dispatcher.send(msg)
+
+        for rule in triggered_alerts:
+            # Make sure batch respects the cooldown.
+            cache_key = f'alert_sent_{rule.id}'
+            cache.set(
+                cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
+            )

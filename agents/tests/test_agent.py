@@ -655,6 +655,16 @@ def test_get_cpu_usage():
         assert agent.get_cpu_usage() == 55.5
 
 
+def test_get_cpu_usage_exception():
+    """
+    Test that get_cpu_usage handles the mock Exception.
+    """
+    agent = MockAgent()
+    with mock.patch('psutil.cpu_percent', side_effect=Exception('CPU error')):
+        result = agent.get_cpu_usage()
+        assert result == -1.0
+
+
 def test_get_ram_usage():
     """
     Test that get_ram_usage returns the mocked RAM usage percentage.
@@ -666,6 +676,19 @@ def test_get_ram_usage():
         assert agent.get_ram_usage() == 66.6
 
 
+def test_get_ram_usage_exception():
+    """
+    Test that get_ram_usage handles the ram Exception.
+    """
+    agent = MockAgent()
+    with mock.patch(
+        'psutil.virtual_memory',
+        side_effect=Exception('RAM error')
+    ):
+        result = agent.get_ram_usage()
+        assert result == -1.0
+
+
 def test_get_disk_usage():
     """
     Test that get_disk_usage returns the mocked disk usage percentage.
@@ -675,6 +698,16 @@ def test_get_disk_usage():
     mock_disk.percent = 77.7
     with mock.patch('psutil.disk_usage', return_value=mock_disk):
         assert agent.get_disk_usage() == 77.7
+
+
+def test_get_disk_usage_exception():
+    """
+    Test that get_disk_usage returns the mocked disk usage percentage.
+    """
+    agent = MockAgent()
+    with mock.patch('psutil.disk_usage', side_effect=Exception('Disk error')):
+        result = agent.get_disk_usage()
+        assert result == -1.0
 
 
 def test_get_load_average():

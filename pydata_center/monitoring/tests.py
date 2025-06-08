@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -424,7 +425,7 @@ class EvaluateAgentAlersTest(TestCase):
             metric='cpu',
             operator='>',
             threshold='10',
-            notify_message='CPU usage exceeded threshold',
+            notify_message='CPU usage exceeded threshold of 10%',
         )
         AgentMetric.objects.create(
             cpu=50, timestamp=timezone.now(), server_status=self.server
@@ -435,3 +436,48 @@ class EvaluateAgentAlersTest(TestCase):
     def test_alert_triggered(self, mock_send_async_email):
         evaluate_agent_alerts(batch=False)
         self.assertTrue(mock_send_async_email.called)
+
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
+    @patch('monitoring.email.send_async_email.apply_async')
+    def test_no_alerts_triggered(self, mock_send_async_email):
+        self.rule.threshold = 60
+        self.rule.save()
+
+        evaluate_agent_alerts(batch=False)
+
+        self.assertFalse(mock_send_async_email.called)
+
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
+    @patch('monitoring.email.send_async_email.apply_async')
+    def test_rate_limit(self, mock_send_async_email):
+        self.rule.threshold = 10
+        self.rule.save()
+
+        cache.set(f'alert_sent_{self.rule.id}', True, timeout=300)
+
+        evaluate_agent_alerts(batch=False)
+
+        self.assertFalse(mock_send_async_email.called)
+
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
+    @patch('monitoring.email.send_async_email.apply_async')
+    def test_batch_alerts(self, mock_send_async_email):
+        # Add another rule that will trigger an alert with existing
+        # agent metric.
+        AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold=25,
+            notify_message='CPU usage exceeded threshold of 25%'
+        )
+
+        evaluate_agent_alerts(batch=True)
+
+        self.assertTrue(mock_send_async_email.called)
+        self.assertEqual(mock_send_async_email.call_count, 1)
+
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['unknown'])
+    @patch('monitoring.discord.send_async_discord_message.apply_async')
+    def test_bad_destination(self, mock_send_async_discord_message):
+        evaluate_agent_alerts(batch=False)
+        self.assertFalse(mock_send_async_discord_message.called)

@@ -22,15 +22,15 @@ OPERATOR_MAP = {
 }
 
 ALERT_DESTINATION_MAP = {
-    'email': lambda rule, fail_silently=True: EmailMessage(
-        subject=f'[{rule.metric.upper()} ALERT]',
-        body=rule.notify_message,
+    'email': lambda subject, body, fail_silently=True: EmailMessage(
+        subject=subject,
+        body=body,
         recepients=settings.ALERT_EMAIL_RECEPIENTS,
         sender=settings.ALERT_EMAIL_SENDER,
         fail_silently=fail_silently,
     ),
-    'discord': lambda rule, fail_silently=True: DiscordMessage(
-        content=f'[{rule.metric.upper()} ALERT] {rule.notify_message}',
+    'discord': lambda subject, body, fail_silently=True: DiscordMessage(
+        content=f'{subject} {body}',
         webhook=settings.ALERT_DISCORD_WEBHOOK,
         fail_silently=fail_silently,
     )
@@ -71,10 +71,23 @@ dispatcher = AlertDispatcher()
 
 
 @shared_task
-def evaluate_agent_alerts(destinations: Union[list, None] = None):
-    """Task to evaluate alert rules and trigger notification."""
+def evaluate_agent_alerts(
+    destinations: Union[list, None] = None, batch: bool = True
+):
+    """
+    Task to evaluate alert rules and trigger notification.
+
+    Parameters:
+        destinations (list, optional): List of alert destinations, e.g.,
+            ['email', 'discord]. If not provided, DEFAULT_ALERT_DESTINATIONS
+            is used.
+        batch (bool, optional): Whether to send all alerts triggered
+            withing a time window in a batch. True by default.
+    """
     if destinations is None:
         destinations = settings.DEFAULT_ALERT_DESTINATIONS
+
+    triggered_alerts = []
 
     rules = AlertRule.objects.filter(is_active=True)
 
@@ -107,22 +120,57 @@ def evaluate_agent_alerts(destinations: Union[list, None] = None):
             logger.warning(f'Alert triggered for rule: {rule}')
             logger.warning(f'Alert message: {rule.notify_message}')
 
-            for destination in destinations:
-                factory = ALERT_DESTINATION_MAP.get(destination)
-                if not factory:
-                    logger.error(f'Unknown alert destination {destination}')
-                    continue
+            if batch:
+                triggered_alerts.append(rule)
+            else:
+                for destination in destinations:
+                    factory = ALERT_DESTINATION_MAP.get(destination)
+                    if not factory:
+                        logger.error(
+                            f'Unknown alert destination {destination}'
+                        )
+                        continue
 
-                # In ALERT_DESTINATION_MAP, we use the combination of
-                # parameters with default values and kwargs to pass optional
-                # arguments to different factories.
-                msg = factory(
-                    rule, fail_silently=settings.ALERT_EMAIL_FAIL_SILENTLY
+                    # In ALERT_DESTINATION_MAP, we use the combination of
+                    # parameters with default values and kwargs to pass
+                    # optional arguments to different factories.
+                    msg = factory(
+                        subject=f'[{rule.metric.upper()} ALERT]',
+                        body=rule.notify_message,
+                        fail_silently=settings.ALERT_FAIL_SILENTLY,
+                    )
+                    dispatcher.send(msg)
+
+                cache.set(
+                    cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
                 )
-                dispatcher.send(msg)
-
-            cache.set(
-                cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
-            )
         else:
             logger.info(f'No alerts triggered since {time_window_start}')
+
+    # Send all alerts triggered within a time window in a batch.
+    if triggered_alerts:
+        subject = (
+            f'{len(triggered_alerts)} Alert(s) Triggered Since '
+            f'{time_window_start}\n\n'
+        )
+        summary = '\n'.join(
+            [
+                f'[{rule.metric.upper()} ALERT] {rule.notify_message}'
+                for rule in triggered_alerts
+            ]
+        )
+
+        for destination in destinations:
+            factory = ALERT_DESTINATION_MAP.get(destination)
+            if not factory:
+                logger.error(
+                    f'Unknown alert destination {destination}'
+                )
+                continue
+
+        msg = factory(
+            subject=subject,
+            body=summary,
+            fail_silently=settings.ALERT_FAIL_SILENTLY,
+        )
+        dispatcher.send(msg)

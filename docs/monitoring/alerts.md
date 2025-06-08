@@ -18,7 +18,6 @@ rule = AlertRule.objects.create(
     operator='>',
     threshold=10,
     notify_message='CPU usage is above 10%',
-    destinations=['discord'],
 )
 ```
 
@@ -49,6 +48,10 @@ AgentMetric.objects.create(
 w)
 ```
 
-Voilá. If you're listening for alerts using Celery, you should get a Discord notification whenever the task runs according to its schedule. Otherwise, you can launch it manually in Django shell. Here is what I'm currently getting:
+Voilá. If you're listening for alerts using Celery, you should get a Discord notification whenever the task runs according to its schedule. Otherwise, you can launch it manually in Django shell. Here is what you may get:
 
-![Discord Alert](images/discord-alert.png)
+![Discord Alerts](images/discord-alerts.png)
+
+Or, if you request sending alerts in a batch (default):
+
+![Discord Alert Batch](images/discord-alert-batch.png)

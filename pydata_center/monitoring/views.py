@@ -160,5 +160,5 @@ def dashboard_view(request):
 
 
 class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TriggeredAlert.order_by('-triggered_at')
+    queryset = TriggeredAlert.objects.order_by('-triggered_at')
     serializer_class = TriggeredAlertSerializer

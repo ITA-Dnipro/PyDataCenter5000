@@ -85,7 +85,12 @@ def evaluate_agent_alerts(
         time_window_start = (
             timezone.now() - timedelta(minutes=rule.time_window_minutes)
         )
-        data = AgentMetric.objects.filter(timestamp__gte=time_window_start)
+
+        filters = {'timestamp__gte': time_window_start}
+        if rule.hostname:
+            filters['server_status__hostname'] = rule.hostname
+
+        data = AgentMetric.objects.filter(**filters)
 
         # Extract metric values from data
         values = [

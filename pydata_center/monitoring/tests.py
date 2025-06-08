@@ -410,7 +410,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
 
-class EvaluateAgentAlersTest(TestCase):
+class EvaluateAgentAlertsTest(TestCase):
     def setUp(self):
         self.server = ServerStatus.objects.create(
             hostname='test-alerts-server',
@@ -419,7 +419,7 @@ class EvaluateAgentAlersTest(TestCase):
             timestamp=timezone.now(),
             os='linux',
             healthy=True,
-            server_name='test_alers_server',
+            server_name='test_alerts_server',
         )
         self.rule = AlertRule.objects.create(
             metric='cpu',

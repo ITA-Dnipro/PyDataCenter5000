@@ -93,7 +93,7 @@ class AlertRule(models.Model):
     class Meta:
         verbose_name = 'Alert Rule'
         verbose_name_plural = 'Alert Rules'
-        indexes = [models.Index(fields=['metric', 'is_active'])]
+        indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
 
     METRIC_CHOICES = [
         ('cpu', 'CPU Usage'),

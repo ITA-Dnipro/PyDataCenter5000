@@ -7,9 +7,10 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .helpers import get_latest_agents
-from .models import CommandHistory
-from .serializers import CommandHistorySerializer, ServerStatusSerializer
-from .utils import extract_status_data, get_client_ip
+from .models import CommandHistory, TriggeredAlert
+from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
+                          TriggeredAlertSerializer)
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 
@@ -156,3 +157,8 @@ def dashboard_view(request):
         template_name='monitoring/dashboard.html',
         context={'agents': agents}
     )
+
+
+class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TriggeredAlert.order_by('-triggered_at')
+    serializer_class = TriggeredAlertSerializer

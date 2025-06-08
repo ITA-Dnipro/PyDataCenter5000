@@ -1,10 +1,14 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from .models import ServerStatus
+from .models import AgentMetric, AlertRule, ServerStatus
+from .tasks import evaluate_agent_alerts
 
 
 class ServerStatusAPITest(TestCase):
@@ -403,3 +407,31 @@ class ReceiveStatusEndpointTests(APITestCase):
             response.data,
             "'server_name' should be reported as missing"
         )
+
+
+class EvaluateAgentAlersTest(TestCase):
+    def setUp(self):
+        self.server = ServerStatus.objects.create(
+            hostname='test-alerts-server',
+            ip='0.0.0.0',
+            uptime=100,
+            timestamp=timezone.now(),
+            os='linux',
+            healthy=True,
+            server_name='test_alers_server',
+        )
+        self.rule = AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold='10',
+            notify_message='CPU usage exceeded threshold',
+        )
+        AgentMetric.objects.create(
+            cpu=50, timestamp=timezone.now(), server_status=self.server
+        )
+
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
+    @patch('monitoring.email.send_async_email.apply_async')
+    def test_alert_triggered(self, mock_send_async_email):
+        evaluate_agent_alerts(batch=False)
+        self.assertTrue(mock_send_async_email.called)

@@ -25,7 +25,7 @@ ALERT_DESTINATION_MAP = {
     'email': lambda subject, body, fail_silently=True: EmailMessage(
         subject=subject,
         body=body,
-        recepients=settings.ALERT_EMAIL_RECEPIENTS,
+        recipients=settings.ALERT_EMAIL_RECIPIENTS,
         sender=settings.ALERT_EMAIL_SENDER,
         fail_silently=fail_silently,
     ),

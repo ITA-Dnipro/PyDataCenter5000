@@ -9,7 +9,7 @@ from django.core.mail import send_mail
 class EmailMessage:
     subject: str
     body: str
-    recepients: list
+    recipients: list
     sender: Union[str, None] = None
     fail_silently: bool = True
 
@@ -25,7 +25,7 @@ def send_async_email(message: EmailMessage):
     send_mail(
         subject=message.subject,
         message=message.body,
-        recepient_list=message.recepients,
+        recipient_list=message.recipients,
         from_email=message.sender,
         fail_silently=message.fail_silently,
     )

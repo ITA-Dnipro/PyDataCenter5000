@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import sys
 from dataclasses import dataclass
 
 import requests
@@ -31,8 +33,15 @@ def send_async_discord_message(message: DiscordMessage):
         requests.exceptions.ConnectionError,
         requests.exceptions.InvalidURL,
         requests.exceptions.HTTPError,
-    ) as e:
-        logger.error(f'Sending Discord message failed due to error: {e}')
+    ):
+        logger.error(
+            f'Sending Discord message failed due to error: {sys.exc_info()[0]}'
+        )
+        # Identify possibly problematic webhook.
+        logger.error(
+            f'Webhook hash: '
+            f'{hashlib.sha256(message.webhook.encode()).hexdigest()[:8]}'
+        )
 
         if not message.fail_silently:
             raise

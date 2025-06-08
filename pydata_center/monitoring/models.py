@@ -112,3 +112,17 @@ class AlertRule(models.Model):
             f'{self.metric} {self.operator} {self.threshold} '
             f'over {self.time_window_minutes}m'
         )
+
+
+class TriggeredAlert(models.Model):
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['rule', 'triggered_at']),
+        ]
+
+    rule = models.ForeignKey(
+        AlertRule, on_delete=models.CASCADE, related_name='alert_rule'
+    )
+    message = models.CharField(max_length=255)
+    triggered_at = models.DateTimeField(auto_now_add=True)

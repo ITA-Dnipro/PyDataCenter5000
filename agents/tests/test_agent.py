@@ -644,3 +644,88 @@ def test_status_to_dict_with_missing_fields():
     assert result['hostname'] is None, "Expected 'hostname' to be None"
     assert result['ip'] is None, "Expected 'ip' to be None when missing"
     assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
+
+
+def test_get_cpu_usage():
+    """
+    Test that get_cpu_usage returns the mocked CPU usage percentage.
+    """
+    agent = MockAgent()
+    with mock.patch('psutil.cpu_percent', return_value=55.5):
+        assert agent.get_cpu_usage() == 55.5
+
+
+def test_get_ram_usage():
+    """
+    Test that get_ram_usage returns the mocked RAM usage percentage.
+    """
+    agent = MockAgent()
+    mock_mem = mock.Mock()
+    mock_mem.percent = 66.6
+    with mock.patch('psutil.virtual_memory', return_value=mock_mem):
+        assert agent.get_ram_usage() == 66.6
+
+
+def test_get_disk_usage():
+    """
+    Test that get_disk_usage returns the mocked disk usage percentage.
+    """
+    agent = MockAgent()
+    mock_disk = mock.Mock()
+    mock_disk.percent = 77.7
+    with mock.patch('psutil.disk_usage', return_value=mock_disk):
+        assert agent.get_disk_usage() == 77.7
+
+
+def test_get_load_average():
+    """
+    Test that get_load_average returns the mocked 1-minute load average.
+    """
+    agent = MockAgent()
+    with mock.patch('os.getloadavg', return_value=(2.22, 1.0, 0.5)):
+        assert agent.get_load_average() == 2.22
+
+
+def test_get_load_average_unsupported():
+    """
+    Test that get_load_average returns -1.0 when os.getloadavg
+    raises an exception.
+    """
+    agent = MockAgent()
+    with mock.patch('os.getloadavg', side_effect=OSError()):
+        assert agent.get_load_average() == -1.0
+
+
+def test_generate_report():
+    """
+    Test that generate_report returns
+    correct mocked metrics data and hostname.
+    """
+    agent = MockAgent()
+    cpu_patch = mock.patch.object(agent, 'get_cpu_usage', return_value=10.1)
+    ram_patch = mock.patch.object(agent, 'get_ram_usage', return_value=20.2)
+    disk_patch = mock.patch.object(agent, 'get_disk_usage', return_value=30.3)
+    load_patch = mock.patch.object(
+        agent,
+        'get_load_average',
+        return_value=40.4
+    )
+
+    cpu_patch.start()
+    ram_patch.start()
+    disk_patch.start()
+    load_patch.start()
+
+    try:
+        report = agent.generate_report()
+        print(report)
+        assert report['cpu_usage_percent'] == 10.1
+        assert report['ram_usage_percent'] == 20.2
+        assert report['disk_usage_percent'] == 30.3
+        assert report['load_avg_1min'] == 40.4
+        assert report['hostname'] == agent.hostname
+    finally:
+        cpu_patch.stop()
+        ram_patch.stop()
+        disk_patch.stop()
+        load_patch.stop()

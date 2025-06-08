@@ -77,11 +77,6 @@ class CommandHistory(object):
         return cls(**data)
 
 
-def get_disk_usage():
-    usage = psutil.disk_usage('/')
-    return usage.percent
-
-
 class ServerAgent(object):
     """
     Base class for all agents. Handles operations common for all
@@ -132,7 +127,6 @@ class ServerAgent(object):
             log_path or pkg_resources.
             resource_filename(self.__class__.__module__, 'logs/agent.log')
         )
-
         logging.config.fileConfig(
             log_config_path,
             defaults={
@@ -736,9 +730,13 @@ class ServerAgent(object):
         meaning this call blocks for 60 seconds and returns
         the average CPU usage over that time.
 
-        :return: float - CPU usage percentage (0.0 to 100.0)
+        :return: float - CPU usage percentage (0.0 to 100.0), or -1.0 on error
         """
-        return psutil.cpu_percent(interval=60)
+        try:
+            return psutil.cpu_percent(interval=60)
+        except Exception as e:
+            logging.exception('Error getting CPU usage: %s', e)
+            return -1.0
 
     def get_ram_usage(self):
         """
@@ -748,10 +746,14 @@ class ServerAgent(object):
         memory statistics. The 'percent' field indicates
         the percentage of used RAM.
 
-        :return: float - RAM usage percentage (0.0 to 100.0)
+        :return: float - RAM usage percentage (0.0 to 100.0), or -1.0 on error
         """
-        mem = psutil.virtual_memory()
-        return mem.percent
+        try:
+            mem = psutil.virtual_memory()
+            return mem.percent
+        except Exception as e:
+            logging.exception('Error getting RAM usage: %s', e)
+            return -1.0
 
     def get_load_average(self):
         """
@@ -765,7 +767,8 @@ class ServerAgent(object):
         """
         try:
             return os.getloadavg()[0]
-        except (AttributeError, OSError):
+        except Exception as e:
+            logging.exception('Error getting load average: %s', e)
             return -1.0
 
     def get_disk_usage(self):
@@ -775,10 +778,14 @@ class ServerAgent(object):
         Uses psutil.disk_usage('/') to retrieve disk usage statistics.
         The 'percent' field indicates the percentage of used disk space.
 
-        :return: float - Disk usage percentage (0.0 to 100.0)
+        :return: float - Disk usage percentage (0.0 to 100.0), or -1.0 on error
         """
-        usage = psutil.disk_usage('/')
-        return usage.percent
+        try:
+            usage = psutil.disk_usage('/')
+            return usage.percent
+        except Exception as e:
+            logging.exception('Error getting disk usage: %s', e)
+            return -1.0
 
     def generate_report(self):
         """

@@ -779,3 +779,43 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
     
     from agents.agent import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
+
+
+def test_default_whitelist_commands_is_empty_list():
+    """Test that whitelist_commands is initialized with default commands."""
+    agent1 = MockAgent()
+    agent2 = MockAgent()
+    assert agent1.whitelist_commands == agent2.whitelist_commands
+    original_list = agent1.whitelist_commands
+    agent1.whitelist_commands = ['new', 'list']
+    assert agent2.whitelist_commands == original_list
+    assert agent1.whitelist_commands != agent2.whitelist_commands
+
+
+def test_explicit_whitelist_commands_extends_default_list():
+    """Test that provided commands are added to whitelist."""
+    commands = ['cmd_a', 'cmd_b']
+    agent = MockAgent(whitelist_commands=commands)
+    assert all(cmd in agent.whitelist_commands for cmd in commands)
+
+
+def test_explicit_whitelist_commands_none_uses_default_list():
+    """Test that None whitelist_commands uses default list."""
+    agent = MockAgent(whitelist_commands=None)
+    assert agent.whitelist_commands == MockAgent().whitelist_commands
+
+
+def test_class_whitelist_commands():
+    """Test that class-level whitelist_commands are properly handled."""
+    MockAgent.whitelist_commands = ['class_cmd1', 'class_cmd2']
+
+    agent = MockAgent()
+    assert 'class_cmd1' in agent.whitelist_commands
+    assert 'class_cmd2' in agent.whitelist_commands
+
+    agent2 = MockAgent(whitelist_commands=['instance_cmd'])
+    assert 'instance_cmd' in agent2.whitelist_commands
+    assert 'class_cmd1' in agent2.whitelist_commands
+    assert 'class_cmd2' in agent2.whitelist_commands
+
+    MockAgent.whitelist_commands = None

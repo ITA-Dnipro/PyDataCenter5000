@@ -40,7 +40,8 @@ class AlertRuleAdmin(admin.ModelAdmin):
         'time_window_minutes',
         'frequency',
         'is_active',
+        'hostname',
     )
-    list_filter = ('metric', 'is_active')
-    search_fields = ('metric', )
+    list_filter = ('metric', 'is_active', 'hostname')
+    search_fields = ('metric', 'hostname')
     readonly_fields = ('created_at', )

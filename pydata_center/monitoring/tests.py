@@ -511,6 +511,7 @@ def test_send_async_discord_message_connection_or_url_error(
 
 @pytest.mark.django_db
 class TestEvaluateAgentAlerts:
+    """Test suite for evaluate_agent_alerts task."""
     def setup_method(self):
         self.server = ServerStatus.objects.create(
             hostname='test-alerts-server',

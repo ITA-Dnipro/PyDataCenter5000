@@ -81,13 +81,9 @@ def receive_status(request):
         ),
         parameters=[
             OpenApiParameter(
-                name='hostname',
+                name='status',
                 type=str, location=OpenApiParameter.QUERY,
-                description='Filter by agent hostname'
-            ),
-            OpenApiParameter(
-                name='status', type=str,
-                location=OpenApiParameter.QUERY,
+                enum=[choice[0] for choice in CommandHistory.STATUS_CHOICES],
                 description='Filter by command status'
             ),
         ],

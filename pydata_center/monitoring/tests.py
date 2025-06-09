@@ -445,6 +445,7 @@ class TestEvaluateAgentAlerts:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert mock_send_message.called
+        assert 'CPU usage exceeded threshold of 10%' in caplog.text
 
     @pytest.mark.parametrize('destination,mocked', [
         ('email', 'monitoring.email.send_async_email.apply_async'),
@@ -461,6 +462,7 @@ class TestEvaluateAgentAlerts:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert not mock_send_message.called
+        assert 'No alerts triggered' in caplog.text
 
     @patch('monitoring.tasks.AlertDispatcher.send')
     def test_no_data_for_metric(self, mock_send, caplog):
@@ -471,6 +473,7 @@ class TestEvaluateAgentAlerts:
             evaluate_agent_alerts(destinations=['email'], batch=False)
 
         assert not mock_send.called
+        assert 'No data for rule' in caplog.text
 
     @patch('monitoring.tasks.AlertDispatcher.send')
     def test_rate_limit(self, mock_send):
@@ -498,8 +501,31 @@ class TestEvaluateAgentAlerts:
         with caplog.at_level('WARNING'):
             evaluate_agent_alerts(destinations=['email'], batch=True)
 
-        assert mock_send.called
         assert mock_send.call_count == 1
+        assert (
+            'CPU usage exceeded threshold of 25%' in caplog.text
+            and 'CPU usage exceeded threshold of 10%' in caplog.text
+        )
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_rate_limit_batch_alerts_triggered(self, mock_send, caplog):
+        AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold=15,
+            notify_message='CPU usage exceeded threshold of 15%'
+        )
+
+        cache.set(f'alert_sent_{self.rule.id}', True, timeout=1000)
+
+        with caplog.at_level('WARNING'):
+            evaluate_agent_alerts(destinations=['email'], batch=True)
+
+        assert mock_send.call_count == 1
+        assert (
+            'CPU usage exceeded threshold of 15%' in caplog.text
+            and 'CPU usage exceeded threshold of 10%' not in caplog.text
+        )
 
     @pytest.mark.parametrize('batch', [False, True])
     @override_settings(DEFAULT_ALERT_DESTINATIONS=['unknown'])
@@ -507,4 +533,6 @@ class TestEvaluateAgentAlerts:
     def test_bad_destination(self, mock_send, batch, caplog):
         with caplog.at_level('ERROR'):
             evaluate_agent_alerts(batch=batch)
+
         assert not mock_send.called
+        assert 'Unknown alert destination unknown' in caplog.text

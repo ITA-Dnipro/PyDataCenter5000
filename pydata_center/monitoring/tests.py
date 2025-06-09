@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import TestCase, override_settings
@@ -415,6 +416,7 @@ class ReceiveStatusEndpointTests(APITestCase):
 
 @pytest.mark.parametrize('status_code', [200, 204])
 def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
+    """Test handling and logging of succesfull Discord POST request."""
     class MockResponse:
         def __init__(self, status_code):
             self.status_code = status_code
@@ -438,6 +440,74 @@ def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
         f'POST request sent succesfully. Discord reposnse: {status_code} OK'
         in caplog.text
     )
+
+
+@pytest.mark.parametrize('fail_silently', [True, False])
+def test_send_async_discord_message_http_error(
+    monkeypatch, caplog, fail_silently
+):
+    """Test handling and logging of HTTP error."""
+    class MockResponse:
+        def __init__(self):
+            self.status_code = 400
+            self.text = 'Bad Request'
+
+        def raise_for_status(self):
+            raise requests.exceptions.HTTPError('Mock HTTP error')
+
+    monkeypatch.setattr('requests.post', lambda url, json: MockResponse())
+
+    msg = DiscordMessage(
+        'Mock message',
+        webhook='https://discord.com/api/webhooks/mock',
+        fail_silently=fail_silently,
+    )
+
+    with caplog.at_level('ERROR'):
+        if fail_silently:
+            send_async_discord_message(msg)
+        else:
+            with pytest.raises(
+                requests.exceptions.HTTPError,
+                match='Sending Discord message failed.',
+            ):
+                send_async_discord_message(msg)
+
+    assert (
+        (
+            f'Sending Discord message failed due to error: '
+            f'{requests.exceptions.HTTPError}'
+        )
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize('error_type', [
+    requests.exceptions.ConnectionError,
+    requests.exceptions.InvalidURL,
+])
+def test_send_async_discord_message_connection_or_url_error(
+    monkeypatch, caplog, error_type
+):
+    webhook = 'https://discord.com/api/webhooks/mock'
+
+    monkeypatch.setattr(
+        'requests.post',
+        lambda url, json: (
+            _ for _ in ()
+        ).throw(error_type(f'Failed to connect to URL {webhook}')),
+    )
+
+    msg = DiscordMessage('Mock message', webhook=webhook)
+
+    with caplog.at_level('ERROR'):
+        send_async_discord_message(msg)
+
+    assert (
+        f'Sending Discord message failed due to error: {error_type}'
+        in caplog.text
+    )
+    assert webhook not in caplog.text
 
 
 @pytest.mark.django_db

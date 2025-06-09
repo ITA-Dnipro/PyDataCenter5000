@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.db.models.query import QuerySet
+from django.http import HttpRequest
 
 from .models import AgentMetric, AlertRule, CommandHistory, ServerStatus
 
@@ -45,3 +47,15 @@ class AlertRuleAdmin(admin.ModelAdmin):
     list_filter = ('metric', 'is_active', 'hostname')
     search_fields = ('metric', 'hostname')
     readonly_fields = ('created_at', )
+
+    actions = ['activate_rules', 'deactivate_rules']
+
+    def activate_rules(self, request: HttpRequest, queryset: QuerySet):
+        nrules = queryset.update(is_active=True)
+        self.message_user(request, f'{nrules} rule(s) activated.')
+    activate_rules.short_description = 'Activate selected alert rules'
+
+    def deactivate_rules(self, request: HttpRequest, queryset: QuerySet):
+        nrules = queryset.update(is_active=False)
+        self.message_user(request, f'{nrules} rule(s) deactivated.')
+    activate_rules.short_description = 'Deactivate selected alert rules'

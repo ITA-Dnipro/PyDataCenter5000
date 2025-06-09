@@ -50,6 +50,28 @@ class AlertRuleAdmin(admin.ModelAdmin):
 
     ordering = ('-created-at', )
 
+    fieldsets = (
+        (
+            'Rule Definition',
+            {
+                'fields': (
+                    'metric',
+                    'operator',
+                    'threshold',
+                    'time_window_minutes',
+                    'frequency',
+                    'hostname',
+                )
+            },
+        ),
+        (
+            'Status and Meta',
+            {
+                'fields': ('is_active', 'created_at')
+            }
+        ),
+    )
+
     actions = ['activate_rules', 'deactivate_rules']
 
     def activate_rules(self, request: HttpRequest, queryset: QuerySet):

@@ -9,6 +9,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from .discord import DiscordMessage, send_async_discord_message
+from .email import EmailMessage
 from .models import AgentMetric, AlertRule, ServerStatus
 from .tasks import evaluate_agent_alerts
 
@@ -411,6 +413,33 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
 
+@pytest.mark.parametrize('status_code', [200, 204])
+def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
+    class MockResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+            self.text = 'OK'
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        'requests.post', lambda url, json: MockResponse(status_code)
+    )
+
+    msg = DiscordMessage(
+        'Mock message', webhook='https://discord.com/api/webhooks/mock'
+    )
+
+    with caplog.at_level('INFO'):
+        send_async_discord_message(msg)
+
+    assert (
+        f'POST request sent succesfully. Discord reposnse: {status_code} OK'
+        in caplog.text
+    )
+
+
 @pytest.mark.django_db
 class TestEvaluateAgentAlerts:
     def setup_method(self):
@@ -475,10 +504,33 @@ class TestEvaluateAgentAlerts:
         assert not mock_send.called
         assert 'No data for rule' in caplog.text
 
+    @pytest.mark.parametrize('destination,mocked', [
+        ('email', 'monitoring.email.send_async_email.apply_async'),
+        (
+            'discord',
+            'monitoring.discord.send_async_discord_message.apply_async',
+        )
+    ])
+    def test_alert_triggered_with_less_than_operator(
+        self, destination, mocked, caplog
+    ):
+        self.rule.metric = 'cpu'
+        self.rule.operator = '<'
+        self.rule.threshold = 100
+        self.rule.notify_message = 'CPU usage below 100%'
+        self.rule.save()
+
+        with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
+            evaluate_agent_alerts(destinations=[destination], batch=False)
+
+            assert mock_send_message.called
+        assert 'CPU usage below 100%' in caplog.text
+
     @patch('monitoring.tasks.AlertDispatcher.send')
     def test_rate_limit(self, mock_send):
-        self.rule.metric = 'cpu'
+        self.rule.operator = '>'
         self.rule.threshold = 10
+        self.notify_message = 'CPU usage exceeded threshold of 10%'
         self.rule.save()
 
         cache.set(f'alert_sent_{self.rule.id}', True, timeout=1000)

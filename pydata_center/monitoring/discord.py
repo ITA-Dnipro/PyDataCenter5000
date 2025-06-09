@@ -35,6 +35,11 @@ def send_async_discord_message(message: DiscordMessage):
                 f'Unexpected Discord reponse: '
                 f'{response.status_code} {response.text}'
             )
+        else:
+            logger.info(
+                f'POST request sent succesfully. Discord reposnse: '
+                f'{response.status_code} {response.text}'
+            )
     except (
         requests.exceptions.ConnectionError,
         requests.exceptions.InvalidURL,

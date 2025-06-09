@@ -14,7 +14,6 @@ router.register(r'triggered-alerts', TriggeredAlertViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('server/status/', receive_status, name='receive_status'),
-    path('command/', create_command, name='create_command'),
     path(
         'command/fetch/',
         fetch_pending_command,

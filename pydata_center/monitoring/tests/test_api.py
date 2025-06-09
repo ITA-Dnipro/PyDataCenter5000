@@ -7,12 +7,11 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from monitoring.discord import DiscordMessage, send_async_discord_message
+from monitoring.models import AgentMetric, AlertRule, ServerStatus
+from monitoring.tasks import evaluate_agent_alerts
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
-
-from .discord import DiscordMessage, send_async_discord_message
-from .models import AgentMetric, AlertRule, ServerStatus
-from .tasks import evaluate_agent_alerts
 
 
 class ServerStatusAPITest(TestCase):

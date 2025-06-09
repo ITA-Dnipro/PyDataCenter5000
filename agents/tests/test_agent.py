@@ -619,6 +619,34 @@ def test_is_port_open_missing_protocol():
         agent.is_port_open()
 
 
+def test_protocol_property_default():
+    """Test that protocol property returns None by default."""
+    agent = MockAgent(port=12345)
+    assert agent.protocol is None
+
+
+def test_protocol_setter_type_error():
+    """Test that protocol setter raises TypeError for non-string values."""
+    agent = MockAgent(port=12345)
+    
+    with pytest.raises(TypeError, match='Protocol must be a string'):
+        agent.protocol = 123
+    
+    with pytest.raises(TypeError, match='Protocol must be a string'):
+        agent.protocol = None
+
+
+def test_protocol_setter_value_error():
+    """Test that protocol setter raises ValueError for invalid protocol values."""
+    agent = MockAgent(port=12345)
+    
+    with pytest.raises(ValueError, match='Unknown protocol value invalid_protocol'):
+        agent.protocol = 'invalid_protocol'
+    
+    with pytest.raises(ValueError, match='Unknown protocol value'):
+        agent.protocol = 'HTTP'
+
+
 def test_is_port_open_tcp_success(monkeypatch):
     """Test successful TCP port check."""
     agent = MockAgent(port=12345)

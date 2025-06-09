@@ -2,6 +2,9 @@ import logging
 
 from django.shortcuts import render
 from django.utils.timezone import now
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
+                                   extend_schema, extend_schema_view)
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -14,6 +17,15 @@ from .utils import extract_status_data, get_client_ip
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+        request=ServerStatusSerializer,
+        responses={
+            201: OpenApiResponse(description='Status received and logged.'),
+            400: OpenApiResponse(description='Invalid data.'),
+            500: OpenApiResponse(description='Internal server error.')
+        },
+        description='Receive and log server status data sent via POST request.'
+)
 @api_view(['POST'])
 def receive_status(request):
     """
@@ -55,6 +67,45 @@ def receive_status(request):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        description=(
+            'List of all command records.'
+            'Supports filtering by hostname and status.'
+        ),
+        parameters=[
+            OpenApiParameter(
+                name='hostname',
+                type=str, location=OpenApiParameter.QUERY,
+                description='Filter by agent hostname'
+            ),
+            OpenApiParameter(
+                name='status', type=str,
+                location=OpenApiParameter.QUERY,
+                description='Filter by command status'
+            ),
+        ],
+        responses=CommandHistorySerializer(many=True),
+    ),
+    retrieve=extend_schema(
+        description='Get a specific command record by ID.',
+        responses=CommandHistorySerializer,
+    ),
+    create=extend_schema(
+        description=(
+            'Create a new command record.'
+            'Status will be set to \'pending\' by default.'
+        ),
+        responses=CommandHistorySerializer,
+    ),
+    partial_update=extend_schema(
+        description='Update command status or result (partial).',
+        responses=CommandHistorySerializer,
+    ),
+    destroy=extend_schema(
+        description='Delete command record by ID.',
+    ),
+)
 class CommandHistoryViewSet(viewsets.ModelViewSet):
     queryset = CommandHistory.objects.all()
     serializer_class = CommandHistorySerializer
@@ -95,8 +146,30 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    description='Agent fetches a pending command by providing its hostname.',
+    parameters=[
+        OpenApiParameter(
+            name='hostname',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description='Unique hostname of the agent.'
+        )
+    ],
+    responses={
+        200: CommandHistorySerializer,
+        204: OpenApiResponse(description='No pending commands'),
+        400: OpenApiResponse(description='Hostname is required')
+    }
+)
 @api_view(['GET'])
 def fetch_pending_command(request):
+    """
+    Endpoint for agents to request pending commands.
+    Returns the earliest command with status 'pending'
+    for the given hostname.
+    """
     hostname = request.query_params.get('hostname')
 
     if not hostname:
@@ -118,6 +191,19 @@ def fetch_pending_command(request):
     return Response(serializer.data)
 
 
+@extend_schema(
+        request=CommandHistorySerializer,
+        responses={
+            200: CommandHistorySerializer,
+            400: OpenApiResponse(
+                description='Validation error or invalid status'
+            ),
+            404: OpenApiResponse(description='Command not found or ID missing')
+        },
+        description=(
+            'Agent submits the result or status update for a command by ID.'
+        ),
+)
 @api_view(['PATCH'])
 def submit_command_result(request):
     command_id = request.data.get('id')
@@ -155,6 +241,10 @@ def submit_command_result(request):
 
 
 def dashboard_view(request):
+    """
+    Render the monitoring dashboard page.
+    Standard Django HTML view, not part of API.
+    """
     agents = get_latest_agents()
 
     return render(

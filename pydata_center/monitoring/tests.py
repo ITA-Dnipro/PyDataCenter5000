@@ -447,33 +447,37 @@ class TestEvaluateAgentAlerts:
         with patch(mocked) as mock_send_message:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
-            self.assertTrue(mock_send_message.called)
+            assert mock_send_message.called
 
-    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
-    @patch('monitoring.email.send_async_email.apply_async')
-    def test_no_alerts_triggered(self, mock_send_async_email):
+    @pytest.mark.parametrize('destination,mocked', [
+        ('email', 'monitoring.email.send_async_email.apply_async'),
+        (
+            'discord',
+            'monitoring.discord.send_async_discord_message.apply_async',
+        )
+    ])
+    def test_no_alerts_triggered(self, destination, mocked):
         self.rule.threshold = 60
         self.rule.save()
 
-        evaluate_agent_alerts(batch=False)
+        with patch(mocked) as mock_send_message:
+            evaluate_agent_alerts(destinations=[destination], batch=False)
 
-        self.assertFalse(mock_send_async_email.called)
+            assert not mock_send_message.called
 
-    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
-    @patch('monitoring.email.send_async_email.apply_async')
-    def test_rate_limit(self, mock_send_async_email):
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_rate_limit(self, mock_send):
         self.rule.threshold = 10
         self.rule.save()
 
-        cache.set(f'alert_sent_{self.rule.id}', True, timeout=300)
+        cache.set(f'alert_sent_{self.rule.id}', True, timeout=1000)
 
-        evaluate_agent_alerts(batch=False)
+        evaluate_agent_alerts(destinations=['email'], batch=False)
 
-        self.assertFalse(mock_send_async_email.called)
+        assert not mock_send.called
 
-    @override_settings(DEFAULT_ALERT_DESTINATIONS=['email'])
-    @patch('monitoring.email.send_async_email.apply_async')
-    def test_batch_alerts(self, mock_send_async_email):
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_batch_alerts(self, mock_send):
         # Add another rule that will trigger an alert with existing
         # agent metric.
         AlertRule.objects.create(
@@ -483,13 +487,13 @@ class TestEvaluateAgentAlerts:
             notify_message='CPU usage exceeded threshold of 25%'
         )
 
-        evaluate_agent_alerts(batch=True)
+        evaluate_agent_alerts(destinations=['email'], batch=True)
 
-        self.assertTrue(mock_send_async_email.called)
-        self.assertEqual(mock_send_async_email.call_count, 1)
+        assert mock_send.called
+        assert mock_send.call_count == 1
 
     @override_settings(DEFAULT_ALERT_DESTINATIONS=['unknown'])
-    @patch('monitoring.discord.send_async_discord_message.apply_async')
-    def test_bad_destination(self, mock_send_async_discord_message):
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_bad_destination(self, mock_send):
         evaluate_agent_alerts(batch=False)
-        self.assertFalse(mock_send_async_discord_message.called)
+        assert not mock_send.called

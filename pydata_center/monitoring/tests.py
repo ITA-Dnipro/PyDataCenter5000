@@ -440,11 +440,8 @@ class TestEvaluateAgentAlerts:
             'monitoring.discord.send_async_discord_message.apply_async',
         )
     ])
-    def test_alert_triggered(self, destination, mocked):
-        self.rule.threshold = 10
-        self.rule.save()
-
-        with patch(mocked) as mock_send_message:
+    def test_alert_triggered(self, destination, mocked, caplog):
+        with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert mock_send_message.called
@@ -456,17 +453,28 @@ class TestEvaluateAgentAlerts:
             'monitoring.discord.send_async_discord_message.apply_async',
         )
     ])
-    def test_no_alerts_triggered(self, destination, mocked):
+    def test_no_alerts_triggered(self, destination, mocked, caplog):
         self.rule.threshold = 60
         self.rule.save()
 
-        with patch(mocked) as mock_send_message:
+        with caplog.at_level('INFO'), patch(mocked) as mock_send_message:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert not mock_send_message.called
 
     @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_no_data_for_metric(self, mock_send, caplog):
+        self.rule.metric = 'ram'
+        self.rule.save()
+
+        with caplog.at_level('INFO'):
+            evaluate_agent_alerts(destinations=['email'], batch=False)
+
+        assert not mock_send.called
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
     def test_rate_limit(self, mock_send):
+        self.rule.metric = 'cpu'
         self.rule.threshold = 10
         self.rule.save()
 
@@ -477,7 +485,7 @@ class TestEvaluateAgentAlerts:
         assert not mock_send.called
 
     @patch('monitoring.tasks.AlertDispatcher.send')
-    def test_batch_alerts(self, mock_send):
+    def test_batch_alerts_triggered(self, mock_send, caplog):
         # Add another rule that will trigger an alert with existing
         # agent metric.
         AlertRule.objects.create(
@@ -487,13 +495,16 @@ class TestEvaluateAgentAlerts:
             notify_message='CPU usage exceeded threshold of 25%'
         )
 
-        evaluate_agent_alerts(destinations=['email'], batch=True)
+        with caplog.at_level('WARNING'):
+            evaluate_agent_alerts(destinations=['email'], batch=True)
 
         assert mock_send.called
         assert mock_send.call_count == 1
 
+    @pytest.mark.parametrize('batch', [False, True])
     @override_settings(DEFAULT_ALERT_DESTINATIONS=['unknown'])
     @patch('monitoring.tasks.AlertDispatcher.send')
-    def test_bad_destination(self, mock_send):
-        evaluate_agent_alerts(batch=False)
+    def test_bad_destination(self, mock_send, batch, caplog):
+        with caplog.at_level('ERROR'):
+            evaluate_agent_alerts(batch=batch)
         assert not mock_send.called

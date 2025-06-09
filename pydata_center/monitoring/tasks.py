@@ -159,12 +159,12 @@ def evaluate_agent_alerts(
                 )
                 continue
 
-        msg = factory(
-            subject=subject,
-            body=summary,
-            fail_silently=settings.ALERT_FAIL_SILENTLY,
-        )
-        dispatcher.send(msg)
+            msg = factory(
+                subject=subject,
+                body=summary,
+                fail_silently=settings.ALERT_FAIL_SILENTLY,
+            )
+            dispatcher.send(msg)
 
         for rule in triggered_alerts:
             # Make sure batch respects the cooldown.

@@ -11,7 +11,6 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from .discord import DiscordMessage, send_async_discord_message
-from .email import EmailMessage
 from .models import AgentMetric, AlertRule, ServerStatus
 from .tasks import evaluate_agent_alerts
 

@@ -847,3 +847,107 @@ def test_class_whitelist_commands():
     assert 'class_cmd2' in agent2.whitelist_commands
 
     MockAgent.whitelist_commands = None
+
+
+def test_config_file_parsing():
+    """Test parsing of config file options."""
+    with tempfile.NamedTemporaryFile() as tmp:
+        config_content = """
+[server]
+name = test_server
+port = 12345
+processes = proc1,proc2,proc3
+interface = eth0
+
+[controller]
+whitelist_commands = cmd1,cmd2,cmd3
+"""
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        assert agent.server_name == 'test_server'
+        assert agent.port == 12345
+        assert agent.processes == ['proc1', 'proc2', 'proc3']
+        assert agent.interface == 'eth0'
+        assert all(cmd in agent.whitelist_commands for cmd in ['cmd1', 'cmd2', 'cmd3'])
+
+
+def test_config_file_missing_options():
+    """Test handling of missing config file options."""
+    with tempfile.NamedTemporaryFile() as tmp:
+        config_content = """
+[server]
+name = test_server
+port = 12345
+"""
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        assert agent.server_name == 'test_server'
+        assert agent.port == 12345
+        assert agent.processes == []
+        assert agent.interface is None
+        assert agent.whitelist_commands == []
+
+
+def test_config_file_empty_processes():
+    """Test handling of empty processes list in config."""
+    with tempfile.NamedTemporaryFile() as tmp:
+        config_content = """
+[server]
+name = test_server
+port = 12345
+processes = 
+"""
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+        assert agent.processes == []
+
+
+def test_config_file_empty_whitelist_commands():
+    """Test handling of empty whitelist_commands in config."""
+    with tempfile.NamedTemporaryFile() as tmp:
+        config_content = """
+[server]
+name = test_server
+port = 12345
+
+[controller]
+whitelist_commands = 
+"""
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+        assert agent.whitelist_commands == []
+
+
+def test_config_file_whitelist_commands_extends_default():
+    """Test that config whitelist_commands extends default list."""
+    MockAgent.whitelist_commands = ['default_cmd1', 'default_cmd2']
+
+    with tempfile.NamedTemporaryFile() as tmp:
+        config_content = """
+[server]
+name = test_server
+port = 12345
+
+[controller]
+whitelist_commands = config_cmd1,config_cmd2
+"""
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+        assert 'default_cmd1' in agent.whitelist_commands
+        assert 'default_cmd2' in agent.whitelist_commands
+        assert 'config_cmd1' in agent.whitelist_commands
+        assert 'config_cmd2' in agent.whitelist_commands
+
+    MockAgent.whitelist_commands = None

@@ -86,7 +86,7 @@ def get_config_option(
                     logger,
                     fallback_logger=fallback_logger,
                 )
-                return value
+        return value
 
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
@@ -96,5 +96,4 @@ def get_config_option(
                 fallback_logger=fallback_logger,
                 level=logging.WARNING,
             )
-
-    return value or default
+        return default

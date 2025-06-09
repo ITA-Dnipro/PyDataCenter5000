@@ -48,7 +48,7 @@ class AlertRuleAdmin(admin.ModelAdmin):
     search_fields = ('metric', 'hostname')
     readonly_fields = ('created_at', )
 
-    ordering = ('-created-at', )
+    ordering = ('-created_at', )
 
     fieldsets = (
         (

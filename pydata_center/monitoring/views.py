@@ -26,7 +26,8 @@ def receive_status(request):
         try:
             serializer.save()
             data = extract_status_data(serializer.validated_data, request)
-            alert_if_unhealthy(data['hostname'], data['healthy'])
+            healthy = serializer.validated_data.get('healthy', False)
+            alert_if_unhealthy(data['hostname'], healthy)
             logger.info(
                 '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
                 data['hostname'], data['ip'], data['uptime']

@@ -20,9 +20,15 @@ logger = logging.getLogger(__name__)
 @extend_schema(
         request=ServerStatusSerializer,
         responses={
-            201: OpenApiResponse(description='Status received and logged.'),
-            400: OpenApiResponse(description='Invalid data.'),
-            500: OpenApiResponse(description='Internal server error.')
+            status.HTTP_201_CREATED: OpenApiResponse(
+                description='Status received and logged.'
+            ),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+                description='Invalid data.'
+            ),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
+                description='Internal server error.'
+            ),
         },
         description='Receive and log server status data sent via POST request.'
 )
@@ -158,9 +164,13 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         )
     ],
     responses={
-        200: CommandHistorySerializer,
-        204: OpenApiResponse(description='No pending commands'),
-        400: OpenApiResponse(description='Hostname is required')
+        status.HTTP_200_OK: CommandHistorySerializer,
+        status.HTTP_204_NO_CONTENT: OpenApiResponse(
+            description='No pending commands'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Hostname is required'
+        ),
     }
 )
 @api_view(['GET'])
@@ -194,11 +204,13 @@ def fetch_pending_command(request):
 @extend_schema(
         request=CommandHistorySerializer,
         responses={
-            200: CommandHistorySerializer,
-            400: OpenApiResponse(
+            status.HTTP_200_OK: CommandHistorySerializer,
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(
                 description='Validation error or invalid status'
             ),
-            404: OpenApiResponse(description='Command not found or ID missing')
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(
+                description='Command not found or ID missing'
+            ),
         },
         description=(
             'Agent submits the result or status update for a command by ID.'

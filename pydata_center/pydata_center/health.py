@@ -13,11 +13,15 @@ logger = logging.getLogger(__name__)
 
 @extend_schema(
         responses={
-            200: OpenApiResponse(
+            status.HTTP_200_OK: OpenApiResponse(
                 description='Database and application are available.'
             ),
-            503: OpenApiResponse(description='Database connection failed.'),
-            500: OpenApiResponse(description='Unexpected health check error.')
+            status.HTTP_503_SERVICE_UNAVAILABLE: OpenApiResponse(
+                description='Database connection failed.'
+            ),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
+                description='Unexpected health check error.'
+            ),
         },
         description=(
             'Health check endpoint that verifies'

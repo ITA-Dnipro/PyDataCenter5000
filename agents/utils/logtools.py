@@ -3,6 +3,8 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
+FALLBACK_LOGGER = logging.getLogger('fallback')
+
 
 def maybe_log_message(
     message, logger, fallback_logger=None, level=logging.ERROR, **kwargs

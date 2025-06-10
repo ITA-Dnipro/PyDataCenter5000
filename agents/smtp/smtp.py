@@ -1,7 +1,7 @@
 import socket
 
 from ..agent import ServerAgent
-from ..utils.logtools import maybe_log_message
+from ..utils.logtools import FALLBACK_LOGGER, maybe_log_message
 
 
 class SMTPAgent(ServerAgent):
@@ -45,7 +45,7 @@ class SMTPAgent(ServerAgent):
             maybe_log_message(
                 'Banner check failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
         finally:
             sock.close()

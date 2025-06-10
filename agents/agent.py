@@ -19,7 +19,7 @@ from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
-from .utils.logtools import maybe_log_message
+from .utils.logtools import FALLBACK_LOGGER, maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -57,6 +57,10 @@ def get_linux_uptime():
     """Get uptime on Linux OS."""
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
+
+
+def get_server_cpu_count(interval=None, percpu=False):
+    return psutil.cpu_percent(interval=interval, percpu=percpu)
 
 
 @attr.s
@@ -124,7 +128,9 @@ class ServerAgent(object):
         # Initialize logging from logging config file
         log_path = (
             log_path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
+            resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
         )
 
         logging.config.fileConfig(
@@ -157,12 +163,6 @@ class ServerAgent(object):
     @property
     def logger(self):
         return logging.getLogger(self.server_name)
-
-    @property
-    def fallback_logger(self):
-        return logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
 
     @property
     def port(self):
@@ -221,7 +221,7 @@ class ServerAgent(object):
                 'name',
                 default=self.server_name,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
             self.port = get_config_option(
@@ -230,7 +230,7 @@ class ServerAgent(object):
                 'port',
                 default=self.port,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 cast=int,
             )
 
@@ -240,7 +240,7 @@ class ServerAgent(object):
                 'processes',
                 default=self.processes,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 cast=parse_csv_list,
             )
 
@@ -249,7 +249,7 @@ class ServerAgent(object):
                 'server',
                 'interface',
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
             whitelist_commands = get_config_option(
@@ -258,7 +258,7 @@ class ServerAgent(object):
                 'whitelist_commands',
                 [],
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
@@ -273,7 +273,7 @@ class ServerAgent(object):
         system = platform.system()
         if not system:
             maybe_log_message(
-                'Could not deduce OS type', self.logger, self.fallback_logger
+                'Could not deduce OS type', self.logger, FALLBACK_LOGGER
             )
 
         self.os_type = system.lower() or 'unknown'
@@ -286,7 +286,7 @@ class ServerAgent(object):
             maybe_log_message(
                 'Could not get hostname: %s' % str(e),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
         self.ip = None
@@ -301,7 +301,7 @@ class ServerAgent(object):
                         '%s: %s' % (self.interface, str(e))
                     ),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
@@ -311,7 +311,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                 )
 
         self.uptime = -1
@@ -323,7 +323,7 @@ class ServerAgent(object):
             maybe_log_message(
                 "Could not get system's uptime",
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -378,7 +378,7 @@ class ServerAgent(object):
                             '%d bytes, got %d bytes' % (packet_size, len(data))
                         ),
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
+                        fallback_logger=FALLBACK_LOGGER,
                     )
 
                     return False
@@ -388,7 +388,7 @@ class ServerAgent(object):
             maybe_log_message(
                 'Port check failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
             return False
@@ -413,7 +413,7 @@ class ServerAgent(object):
             maybe_log_message(
                 'Process check failed: %s' % e,
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
 
@@ -459,7 +459,7 @@ class ServerAgent(object):
                     maybe_log_message(
                         'Error logging to file: %s' % str(e),
                         self.logger,
-                        fallback_logger=self.fallback_logger,
+                        fallback_logger=FALLBACK_LOGGER,
                     )
 
             return status
@@ -468,7 +468,7 @@ class ServerAgent(object):
                 ('JSON serialization of status failed '
                  'due to error: %s' % str(e)),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
     def status_to_txt(self):
@@ -482,7 +482,32 @@ class ServerAgent(object):
             maybe_log_message(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+    def collect_server_metric(self, cpu_count_interval=None):
+        """
+        Collect server's metric such as CPU usage, RAM usage, disc usage
+        etc.
+        """
+        self.cpu_count = -1
+
+        if not cpu_count_interval:
+            get_server_cpu_count(interval=0)
+
+        try:
+            self.cpu_count = get_server_cpu_count(interval=cpu_count_interval)
+        except psutil.AccessDenied as e:
+            maybe_log_message(
+                'Getting CPU count failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+        except (TypeError, ValueError) as e:
+            maybe_log_message(
+                'Bad input values. Got error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
     def post_data(
@@ -505,7 +530,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     '[Attempt %d] Sending data to %s' % (attempt, url),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO
                 )
 
@@ -518,7 +543,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'POST request status: %d' % status_code,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO
                 )
 
@@ -527,7 +552,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Success on attempt %d: %s' % (attempt, result),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO
                 )
 
@@ -536,7 +561,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.ERROR
                 )
 
@@ -544,7 +569,7 @@ class ServerAgent(object):
                     maybe_log_message(
                         'Retrying in %d seconds...' % delay,
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
+                        fallback_logger=FALLBACK_LOGGER,
                         level=logging.WARNING
                     )
                     time.sleep(delay * attempt)
@@ -553,7 +578,7 @@ class ServerAgent(object):
                         'All %d attempts failed. Data not sent. '
                         'Last error: %s' % (max_retries, e),
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
+                        fallback_logger=FALLBACK_LOGGER,
                         level=logging.CRITICAL
                     )
 
@@ -583,7 +608,7 @@ class ServerAgent(object):
             maybe_log_message(
                 "Couldn't send status update: controller URL is not set",
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
             return
 
@@ -604,21 +629,21 @@ class ServerAgent(object):
                 maybe_log_message(
                     'POST request to controller succeeded.',
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO,
                 )
             else:
                 maybe_log_message(
                     'POST request to controller failed after retries.',
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     exc_info=True,
                 )
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
 
@@ -636,7 +661,7 @@ class ServerAgent(object):
                     'hostname not set'
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
             return
 
@@ -668,7 +693,7 @@ class ServerAgent(object):
                     'status: %s' % status_code
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 level=logging.INFO,
             )
 
@@ -676,7 +701,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'No pending commands for server %s' % self.hostname,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO,
                 )
 
@@ -692,14 +717,14 @@ class ServerAgent(object):
                     'due to error: %s' % str(e)
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
         except Exception as e:
             maybe_log_message(
                 'GET request failed due to unexpected error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
 
@@ -714,7 +739,7 @@ class ServerAgent(object):
             maybe_log_message(
                 'Command validation failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
             return

@@ -2,7 +2,7 @@ import subprocess
 
 from ..agent import ServerAgent
 from ..utils.configtools import is_valid_ip
-from ..utils.logtools import maybe_log_message
+from ..utils.logtools import FALLBACK_LOGGER, maybe_log_message
 
 
 class DNSAgent(ServerAgent):
@@ -62,7 +62,7 @@ class DNSAgent(ServerAgent):
             maybe_log_message(
                 'DNS check failed: %s' % e,
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
             return False

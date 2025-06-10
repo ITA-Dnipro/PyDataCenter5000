@@ -20,7 +20,7 @@ class SMTPAgent(ServerAgent):
         processes=None,
         interface=None,
         protocol='tcp',
-        controller_url=None,
+        whitelist_commands=None,
         log_path=None,
     ):
         super(SMTPAgent, self).__init__(
@@ -29,7 +29,7 @@ class SMTPAgent(ServerAgent):
             processes=processes or self.DEFAULT_PROCESSES,
             interface=interface,
             protocol=protocol,
-            controller_url=controller_url,
+            whitelist_commands=whitelist_commands,
             log_path=log_path,
         )
 
@@ -54,7 +54,7 @@ class SMTPAgent(ServerAgent):
 
     def service_healthy(self):
         status = super(SMTPAgent, self).service_healthy()
-        return status and self.check_banner()
+        return status and bool(self.check_banner())
 
     def status_to_dict(self):
         status = super(SMTPAgent, self).status_to_dict()

@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import tempfile
@@ -7,7 +8,28 @@ import mock
 import pytest
 import urllib2
 
-from agents.agent import ServerAgent
+from agents.agent import CommandHistory, ServerAgent
+
+HTTP_ERROR_OUTPUT = (
+    urllib2.HTTPError(
+        url='http://mock/api/dest/',
+        code=500,
+        msg='Internal Server Error',
+        hdrs=None,
+        fp=None,
+    ),
+    'HTTP Error 500: Internal Server Error',
+)
+URL_ERROR_OUTPUT = (
+    urllib2.URLError('Connection refused'),
+    '<urlopen error Connection refused>',
+)
+TIMEOUT_ERROR_OUTPUT = (
+    socket.timeout('HTTP request timed out'), 'HTTP request timed out'
+)
+UNEXPECTED_ERROR_OUTPUT = (
+    Exception('Unexpected error occurred'), 'Unexpected error occurred'
+)
 
 
 class MockAgent(ServerAgent):
@@ -19,7 +41,7 @@ class MockAgent(ServerAgent):
         processes=None,
         interface=None,
         protocol=None,
-        controller_url=None,
+        whitelist_commands=None,
         log_path=None,
     ):
         self.logfile = tempfile.NamedTemporaryFile(delete=False)
@@ -31,16 +53,88 @@ class MockAgent(ServerAgent):
             processes,
             interface,
             protocol,
-            controller_url,
+            whitelist_commands,
             log_path or self.logfile.name,
         )
 
     def __del__(self):
-        if self.logfile:
+        if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)
 
     def service_healthy(self):
         return super(MockAgent, self).service_healthy()
+
+
+def test_command_history_valid_data():
+    """Test that command history is properly instantiated."""
+    data = {
+        'command': 'ls',
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+        'result': 'ok',
+        'id': 1,
+    }
+
+    command_history = CommandHistory.from_dict(data)
+
+    assert command_history.command == 'ls'
+    assert command_history.hostname == 'test-server'
+    assert command_history.status == 'pending'
+    assert command_history.timestamp == '2025-06-03T18:25:35.418746Z'
+    assert command_history.result == 'ok'
+    assert command_history.id == 1
+
+
+def test_command_history_missing_data():
+    """
+    Test that error is raised on command history input with missing
+    fields.
+    """
+    parameters = [
+        {
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+    ]
+
+    for data in parameters:
+        with pytest.raises(TypeError):
+            CommandHistory.from_dict(data)
+
+
+def test_command_history_bad_input_error():
+    """Test that error is raised on bad command history input."""
+    parameters = [
+        {
+            'command': None,
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'hostname': 'test-server',
+            'status': None,
+            'timestamp': '2025-06-03T18:25:35.418746Z',
+        },
+        {
+            'command': 'ls',
+            'hostname': 'test-server',
+            'status': 'pending',
+            'timestamp': 'bad date',
+        },
+    ]
+
+    for data in parameters:
+        with pytest.raises((TypeError, ValueError)):
+            CommandHistory.from_dict(data)
 
 
 def test_type_checks_on_init():
@@ -95,10 +189,14 @@ def test_status_to_json_type_error():
         "Can't serialize me"
     )
 
-    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
-def test_status_to_controller_success():
+def test_status_to_controller_success(monkeypatch):
     """
     Test that successful POST request to controller is properly handled
     and logged.
@@ -119,14 +217,15 @@ def test_status_to_controller_success():
 
         return MockResponse()
 
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
     agent = MockAgent(port=12345)
 
     agent.collect_server_metadata()
 
     agent.controller_url = 'http://mock/api/status/'
 
-    with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.status_to_controller()
+    agent.status_to_controller()
 
     with open(agent.logfile.name, 'r') as f:
         f.seek(0)
@@ -154,64 +253,46 @@ def test_status_to_controller_missing_url():
 
     msg = "Couldn't send status update: controller URL is not set"
 
-    assert msg in contents, ('Expected %s in logs, got:\n%s' % (msg, contents))
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
-def test_status_to_controller_http_error():
+def test_status_to_controller_error(monkeypatch):
     """
-    Test that the HTTP and URL failures of POST request to controller are
-    properly handled and logged.
+    Test that the HTTP, URL and timeout failures at POST request to
+    controller are properly handled and logged.
     """
-    output = [
-        (
-            urllib2.HTTPError(
-                url='http://mock/api/status/',
-                code=500,
-                msg='Internal Server Error',
-                hdrs=None,
-                fp=None,
-            ),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP Error 500: Internal Server Error'
-            ),
-        ),
-        (
-            urllib2.URLError('Connection refused'),
-            (
-                'POST request to controller failed due to error: '
-                '<urlopen error Connection refused>'
-            ),
-        ),
-        (
-            socket.timeout('HTTP request timed out'),
-            (
-                'POST request to controller failed due to error: '
-                'HTTP request timed out'
-            ),
-        ),
-    ]
-
-    for error, msg in output:
+    for error, msg in [
+        HTTP_ERROR_OUTPUT,
+        URL_ERROR_OUTPUT,
+        TIMEOUT_ERROR_OUTPUT,
+        UNEXPECTED_ERROR_OUTPUT,
+    ]:
         def mock_urlopen(request, timeout=5):
             raise error
 
-    agent = MockAgent(port=12345)
+        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-    agent.collect_server_metadata()
+        agent = MockAgent(port=12345)
 
-    agent.controller_url = 'http://mock/api/status/'
+        agent.collect_server_metadata()
 
-    with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.status_to_controller()
+        agent.controller_url = 'http://mock/api/status/'
 
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
+        agent.status_to_controller(max_retries=1)
 
-    assert msg in contents, (
-        'Expected %s in logs, got:\n%s' % (msg, contents)
-    )
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+        )
 
 
 def test_post_data_success(monkeypatch):
@@ -234,6 +315,7 @@ def test_post_data_success(monkeypatch):
     result = agent.post_data('http://mock/api', {'test': 'data'})
 
     with open(agent.logfile.name) as f:
+        f.seek(0)
         contents = f.read()
 
     assert result == b'Success'
@@ -251,7 +333,7 @@ def test_post_data_retry(monkeypatch):
         if call_count['count'] < 2:
             raise urllib2.URLError('Temporary failure')
 
-        class MockResponse:
+        class MockResponse(object):
 
             def getcode(self):
                 return 200
@@ -296,7 +378,269 @@ def test_post_data_max_retries_fail(monkeypatch):
         )
 
     with open(agent.logfile.name) as f:
+        f.seek(0)
         contents = f.read()
 
     assert 'All 3 attempts failed. Data not sent.' in contents
     assert 'Permanent error' in contents
+
+
+def test_fetch_command_from_controller_success(monkeypatch):
+    """
+    Test that succesful GET request to controller is properly handled
+    and logged.
+    """
+    commands = [
+        {
+            'hostname': 'mock_server',
+            'command': 'uptime',
+            'result': None,
+            'status': 'pending',
+            'timestamp': None,
+        },
+        None,
+    ]
+    codes = [200, 204]
+
+    for command, code in zip(commands, codes):
+        class MockResponse(object):
+            def getcode(self):
+                return code
+
+            def read(self):
+                return json.dumps(command)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            urllib2, 'urlopen', lambda req, timeout: MockResponse()
+        )
+
+        agent = MockAgent(port=12345)
+
+        agent.hostname = 'mock_server'
+        agent.controller_url = 'http://mock/'
+
+        result = agent.fetch_command_from_controller()
+
+        assert result == command, 'Expected command dict, got %r' % result
+
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        msg = 'GET request to controller succeded with status: %s' % code
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+        )
+
+
+def test_fetch_command_from_controller_emty_response(monkeypatch):
+    class MockResponse(object):
+        def getcode(self):
+            return 200
+
+        def read(self):
+            return ' '
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        urllib2, 'urlopen', lambda req, timeout: MockResponse()
+    )
+
+    agent = MockAgent(port=12345)
+
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+
+    agent.fetch_command_from_controller()
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'No pending commands for server %s' % agent.hostname
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+def test_fetch_command_from_controller_missing_data():
+    """
+    Test proper handling and logging of missing data
+    (hostname or controller URL) in fetch_command_from_controller.
+    """
+    parameters = [(None, 'mock_server'), ('http://mock/', None)]
+
+    for controller_url, hostname in parameters:
+        agent = MockAgent(port=12345)
+
+        agent.hostname = hostname
+        agent.controller_url = controller_url
+
+        agent.fetch_command_from_controller()
+
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        msg = (
+            "Couldn't fetch controller command: controller URL or "
+            'hostname not set'
+        )
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+        )
+
+
+def test_fetch_command_from_controller_error(monkeypatch):
+    """
+    Test proper handling and logging of errors in
+    fetch_command_from_controller.
+    """
+    for error, msg in [
+        HTTP_ERROR_OUTPUT,
+        URL_ERROR_OUTPUT,
+        TIMEOUT_ERROR_OUTPUT,
+        UNEXPECTED_ERROR_OUTPUT,
+    ]:
+        def mock_urlopen(request, timeout=5):
+            raise error
+
+        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
+        agent = MockAgent(port=12345)
+
+        agent.collect_server_metadata()
+
+        agent.hostname = 'mock_server'
+        agent.controller_url = (
+            'http://mock/api/command/?hostname=%s' % agent.hostname
+        )
+
+        agent.fetch_command_from_controller()
+
+        with open(agent.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+        )
+
+
+def test_maybe_add_to_queue_adds_item():
+    """Test that good command history input is added to queue."""
+    data = {
+        'command': 'ls',
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
+
+    agent = MockAgent(port=12345)
+
+    agent.maybe_add_to_queue(data)
+
+    with agent.queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.queue.queue
+
+
+def test_maybe_add_to_queue_logs_bad_input():
+    """
+    Test that bad command history input is logged by server agent and
+    not added to queue.
+    """
+    data = {
+        'command': None,
+        'hostname': 'test-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
+
+    agent = MockAgent(port=12345)
+
+    agent.maybe_add_to_queue(data)
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Command validation failed due to error'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+    with agent.queue.mutex:
+        assert len(agent.queue.queue) == 0
+
+
+def test_status_to_dict_keys():
+    """
+    Verify that status_to_dict() returns all expected keys
+    in the status dictionary.
+    """
+    agent = MockAgent(port=12345)
+
+    # Set attributes manually
+    agent.os_type = 'linux'
+    agent.hostname = 'test-host'
+    agent.ip = '127.0.0.1'
+    agent.server_name = 'dns'
+    agent.uptime = 12345
+    agent.timestamp = '2025-06-03 20:00:00'
+    agent.healthy = True
+
+    result = agent.status_to_dict()
+
+    required_keys = set([
+        'os',
+        'hostname',
+        'ip',
+        'server_name',
+        'uptime',
+        'timestamp',
+        'healthy',
+    ])
+
+    msg_keys = 'Expected status_to_dict() keys to match: %s' % required_keys
+    assert set(result.keys()) == required_keys, msg_keys
+
+
+def test_status_to_dict_with_missing_fields():
+    """
+    Ensure status_to_dict() handles missing or None fields gracefully.
+    """
+    agent = MockAgent(port=12345)
+
+    agent.os_type = None
+    agent.hostname = None
+    agent.ip = None
+    agent.server_name = 'dns'
+    agent.uptime = -1
+    agent.timestamp = None
+    agent.healthy = False
+
+    result = agent.status_to_dict()
+
+    assert result['os'] is None, "Expected 'os' to be None when missing"
+    assert result['hostname'] is None, "Expected 'hostname' to be None"
+    assert result['ip'] is None, "Expected 'ip' to be None when missing"
+    assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"

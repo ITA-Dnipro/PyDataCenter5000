@@ -90,14 +90,13 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status)
         return queryset
 
-
-@api_view(['POST'])
-def create_command(request):
-    serializer = CommandHistorySerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save(status='pending')  # set default status
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data['status'] = 'pending'
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
@@ -127,17 +126,26 @@ def fetch_pending_command(request):
 def submit_command_result(request):
     command_id = request.data.get('id')
     if not command_id:
-        return Response({'error': 'id is required'}, status=400)
+        return Response(
+            {'error': 'id is required'},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
     try:
         command = CommandHistory.objects.get(id=command_id)
     except CommandHistory.DoesNotExist:
-        return Response({'error': 'Command not found'}, status=404)
+        return Response(
+            {'error': 'Command not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
     status_update = request.data.get('status')
     allowed_statuses = [choice[0] for choice in CommandHistory.STATUS_CHOICES]
     if status_update and status_update not in allowed_statuses:
-        return Response({'error': 'Invalid status value'}, status=400)
+        return Response(
+            {'error': 'Invalid status value'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     if status_update in ['done', 'failed']:
         command.timestamp = now()
@@ -151,9 +159,8 @@ def submit_command_result(request):
             command.hostname,
             request.data.get('result', '')
         )
-        return Response(serializer.data, status=200)
-
-    return Response(serializer.errors, status=400)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 def dashboard_view(request):

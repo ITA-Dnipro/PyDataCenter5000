@@ -1,13 +1,16 @@
 import logging
 
+from django.db.models import Q
 from django.shortcuts import render
-from django.utils.timezone import now
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import (get_current_timezone, is_naive, make_aware,
+                                   now)
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .helpers import get_latest_agents
-from .models import CommandHistory
+from .models import AgentMetric, CommandHistory, ServerStatus
 from .serializers import CommandHistorySerializer, ServerStatusSerializer
 from .utils import extract_status_data, get_client_ip
 
@@ -161,4 +164,64 @@ def dashboard_view(request):
         request,
         template_name='monitoring/dashboard.html',
         context={'agents': agents}
+    )
+
+
+@api_view(['GET'])
+def metrics_history_view(request):
+    """
+    Returns historical server metrics as JSON.
+    Processes a GET request with optional `hostname`, `start`, and `end`
+    parameters. Filters the ServerStatus records based on the provided
+    criteria and returns a list of metrics (CPU, RAM, disk usage, load
+    average) within the specified time range.
+    """
+    hostname = request.GET.get('hostname')
+    start_str = request.GET.get('start')
+    end_str = request.GET.get('end')
+
+    start = parse_datetime(start_str) if start_str else None
+    end = parse_datetime(end_str) if end_str else None
+
+    tz = get_current_timezone()
+    if start and is_naive(start):
+        start = make_aware(start, tz)
+    if end and is_naive(end):
+        end = make_aware(end, tz)
+
+    filters = Q()
+    if hostname:
+        filters &= Q(server_status__hostname=hostname)
+    if start:
+        filters &= Q(timestamp__gte=start)
+    if end:
+        filters &= Q(timestamp__lte=end)
+
+    records = (
+        AgentMetric.objects
+        .filter(filters)
+        .select_related('server_status')
+        .order_by('timestamp')
+        .values(
+            'timestamp',
+            'cpu',
+            'ram',
+            'disk',
+            'load_avg',
+            'server_status__hostname'
+        )
+    )
+    return Response(records)
+
+
+def metrics_graphing_view(request):
+    hostnames = (
+        ServerStatus.objects
+        .values_list('hostname', flat=True)
+        .distinct()
+    )
+    return render(
+        request,
+        'historical_metrics.html',
+        {'hostnames': hostnames}
     )

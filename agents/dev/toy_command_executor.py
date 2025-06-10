@@ -93,8 +93,6 @@ def main():
     agent = SMTPAgent.from_config_file()
     agent.collect_server_metadata()
 
-    # agent.hostname = 'test-smtp-server'
-
     max_exec = 1
     stop = threading.Event()
 

@@ -3,6 +3,8 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
+FALLBACK_LOGGER = logging.getLogger('fallback')
+
 
 def maybe_log_message(
     message, logger, fallback_logger=None, level=logging.ERROR, **kwargs
@@ -19,11 +21,12 @@ def maybe_log_message(
             triggered.
         level (int): Log level. Default is logging.ERROR.
     """
-    try:
-        logger.log(level, message, **kwargs)
-    except Exception:
-        if fallback_logger:
-            fallback_logger.log(level, message, **kwargs)
+    if logger:
+        try:
+            logger.log(level, message, **kwargs)
+        except Exception:
+            if fallback_logger:
+                fallback_logger.log(level, message, **kwargs)
 
 
 def maybe_make_dir(path):

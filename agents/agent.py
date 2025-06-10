@@ -6,17 +6,26 @@ import logging.config
 import platform
 import socket
 import subprocess
+import time
+from collections import Sequence
 
+import attr
 import ConfigParser
 import pkg_resources
 import psutil
+import Queue
+import urllib2
+from dateutil import parser
+from urlparse import urljoin
 
-from .utils.helpers import get_config_option
-from .utils.logtools import maybe_log_message
+from .utils.configtools import get_config_option, parse_csv_list
+from .utils.logtools import FALLBACK_LOGGER, maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
+
+PROTOCOLS = ('tcp', 'udp')
 
 
 def get_ip_from_interface(interface):
@@ -30,7 +39,11 @@ def get_ip_from_interface(interface):
     Returns:
         str: On success, IP address is returned.
     """
-    addresses = psutil.net_if_addrs()[interface]
+    net_if_dict = psutil.net_if_addrs()
+    if interface not in net_if_dict:
+        return
+
+    addresses = net_if_dict[interface]
 
     for address in addresses:
         if address.address.startswith('127.'):
@@ -46,52 +59,213 @@ def get_linux_uptime():
         return float(f.readline().split()[0])
 
 
+def get_server_cpu_count(interval=None, percpu=False):
+    return psutil.cpu_percent(interval=interval, percpu=percpu)
+
+
+@attr.s
+class CommandHistory(object):
+    """Helper class used to validate command fields."""
+    command = attr.ib(validator=attr.validators.instance_of(basestring))
+    hostname = attr.ib(validator=attr.validators.instance_of(basestring))
+    status = attr.ib(validator=attr.validators.instance_of(basestring))
+    timestamp = attr.ib(
+        validator=lambda instance, attribute, value: parser.parse(value)
+    )
+    result = attr.ib(default=None)
+    id = attr.ib(default=None)
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
+
 class ServerAgent(object):
     """
     Base class for all agents. Handles operations common for all
     servers, such as getting server metadata and writing it to logfile.
     """
+
     __metaclass__ = abc.ABCMeta
 
-    config_file = None
-    log_dir = None
-    server_name = None
-    processes = []
-    port = -1
+    controller_url = None
+    api_prefix = 'api/'
+    auth_token_type = 'Bearer'
+    whitelist_commands = None
 
-    def __init__(self):
-        # Setup logging
+    def __init__(
+        self,
+        server_name=None,
+        port=None,
+        processes=None,
+        interface=None,
+        protocol=None,
+        whitelist_commands=None,
+        log_path=None,
+    ):
+        self.server_name = server_name
+        self.port = port if port is not None else self.port
+        self.processes = processes if processes is not None else self.processes
+        self.interface = interface
+
+        if protocol is not None:
+            self.protocol = protocol
+
+        if self.whitelist_commands is None:
+            self.whitelist_commands = []
+
+        if whitelist_commands is not None:
+            self.whitelist_commands.extend(whitelist_commands)
+
+        # Init server metadata to prevent AttributeError and to indicate
+        # to user that collect_server_metadata hasn't been called.
+        self.os_type = self.hostname = self.ip = None
+        self.uptime = self.timestamp = None
+
+        # Initialize thread-safe command queue
+        self.queue = Queue.Queue()
+
+        # Initialize logging from logging config file
+        log_path = (
+            log_path or pkg_resources.
+            resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
+        )
+
         logging.config.fileConfig(
             log_config_path,
-            defaults={'agent_name': self.server_name, 'log_dir': self.log_dir},
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
         )
 
-        self.logger = logging.getLogger(self.server_name)
-        self.fallback_logger = logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
+    @classmethod
+    def from_config_file(cls, filename=None, log_path=None):
+        """
+        Create an agent from a configuration (.ini) file.
 
-        self._parse_config_file()
+        Parameters:
+            filename (str): Path to configuration file. Default is None.
+            log_path (str): Path to where the log files will be stored.
+                Default is None.
 
-        self._set_server_metadata()
+        Returns:
+            ServerAgent: Child instance of ServerAgent.
+        """
+        agent = cls(log_path=log_path)
 
-    def _parse_config_file(self):
-        """Parse server's config file using ConfigParser."""
-        config = ConfigParser.ConfigParser()
+        agent._parse_config_file(filename)
 
-        if self.config_file:
-            config.read(self.config_file)
+        return agent
 
-            if config.sections():
-                self.interface = get_config_option(
-                    config,
-                    'server',
-                    'interface',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
+    @property
+    def logger(self):
+        return logging.getLogger(self.server_name)
+
+    @property
+    def port(self):
+        return getattr(self, '_port', -1)
+
+    @port.setter
+    def port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('Port number must be an integer')
+        self._port = value
+
+    @property
+    def processes(self):
+        return getattr(self, '_processes', [])
+
+    @processes.setter
+    def processes(self, value):
+        if not isinstance(value, Sequence):
+            raise TypeError(
+                (
+                    'Process names must be provided as a string or a sequence '
+                    '(list, tuple etc.), not %s' % type(value)
                 )
+            )
+        self._processes = value
 
-    def _set_server_metadata(self):
+    @property
+    def protocol(self):
+        return getattr(self, '_protocol', None)
+
+    @protocol.setter
+    def protocol(self, value):
+        if not isinstance(value, (str, unicode)):
+            raise TypeError('Protocol must be a string, not %s' % type(value))
+
+        value = value.lower()
+
+        if value not in PROTOCOLS:
+            raise ValueError('Unknown protocol value %s' % value)
+
+        self._protocol = value
+
+    def _parse_config_file(self, filename=None):
+        """Parse server's config file using ConfigParser."""
+        filename = filename or pkg_resources.resource_filename(
+            self.__class__.__module__, 'config.ini'
+        )
+
+        config = ConfigParser.ConfigParser()
+        config.read(filename)
+
+        if config.sections():
+            self.server_name = get_config_option(
+                config,
+                'server',
+                'name',
+                default=self.server_name,
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+            self.port = get_config_option(
+                config,
+                'server',
+                'port',
+                default=self.port,
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                cast=int,
+            )
+
+            self.processes = get_config_option(
+                config,
+                'server',
+                'processes',
+                default=self.processes,
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                cast=parse_csv_list,
+            )
+
+            self.interface = get_config_option(
+                config,
+                'server',
+                'interface',
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+            whitelist_commands = get_config_option(
+                config,
+                'controller',
+                'whitelist_commands',
+                [],
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                cast=parse_csv_list,
+            )
+            # Add commands to the list of globally allowed commands.
+            if whitelist_commands:
+                self.whitelist_commands.extend(whitelist_commands)
+
+    def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
         uptime, and timestamp.
@@ -99,7 +273,7 @@ class ServerAgent(object):
         system = platform.system()
         if not system:
             maybe_log_message(
-                'Could not deduce OS type', self.logger, self.fallback_logger
+                'Could not deduce OS type', self.logger, FALLBACK_LOGGER
             )
 
         self.os_type = system.lower() or 'unknown'
@@ -112,7 +286,7 @@ class ServerAgent(object):
             maybe_log_message(
                 'Could not get hostname: %s' % str(e),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
         self.ip = None
@@ -127,7 +301,7 @@ class ServerAgent(object):
                         '%s: %s' % (self.interface, str(e))
                     ),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
@@ -137,7 +311,7 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
+                    fallback_logger=FALLBACK_LOGGER,
                 )
 
         self.uptime = -1
@@ -149,14 +323,14 @@ class ServerAgent(object):
             maybe_log_message(
                 "Could not get system's uptime",
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
             '%Y-%m-%d %H:%M:%S'
         )
 
-    def _is_port_open(self):
+    def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
 
@@ -174,48 +348,86 @@ class ServerAgent(object):
         if not self.ip:
             return False
 
-        # Set a TCP/IP socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.protocol:
+            raise ValueError(
+                'Protocol not set: server agent must set a valid transfer '
+                'protocol (TCP or UDP)'
+            )
+
+        s = socket.socket(
+            socket.AF_INET,
+            (
+                socket.SOCK_STREAM if self.protocol == 'tcp'
+                else socket.SOCK_DGRAM
+            ),
+        )
+        s.settimeout(timeout)
 
         try:
-            s.settimeout(2)
-            s.connect((self.ip, self.port))
-        except socket.error:
+            if self.protocol == 'tcp':
+                s.connect((self.ip, self.port))
+            else:
+                s.sendto(payload or b'', (self.ip, self.port))
+
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
+                if len(data) != packet_size:
+                    maybe_log_message(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        ),
+                        logger=self.logger,
+                        fallback_logger=FALLBACK_LOGGER,
+                    )
+
+                    return False
+
+            return True
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
             return False
         finally:
             s.close()
 
-        return True
-
     def _is_process_running(self):
         try:
-            output = subprocess.Popen(
-                ['ps', 'aux'], stdout=subprocess.PIPE
-            ).communicate()[0]
+            output = subprocess.Popen(['ps', '-eo', 'comm'],
+                                      stdout=subprocess.PIPE).communicate()[0]
 
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
+
             output = output.lower()
 
-            return any(proc in output for proc in self.processes)
+            return any(
+                any(proc in p for p in output.split())
+                for proc in self.processes
+            )
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
                 exc_info=True,
             )
 
             return False
 
+    @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_port_open() and self._is_process_running()
+        return self._is_process_running()
 
-    def to_dict(self):
+    def status_to_dict(self):
         return {
             'os': self.os_type,
             'hostname': self.hostname,
@@ -226,21 +438,42 @@ class ServerAgent(object):
             'healthy': self.service_healthy(),
         }
 
-    def to_json(self):
-        """Dump host metadata to json file."""
+    def status_to_json(self, log=False):
+        """
+        Dump host metadata to json file.
+
+        Parameters:
+            log (bool): Whether to log JSON status string to the logfile.
+                Default is False.
+
+        Returns:
+            str: JSON status string.
+        """
         try:
-            msg = json.dumps(self.to_dict())
-            self.logger.info(msg)
-        except (IOError, OSError) as e:
+            status = json.dumps(self.status_to_dict(), default=str)
+
+            if log:
+                try:
+                    self.logger.info(status)
+                except (IOError, OSError) as e:
+                    maybe_log_message(
+                        'Error logging to file: %s' % str(e),
+                        self.logger,
+                        fallback_logger=FALLBACK_LOGGER,
+                    )
+
+            return status
+        except TypeError as e:
             maybe_log_message(
-                'Error logging to file: %s' % str(e),
+                ('JSON serialization of status failed '
+                 'due to error: %s' % str(e)),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
 
-    def to_txt(self):
+    def status_to_txt(self):
         """Dump host metadata to txt file as key-value pairs."""
-        data = self.to_dict()
+        data = self.status_to_dict()
 
         try:
             for k, v in data.items():
@@ -249,5 +482,267 @@ class ServerAgent(object):
             maybe_log_message(
                 'Error logging to file: %s' % str(e),
                 self.logger,
-                fallback_logger=self.fallback_logger,
+                fallback_logger=FALLBACK_LOGGER,
             )
+
+    def collect_server_metric(self, cpu_count_interval=None):
+        """
+        Collect server's metric such as CPU usage, RAM usage, disc usage
+        etc.
+        """
+        self.cpu_count = -1
+
+        if not cpu_count_interval:
+            get_server_cpu_count(interval=0)
+
+        try:
+            self.cpu_count = get_server_cpu_count(interval=cpu_count_interval)
+        except psutil.AccessDenied as e:
+            maybe_log_message(
+                'Getting CPU count failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+        except (TypeError, ValueError) as e:
+            maybe_log_message(
+                'Bad input values. Got error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+    def post_data(
+        self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
+    ):
+        """
+        Sends a POST request with JSON data to the specified URL
+        with retry logic. Retries up to `max_retries` times with `delay`
+        seconds between attempts. Logs all attempts and failures.
+        """
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+            )
+        payload = json.dumps(data).encode('utf-8')
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                maybe_log_message(
+                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO
+                )
+
+                request = urllib2.Request(url, data=payload, headers=headers)
+
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
+
+                maybe_log_message(
+                    'POST request status: %d' % status_code,
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO
+                )
+
+                response.close()
+
+                maybe_log_message(
+                    'Success on attempt %d: %s' % (attempt, result),
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO
+                )
+
+                return result
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.ERROR
+                )
+
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        fallback_logger=FALLBACK_LOGGER,
+                        level=logging.WARNING
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not sent. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        fallback_logger=FALLBACK_LOGGER,
+                        level=logging.CRITICAL
+                    )
+
+                    raise RuntimeError(
+                        'POST failed after %d attempts' % max_retries
+                    )
+
+    def status_to_controller(
+        self, api_key=None, max_retries=3, delay=5, timeout=5
+    ):
+        """
+        Sends a POST request with JSON data to the specified URL, including
+        optional authentication, and with built-in retry logic.
+
+        Parameters:
+            url (str): Target URL for the POST request.
+            data (dict): Data to send as JSON payload.
+            auth_token_type (str): Token type prefix for the Authorization
+                header (e.g., 'Bearer').
+            api_key (str): API key to be used for the Authorization header. If
+                None, no auth header is added.
+            max_retries (int): Maximum number of retry attempts on failure.
+                Default is MAX_RETRIES.
+            delay (int | float): Delay (in seconds) between
+        """
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+            return
+
+        payload_str = self.status_to_json(log=False)
+        payload = json.loads(payload_str)
+
+        try:
+            result = self.post_data(
+                self.controller_url,
+                payload,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
+
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                exc_info=True,
+            )
+
+    def fetch_command_from_controller(
+        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+    ):
+        """
+        Send GET request to controller to fetch the first pending
+        command for a given server.
+        """
+        if not self.controller_url or not self.hostname:
+            maybe_log_message(
+                (
+                    "Couldn't fetch controller command: controller URL or "
+                    'hostname not set'
+                ),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+            return
+
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        fetch_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
+
+        headers = {'Accept': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+            )
+        if kwargs:
+            headers.update(kwargs)
+
+        request = urllib2.Request(url, headers=headers)
+
+        try:
+            response = urllib2.urlopen(request, timeout=timeout)
+
+            data = response.read()
+            response.close()
+
+            status_code = response.getcode()
+
+            maybe_log_message(
+                (
+                    'GET request to controller succeded with '
+                    'status: %s' % status_code
+                ),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                level=logging.INFO,
+            )
+
+            if status_code == 204 or not data.strip():
+                maybe_log_message(
+                    'No pending commands for server %s' % self.hostname,
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO,
+                )
+
+                return
+
+            data = json.loads(data)
+
+            return data
+        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
+            maybe_log_message(
+                (
+                    'Failed to fetch command - GET request failed '
+                    'due to error: %s' % str(e)
+                ),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                exc_info=True,
+            )
+        except Exception as e:
+            maybe_log_message(
+                'GET request failed due to unexpected error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                exc_info=True,
+            )
+
+    def maybe_add_to_queue(self, data):
+        """
+        Add command to queue if it passes field validation and if
+        whitelisted by the server.
+        """
+        try:
+            command_history = CommandHistory.from_dict(data)
+        except (TypeError, ValueError) as e:
+            maybe_log_message(
+                'Command validation failed due to error: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+            return
+
+        if command_history.command in self.whitelist_commands:
+            self.queue.put(command_history)

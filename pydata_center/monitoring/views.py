@@ -4,6 +4,7 @@ from django.shortcuts import render
 from django.utils.timezone import now
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .helpers import get_latest_agents
@@ -58,6 +59,7 @@ def receive_status(request):
 class CommandHistoryViewSet(viewsets.ModelViewSet):
     queryset = CommandHistory.objects.all()
     serializer_class = CommandHistorySerializer
+    permission_classes = [IsAuthenticated]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['hostname', 'status']

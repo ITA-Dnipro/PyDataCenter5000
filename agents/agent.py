@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import logging.config
+import os  # For global.ini lookup
 import platform
 import socket
 import subprocess
@@ -26,6 +27,16 @@ log_config_path = pkg_resources.resource_filename(
 )
 
 PROTOCOLS = ('tcp', 'udp')
+
+# GLOBAL DEFAULTS FOR critical_processes
+config_path = os.path.join(os.path.dirname(__file__), 'global.ini')
+_global_cfg = ConfigParser.ConfigParser()
+_global_cfg.read(config_path)
+try:
+    raw = _global_cfg.get('controller', 'critical_processes')
+    GLOBAL_CRITICAL_PROCESSES = parse_csv_list(raw)
+except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+    GLOBAL_CRITICAL_PROCESSES = []
 
 
 def get_ip_from_interface(interface):
@@ -97,7 +108,9 @@ class ServerAgent(object):
         interface=None,
         protocol=None,
         whitelist_commands=None,
+        extra_critical_processes=None,
         log_path=None,
+
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -112,6 +125,19 @@ class ServerAgent(object):
 
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
+
+        # INIT critical_processes from global + extras
+        self.critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
+
+        if extra_critical_processes:
+            if not isinstance(extra_critical_processes, Sequence):
+                raise TypeError(
+                    'critical_processes must be a sequence, not %s'
+                    % type(extra_critical_processes)
+                )
+            for proc in extra_critical_processes:
+                if proc not in self.critical_processes:
+                    self.critical_processes.append(proc)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -193,6 +219,19 @@ class ServerAgent(object):
     def protocol(self):
         return getattr(self, '_protocol', None)
 
+    @property
+    def critical_processes(self):
+        return getattr(self, '_critical_processes', [])
+
+    @critical_processes.setter
+    def critical_processes(self, value):
+        if not isinstance(value, Sequence):
+            raise TypeError(
+                'critical_processes must be a sequence, not %s' % type(value)
+            )
+
+        self._critical_processes = value
+
     @protocol.setter
     def protocol(self, value):
         if not isinstance(value, (str, unicode)):
@@ -264,6 +303,33 @@ class ServerAgent(object):
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:
                 self.whitelist_commands.extend(whitelist_commands)
+
+            # APPEND per-instance critical_processes
+            self.logger.debug(
+                'Looking up [server]/critical_processes in %r', filename
+            )
+            try:
+                raw = config.get('server', 'critical_processes')
+                self.logger.debug('Found raw critical_processes: %r', raw)
+                per_instance = parse_csv_list(raw)
+            except (
+                    ConfigParser.NoSectionError, ConfigParser.NoOptionError
+            ) as e:
+                self.logger.warning(
+                    'No per-instance critical_processes in %r: %s', filename, e
+                )
+                per_instance = []
+
+            for proc in per_instance:
+                if proc not in self.critical_processes:
+                    self.logger.debug(
+                        'Appending custom critical_process %r', proc
+                    )
+                    self.critical_processes.append(proc)
+            self.logger.info(
+                'After parsing, critical_processes = %r',
+                self.critical_processes
+            )
 
     def collect_server_metadata(self):
         """

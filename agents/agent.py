@@ -741,7 +741,7 @@ class ServerAgent(object):
         Get the current RAM usage percentage.
         """
         try:
-            mem = psutil.virtual_memory()
+            mem = psutil.virtual_memory().percent()
             return mem.percent
         except Exception as e:
             maybe_log_message(
@@ -770,7 +770,7 @@ class ServerAgent(object):
         Get the current disk usage percentage for the root filesystem.
         """
         try:
-            usage = psutil.disk_usage('/')
+            usage = psutil.disk_usage('/').percent()
             return usage.percent
         except Exception as e:
             maybe_log_message(
@@ -791,3 +791,69 @@ class ServerAgent(object):
             'disk_usage_percent': self.get_disk_usage(),
             'load_avg_1min': self.get_load_average()
         }
+
+    def send_metrics_to_controller(
+        self,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5
+    ):
+        """
+        Sends a POST request with JSON data to the controller URL,
+        including authentication, and built-in retry logic.
+        """
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return False
+
+        try:
+            payload_str = self.status_to_json(log=False)
+            payload = json.loads(payload_str)
+        except Exception as e:
+            maybe_log_message(
+                'Failed to prepare payload: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return False
+
+        try:
+            result = self.post_data(
+                url=self.controller_url,
+                data=payload,
+                api_key=api_key,
+                max_retries=max_retries,
+                delay=delay,
+                timeout=timeout
+            )
+
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+                return True
+            else:
+                maybe_log_message(
+                    'POST request to controller returned empty result.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.WARNING,
+                )
+                return False
+
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+            return False

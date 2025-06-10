@@ -17,7 +17,7 @@ class AgentSupervisor(object):
             '-'.join([self.agent.server_name, 'supervisor'])
         )
 
-    def schedule_and_spawn(self, task, interval=30, *args, **kwargs):
+    def schedule(self, task, interval=30, *args, **kwargs):
         if not self.running:
             self.running = True
 

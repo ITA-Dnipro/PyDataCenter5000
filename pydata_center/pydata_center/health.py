@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @extend_schema(
+        tags=['Health'],
         responses={
             status.HTTP_200_OK: OpenApiResponse(
                 description='Database and application are available.'
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
             ),
         },
         description=(
-            'Health check endpoint that verifies'
+            'Health check endpoint that verifies '
             'application and database availability.'
         ),
 )

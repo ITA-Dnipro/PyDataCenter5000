@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @extend_schema(
+        tags=['Server Status'],
         request=ServerStatusSerializer,
         responses={
             status.HTTP_201_CREATED: OpenApiResponse(
@@ -88,10 +89,12 @@ def receive_status(request):
             ),
         ],
         responses=CommandHistorySerializer(many=True),
+        tags=['Command'],
     ),
     retrieve=extend_schema(
         description='Get a specific command record by ID.',
         responses=CommandHistorySerializer,
+        tags=['Command'],
     ),
     create=extend_schema(
         description=(
@@ -99,13 +102,16 @@ def receive_status(request):
             'Status will be set to \'pending\' by default.'
         ),
         responses=CommandHistorySerializer,
+        tags=['Command'],
     ),
     partial_update=extend_schema(
         description='Update command status or result (partial).',
         responses=CommandHistorySerializer,
+        tags=['Command'],
     ),
     destroy=extend_schema(
         description='Delete command record by ID.',
+        tags=['Command'],
     ),
 )
 class CommandHistoryViewSet(viewsets.ModelViewSet):
@@ -149,6 +155,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
 
 
 @extend_schema(
+    tags=['Command'],
     description='Agent fetches a pending command by providing its hostname.',
     parameters=[
         OpenApiParameter(
@@ -198,6 +205,7 @@ def fetch_pending_command(request):
 
 
 @extend_schema(
+        tags=['Command'],
         request=CommandHistorySerializer,
         responses={
             status.HTTP_200_OK: CommandHistorySerializer,

@@ -47,6 +47,13 @@ class TestAlertIfCommandFailed:
         alert_if_command_failed('agent-1', 'Command completed successfully')
         mock_send.assert_not_called()
 
+    @pytest.mark.parametrize('result', [None, '', '  '])
+    @patch('monitoring.alerts.send_discord_alert')
+    def test_ignores_empty_or_none_result(self, mock_send, result):
+        """Test that alert is not sent for empty or None results."""
+        alert_if_command_failed('agent-1', result)
+        mock_send.assert_not_called()
+
 
 class TestAlertIfUnhealthy:
     """Tests for the `alert_if_unhealthy` function."""

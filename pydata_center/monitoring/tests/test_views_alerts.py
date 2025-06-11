@@ -109,6 +109,13 @@ class TestServerStatusAPI:
         )
         assert response.status_code == 400
 
+    def test_unauthenticated_access_is_denied(self):
+        """Test that unauthenticated access to status endpoint is rejected."""
+        client = APIClient()
+        url = reverse('monitoring:receive_status')
+        response = client.post(url, data={}, format='json')
+        assert response.status_code in (401, 403)
+
 
 class TestCommandHistoryAPI:
     """Tests for the command history endpoints."""
@@ -256,3 +263,29 @@ class TestCommandHistoryAPI:
         response = authenticated_client.patch(url, data=payload, format='json')
 
         assert response.status_code == 400
+
+    def test_update_unauthenticated_is_denied(self, db):
+        """
+        Test that unauthenticated access to the command update
+        endpoint is rejected.
+        """
+        client = APIClient()
+        command = CommandHistory.objects.create(
+            hostname='test',
+            command='test'
+        )
+        url = reverse('monitoring:commandhistory-detail', args=[command.id])
+
+        response = client.patch(url, data={})
+        assert response.status_code in (401, 403)
+
+    def test_submit_result_unauthenticated_is_denied(self):
+        """
+        Test that unauthenticated access to the command result submission
+        endpoint is rejected.
+        """
+        client = APIClient()
+        url = reverse('monitoring:submit_command_result')
+
+        response = client.patch(url, data={'id': 999})
+        assert response.status_code in (401, 403)

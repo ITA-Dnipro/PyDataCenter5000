@@ -17,6 +17,9 @@ class AgentSupervisor(object):
             '-'.join([self.agent.server_name, 'supervisor'])
         )
 
+    def start(self):
+        coro.event_loop()
+
     def schedule(self, task, interval=30, *args, **kwargs):
         if not self.running:
             self.running = True
@@ -36,9 +39,9 @@ class AgentSupervisor(object):
 
         coro.spawn(run_task, *args, **kwargs)
 
-    def start(self):
-        coro.event_loop()
+    def schedule_exit(self, prestop=None, *args, **kwargs):
+        if prestop is not None:
+            prestop(*args, **kwargs)
 
-    def stop(self):
         self.running = False
-        coro.set_exit()
+        coro.spawn(coro.set_exit)

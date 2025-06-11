@@ -28,8 +28,9 @@ def main():
 
     supervisor = AgentSupervisor(agent)
 
-    supervisor.schedule(agent.collect_server_metadata)
-    supervisor.schedule(agent.status_to_txt)
+    supervisor.schedule(agent.collect_server_metadata, 10)
+    supervisor.schedule(agent.status_to_txt, 10)
+    supervisor.schedule_exit()
 
     supervisor.start()
 

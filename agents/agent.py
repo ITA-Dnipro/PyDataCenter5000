@@ -3,7 +3,6 @@ import datetime
 import json
 import logging
 import logging.config
-import os  # For global.ini lookup
 import platform
 import socket
 import subprocess
@@ -126,9 +125,8 @@ class ServerAgent(object):
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
-        # Seed critical_processes list from global defaults
-        if self.critical_processes is None:
-            self.critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
+        # Seed critical_processes list from global defaults unconditionally
+        self._critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.

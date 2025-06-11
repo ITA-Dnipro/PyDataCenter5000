@@ -31,131 +31,128 @@ def authenticated_client(db):
 class TestServerStatusAPI:
     """Tests for the server status endpoint."""
 
-    def test_unhealthy_status_triggers_alert(self, authenticated_client):
-        """Test that an 'unhealthy' status triggers an alert."""
-        url = reverse('monitoring:receive_status')
+    @pytest.mark.parametrize(
+        'healthy, should_trigger',
+        [(False, True), (True, False)],
+    )
+    def test_status_alert_behavior(
+            self,
+            authenticated_client,
+            healthy,
+            should_trigger
+    ):
+        """Tests both healthy and unhealthy status alert logic."""
+        hostname = 'agent_fail' if not healthy else 'agent_ok'
         payload = {
-            'hostname': 'agent-1',
-            'ip': '192.168.0.1',
-            'uptime': 12345,
-            'healthy': False,
+            'hostname': hostname,
+            'ip': '127.0.0.1',
+            'uptime': 123,
+            'healthy': healthy,
             'timestamp': datetime.now().isoformat(),
             'os': 'Linux',
-            'server_name': 'agent_1',
+            'server_name': hostname,
         }
-
-        with patch('monitoring.views.alert_if_unhealthy') as mock_alert:
-            response = authenticated_client.post(
-                url,
-                data=payload,
-                format='json'
-            )
-            assert response.status_code == 201
-            mock_alert.assert_called_once_with('agent-1', False)
-
-    def test_healthy_status_is_ignored(self, authenticated_client):
-        """Test that a 'healthy' status is ignored and sends no alert."""
         url = reverse('monitoring:receive_status')
-        payload = {
-            'hostname': 'agent-ok',
-            'ip': '10.0.0.1',
-            'uptime': 999,
-            'healthy': True,
-            'timestamp': datetime.now().isoformat(),
-            'os': 'Windows',
-            'server_name': 'agent_ok',
-        }
 
-        with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
-            response = authenticated_client.post(
-                url,
-                data=payload,
-                format='json'
-            )
-            assert response.status_code == 201
-            mock_send_alert.assert_not_called()
+        if should_trigger:
+            path_to_mock = 'monitoring.views.alert_if_unhealthy'
+            with patch(path_to_mock) as mock_alert:
+                response = authenticated_client.post(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 201
+                mock_alert.assert_called_once_with(hostname, healthy)
+        else:
+            path_to_mock = 'monitoring.alerts.send_discord_alert'
+            with patch(path_to_mock) as mock_send_alert:
+                response = authenticated_client.post(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 201
+                mock_send_alert.assert_not_called()
 
 
 class TestCommandHistoryAPI:
     """Tests for the command history endpoints."""
 
-    def test_failed_command_update_triggers_alert(self, authenticated_client):
-        """
-        Test that updating a command to 'failed' status triggers an alert.
-        """
+    @pytest.mark.parametrize(
+        'status, result, should_trigger',
+        [
+            ('failed', 'Error occurred', True),
+            ('done', 'Success', False),
+        ],
+    )
+    def test_command_update_alert_behavior(
+            self, authenticated_client, status, result, should_trigger
+    ):
+        """Tests alert behavior for command updates."""
         command = CommandHistory.objects.create(
-            hostname='agent-2',
+            hostname='agent-x',
             command='ls'
         )
-        payload = {'status': 'failed', 'result': 'Error occurred'}
+        payload = {'status': status, 'result': result}
         url = reverse('monitoring:commandhistory-detail', args=[command.id])
 
-        with patch('monitoring.views.alert_if_command_failed') as mock_alert:
-            response = authenticated_client.patch(
-                url,
-                data=payload,
-                format='json'
-            )
-            assert response.status_code == 200
-            mock_alert.assert_called_once_with('agent-2', 'Error occurred')
+        if should_trigger:
+            path_to_mock = 'monitoring.views.alert_if_command_failed'
+            with patch(path_to_mock) as mock_alert:
+                response = authenticated_client.patch(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 200
+                mock_alert.assert_called_once_with('agent-x', result)
+        else:
+            path_to_mock = 'monitoring.alerts.send_discord_alert'
+            with patch(path_to_mock) as mock_send_alert:
+                response = authenticated_client.patch(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 200
+                mock_send_alert.assert_not_called()
 
-    def test_successful_command_update_is_ignored(self, authenticated_client):
-        """Test that a successful command update is ignored."""
+    @pytest.mark.parametrize(
+        'status, result, should_trigger',
+        [
+            ('failed', 'Command FAILED', True),
+            ('done', 'Everything is fine', False),
+        ],
+    )
+    def test_command_submit_alert_behavior(
+            self, authenticated_client, status, result, should_trigger
+    ):
+        """Tests alert behavior for command result submissions."""
         command = CommandHistory.objects.create(
             hostname='agent-ok',
             command='whoami'
         )
-        payload = {'status': 'done', 'result': 'Success'}
-        url = reverse('monitoring:commandhistory-detail', args=[command.id])
-
-        with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
-            response = authenticated_client.patch(
-                url,
-                data=payload, format='json'
-            )
-            assert response.status_code == 200
-            mock_send_alert.assert_not_called()
-
-    def test_failed_command_submit_triggers_alert(self, authenticated_client):
-        """Test that submitting a 'failed' command result triggers an alert."""
-        command = CommandHistory.objects.create(
-            hostname='agent-3',
-            command='uptime'
-        )
+        payload = {'id': command.id, 'status': status, 'result': result}
         url = reverse('monitoring:submit_command_result')
-        payload = {
-            'id': command.id,
-            'status': 'failed',
-            'result': 'Command FAILED'
-        }
 
-        with patch('monitoring.views.alert_if_command_failed') as mock_alert:
-            response = authenticated_client.patch(
-                url,
-                data=payload,
-                format='json'
-            )
-            assert response.status_code == 200
-            mock_alert.assert_called_once_with('agent-3', 'Command FAILED')
-
-    def test_successful_command_submit_is_ignored(self, authenticated_client):
-        """Test that submitting a successful command result is ignored."""
-        command = CommandHistory.objects.create(
-            hostname='agent-ok',
-            command='ping'
-        )
-        url = reverse('monitoring:submit_command_result')
-        payload = {
-            'id': command.id,
-            'status': 'done',
-            'result': 'Everything is fine'
-        }
-
-        with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
-            response = authenticated_client.patch(
-                url,
-                data=payload,
-                format='json'
-            )
-            assert response.status_code == 200
-            mock_send_alert.assert_not_called()
+        if should_trigger:
+            path_to_mock = 'monitoring.views.alert_if_command_failed'
+            with patch(path_to_mock) as mock_alert:
+                response = authenticated_client.patch(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 200
+                mock_alert.assert_called_once_with('agent-ok', result)
+        else:
+            path_to_mock = 'monitoring.alerts.send_discord_alert'
+            with patch(path_to_mock) as mock_send_alert:
+                response = authenticated_client.patch(
+                    url,
+                    data=payload,
+                    format='json'
+                )
+                assert response.status_code == 200
+                mock_send_alert.assert_not_called()

@@ -32,11 +32,13 @@ def alert_if_unhealthy(hostname: str, healthy: bool) -> None:
 
 def alert_if_command_failed(hostname: str, result: str) -> None:
     """
-    Send alert if command result contains 'error' or 'failed'.
+    Send alert if command result contains failure keywords.
     """
-    if result and ('error' in result.lower() or 'failed' in result.lower()):
+    keywords = ['error', 'failed', 'exception', 'traceback']
+    if result and any(keyword in result.lower() for keyword in keywords):
+        cleaned_result = result.strip()[:500]
         send_discord_alert(
             hostname=hostname,
-            message=f'Command failed:\n```\n{result}\n```',
+            message=f'Command failed:\n```\n{cleaned_result}\n```',
             level='critical'
         )

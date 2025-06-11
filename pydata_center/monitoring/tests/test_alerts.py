@@ -16,6 +16,8 @@ class TestAlertIfCommandFailed:
             'An error occurred during execution.',
             'Service deployment failed.',
             'ERROR: process not found',
+            'A critical exception was thrown.',
+            'See traceback for details.',
         ],
     )
     @patch('monitoring.alerts.send_discord_alert')
@@ -30,7 +32,8 @@ class TestAlertIfCommandFailed:
         """
         alert_if_command_failed('agent-1', failed_result_string)
 
-        expected_message = f'Command failed:\n```\n{failed_result_string}\n```'
+        cleaned_result = failed_result_string.strip()[:500]
+        expected_message = f'Command failed:\n```\n{cleaned_result}\n```'
 
         mock_send.assert_called_once_with(
             'agent-1',

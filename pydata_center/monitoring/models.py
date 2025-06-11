@@ -61,3 +61,18 @@ class CommandHistory(models.Model):
 
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'
+
+
+class Webhook(models.Model):
+    SERVICE_CHOICES = [
+        ('slack', 'Slack'),
+    ]
+
+    service = models.CharField(max_length=32, choices=SERVICE_CHOICES)
+    url = models.URLField()
+    enabled = models.BooleanField(default=True)
+    description = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.service} webhook'

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AgentMetric, CommandHistory, ServerStatus
+from .models import AgentMetric, CommandHistory, ServerStatus, Webhook
 
 
 @admin.register(CommandHistory)
@@ -29,3 +29,8 @@ class AgentMetricAdmin(admin.ModelAdmin):
     list_filter = ('server_status__server_name', )
     ordering = ('-timestamp', )
     readonly_fields = ('timestamp', )
+
+
+@admin.register(Webhook)
+class WebhookAdmin(admin.ModelAdmin):
+    list_display = ('service', 'url', 'enabled')

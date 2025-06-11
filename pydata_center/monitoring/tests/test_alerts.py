@@ -32,7 +32,11 @@ class TestAlertIfCommandFailed:
 
         expected_message = f'Command failed:\n```\n{failed_result_string}\n```'
 
-        mock_send.assert_called_once_with('agent-1', expected_message)
+        mock_send.assert_called_once_with(
+            'agent-1',
+            expected_message,
+            level='critical'
+        )
 
     @patch('monitoring.alerts.send_discord_alert')
     def test_ignores_clean_result(self, mock_send):
@@ -49,7 +53,9 @@ class TestAlertIfUnhealthy:
         """Test that an alert is triggered when healthy=False."""
         alert_if_unhealthy('agent-1', healthy=False)
         mock_send.assert_called_once_with(
-            'agent-1', 'Agent reported unhealthy status.'
+            'agent-1',
+            'Agent reported unhealthy status.',
+            level='warning'
         )
 
     @patch('monitoring.alerts.send_discord_alert')

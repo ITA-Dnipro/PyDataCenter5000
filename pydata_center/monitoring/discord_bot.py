@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 _bot_instance = None
 
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+
 
 class AlertBot(commands.Bot):
     """
@@ -38,11 +41,22 @@ class AlertBot(commands.Bot):
         self.alert_queue = asyncio.Queue()
         self.alert_ready_event = asyncio.Event()
 
-        channel = self.get_channel(self.channel_id)
+        channel = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            channel = self.get_channel(self.channel_id)
+            if channel:
+                logger.info(f"Successfully found channel '{channel.name}' "
+                            f'on attempt {attempt}.')
+                break
+            logger.warning(f'Channel not found on attempt '
+                           f'{attempt}/{MAX_RETRIES}. '
+                           f'Retrying in {RETRY_DELAY}s...')
+            await asyncio.sleep(RETRY_DELAY)
+
         if not channel:
-            logger.warning(
-                'Discord channel not found (ID: %s)',
-                self.channel_id
+            logger.error(
+                f'Discord channel with ID {self.channel_id} '
+                f'not found after {MAX_RETRIES} attempts.'
             )
             return
 

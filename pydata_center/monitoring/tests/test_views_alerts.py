@@ -75,6 +75,40 @@ class TestServerStatusAPI:
                 assert response.status_code == 201
                 mock_send_alert.assert_not_called()
 
+    @pytest.mark.parametrize(
+        'invalid_payload, test_id',
+        [
+            (
+                    {'hostname': 'agent-missing-fields'},
+                    'missing_required_fields',
+            ),
+            (
+                    {
+                        'hostname': 'agent-invalid-data',
+                        'ip': 'not_an_ip_address',
+                        'uptime': 'not_a_number',
+                        'healthy': 'maybe',
+                        'timestamp': 'not_a_date',
+                        'os': 'Linux',
+                        'server_name': 'agent-invalid-data',
+                    },
+                    'invalid_data_types',
+            ),
+        ],
+        ids=['test_with_missing_fields', 'test_with_invalid_data'],
+    )
+    def test_bad_payloads_return_400(
+            self, authenticated_client, invalid_payload, test_id
+    ):
+        """Test that various types of bad payloads return a 400 status."""
+        url = reverse('monitoring:receive_status')
+        response = authenticated_client.post(
+            url,
+            data=invalid_payload,
+            format='json'
+        )
+        assert response.status_code == 400
+
 
 class TestCommandHistoryAPI:
     """Tests for the command history endpoints."""
@@ -156,3 +190,69 @@ class TestCommandHistoryAPI:
                 )
                 assert response.status_code == 200
                 mock_send_alert.assert_not_called()
+
+    def test_update_nonexistent_command_returns_404(
+            self,
+            authenticated_client
+    ):
+        """
+        Test that trying to update a command that does not exist returns 404.
+        """
+        url = reverse('monitoring:commandhistory-detail', args=[99999])
+        payload = {'status': 'done', 'result': 'This should fail'}
+
+        response = authenticated_client.patch(url, data=payload, format='json')
+
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        'bad_payload, test_id',
+        [
+            (
+                    {'id': 99999, 'status': 'done'},
+                    'nonexistent_id',
+            ),
+            (
+                    {'status': 'done', 'result': 'some result'},
+                    'missing_id',
+            ),
+        ],
+        ids=['nonexistent_id', 'missing_id'],
+    )
+    def test_submit_result_with_bad_id_returns_404(
+            self, authenticated_client, bad_payload, test_id
+    ):
+        """
+        Test that submitting a result with a missing or nonexistent command ID
+        returns 404.
+        """
+        url = reverse('monitoring:submit_command_result')
+
+        response = authenticated_client.patch(
+            url,
+            data=bad_payload,
+            format='json'
+        )
+
+        assert response.status_code == 404
+
+    def test_submit_result_with_invalid_status_returns_400(
+            self, authenticated_client
+    ):
+        """
+        Test that submitting a result with an invalid status string returns 400
+        """
+        command = CommandHistory.objects.create(
+            hostname='agent-x',
+            command='test'
+        )
+        url = reverse('monitoring:submit_command_result')
+        payload = {
+            'id': command.id,
+            'status': 'this-is-not-a-valid-status',
+            'result': 'some result',
+        }
+
+        response = authenticated_client.patch(url, data=payload, format='json')
+
+        assert response.status_code == 400

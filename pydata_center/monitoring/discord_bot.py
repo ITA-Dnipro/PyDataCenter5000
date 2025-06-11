@@ -40,6 +40,7 @@ async def alert_worker():
     await alert_ready.wait()
     channel = bot.get_channel(CHANNEL_ID)
     if not channel:
+        logger.warning('Discord channel not found (ID: %s)', CHANNEL_ID)
         return
     while True:
         message = await alert_queue.get()

@@ -39,9 +39,16 @@ class AgentSupervisor(object):
 
         coro.spawn(run_task, *args, **kwargs)
 
-    def schedule_exit(self, prestop=None, *args, **kwargs):
-        if prestop is not None:
-            prestop(*args, **kwargs)
+    def schedule_exit(
+        self, stop_condition, interval=30, prestop=None, *args, **kwargs
+    ):
+        def exit():
+            if stop_condition():
+                if prestop is not None:
+                    prestop(*args, **kwargs)
 
-        self.running = False
-        coro.spawn(coro.set_exit)
+                self.running = False
+
+                coro.set_exit()
+
+        self.schedule(exit, interval=interval)

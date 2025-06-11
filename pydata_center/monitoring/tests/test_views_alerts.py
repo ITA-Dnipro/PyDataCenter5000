@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import User
+from django.urls import reverse
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
 
@@ -32,6 +33,7 @@ class TestServerStatusAPI:
 
     def test_unhealthy_status_triggers_alert(self, authenticated_client):
         """Test that an 'unhealthy' status triggers an alert."""
+        url = reverse('monitoring:receive_status')
         payload = {
             'hostname': 'agent-1',
             'ip': '192.168.0.1',
@@ -44,13 +46,16 @@ class TestServerStatusAPI:
 
         with patch('monitoring.views.alert_if_unhealthy') as mock_alert:
             response = authenticated_client.post(
-                '/api/v1/server/status/', data=payload, format='json'
+                url,
+                data=payload,
+                format='json'
             )
             assert response.status_code == 201
             mock_alert.assert_called_once_with('agent-1', False)
 
     def test_healthy_status_is_ignored(self, authenticated_client):
         """Test that a 'healthy' status is ignored and sends no alert."""
+        url = reverse('monitoring:receive_status')
         payload = {
             'hostname': 'agent-ok',
             'ip': '10.0.0.1',
@@ -63,7 +68,9 @@ class TestServerStatusAPI:
 
         with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
             response = authenticated_client.post(
-                '/api/v1/server/status/', data=payload, format='json'
+                url,
+                data=payload,
+                format='json'
             )
             assert response.status_code == 201
             mock_send_alert.assert_not_called()
@@ -81,7 +88,7 @@ class TestCommandHistoryAPI:
             command='ls'
         )
         payload = {'status': 'failed', 'result': 'Error occurred'}
-        url = f'/api/v1/commands/{command.id}/'
+        url = reverse('monitoring:commandhistory-detail', args=[command.id])
 
         with patch('monitoring.views.alert_if_command_failed') as mock_alert:
             response = authenticated_client.patch(
@@ -99,7 +106,7 @@ class TestCommandHistoryAPI:
             command='whoami'
         )
         payload = {'status': 'done', 'result': 'Success'}
-        url = f'/api/v1/commands/{command.id}/'
+        url = reverse('monitoring:commandhistory-detail', args=[command.id])
 
         with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
             response = authenticated_client.patch(
@@ -115,6 +122,7 @@ class TestCommandHistoryAPI:
             hostname='agent-3',
             command='uptime'
         )
+        url = reverse('monitoring:submit_command_result')
         payload = {
             'id': command.id,
             'status': 'failed',
@@ -123,7 +131,9 @@ class TestCommandHistoryAPI:
 
         with patch('monitoring.views.alert_if_command_failed') as mock_alert:
             response = authenticated_client.patch(
-                '/api/v1/command/result/', data=payload, format='json'
+                url,
+                data=payload,
+                format='json'
             )
             assert response.status_code == 200
             mock_alert.assert_called_once_with('agent-3', 'Command FAILED')
@@ -134,6 +144,7 @@ class TestCommandHistoryAPI:
             hostname='agent-ok',
             command='ping'
         )
+        url = reverse('monitoring:submit_command_result')
         payload = {
             'id': command.id,
             'status': 'done',
@@ -142,7 +153,9 @@ class TestCommandHistoryAPI:
 
         with patch('monitoring.alerts.send_discord_alert') as mock_send_alert:
             response = authenticated_client.patch(
-                '/api/v1/command/result/', data=payload, format='json'
+                url,
+                data=payload,
+                format='json'
             )
             assert response.status_code == 200
             mock_send_alert.assert_not_called()

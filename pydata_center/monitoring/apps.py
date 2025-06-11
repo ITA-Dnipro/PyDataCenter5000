@@ -1,3 +1,4 @@
+import os
 import threading
 
 from django.apps import AppConfig
@@ -8,5 +9,6 @@ class MonitoringConfig(AppConfig):
     name = 'monitoring'
 
     def ready(self):
-        from .discord_bot import start_discord_bot
-        threading.Thread(target=start_discord_bot, daemon=True).start()
+        if os.environ.get('RUN_MAIN') == 'true':
+            from .discord_bot import start_discord_bot
+            threading.Thread(target=start_discord_bot, daemon=True).start()

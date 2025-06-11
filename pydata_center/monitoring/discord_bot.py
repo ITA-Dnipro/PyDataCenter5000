@@ -4,10 +4,13 @@ Used by alerts.py via send_alert().
 """
 
 import asyncio
+import logging
 import os
 
 import discord
 from discord.ext import commands
+
+logger = logging.getLogger(__name__)
 
 DISCORD_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', 0))
@@ -42,8 +45,8 @@ async def alert_worker():
         message = await alert_queue.get()
         try:
             await channel.send(message)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception('Failed to send Discord message: %s', str(e))
 
 
 async def enqueue_alert(message: str):
@@ -73,5 +76,5 @@ def start_discord_bot():
         return
     try:
         bot.run(DISCORD_TOKEN)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception('Discord bot failed to start: %s', str(e))

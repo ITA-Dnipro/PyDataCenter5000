@@ -1,6 +1,8 @@
 import logging
 import re
+import subprocess
 import sys
+import time
 
 import ConfigParser
 import pkg_resources
@@ -108,3 +110,72 @@ def is_valid_ip(output):
         bool: True if the output is a valid IP address, False otherwise.
     """
     return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None
+
+
+def restart_service(agent, service):
+    """
+    Attempts to restart a system service with exponential backoff
+    if it is found to be inactive. Logs each attempt and result.
+
+    Parameters:
+        agent (ServerAgent): Agent instance used for logging. Must have
+            `logger` and `fallback_logger` attributes.
+        service (str): Name of the system service to restart (e.g., 'ssh').
+
+    Returns:
+        bool: True if the service was restarted successfully, False otherwise.
+
+    Notes:
+        This function uses 'sudo systemctl restart <service>' and expects
+        that the agent has sufficient privileges to perform the operation.
+        Backoff strategy uses 2s, 4s, and 8s delays between attempts.
+    """
+
+    maybe_log_message(
+        '%s not active. Attempting restart...' % service,
+        agent.logger,
+        fallback_logger=agent.fallback_logger
+    )
+
+    delays = [2, 4, 8]
+    for delay in delays:
+        try:
+            maybe_log_message(
+                'Restarting %s (delay before restart: %s).' % (service, delay),
+                agent.logger,
+                fallback_logger=agent.fallback_logger
+            )
+
+            time.sleep(delay)
+
+            retcode = subprocess.call([
+                'sudo',
+                'systemctl',
+                'restart',
+                service
+            ])
+
+            if retcode == 0:
+                maybe_log_message(
+                    '%s service restarted successfully.' % service,
+                    agent.logger,
+                    fallback_logger=agent.fallback_logger
+                )
+                return True
+            else:
+                maybe_log_message(
+                    '%s restart failed with code %s.' % (service, retcode),
+                    agent.logger,
+                    fallback_logger=agent.fallback_logger
+                )
+
+        except Exception as restart_err:
+            maybe_log_message(
+                'Error during %s service restart: %s' % (service, restart_err),
+                agent.logger,
+                fallback_logger=agent.fallback_logger,
+                exc_info=True
+            )
+            return False  # Stop after first fatal error
+
+    return False  # If restsrting failed

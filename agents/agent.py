@@ -18,7 +18,8 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
-from .utils.configtools import get_config_option, parse_csv_list
+from .utils.configtools import (get_config_option, parse_csv_list,
+                                restart_service)
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
@@ -403,12 +404,18 @@ class ServerAgent(object):
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
 
-            output = output.lower()
+            output_lines = output.lower().splitlines()
+            active_processes = 0
 
-            return any(
-                any(proc in p for p in output.split())
-                for proc in self.processes
-            )
+            for proc in self.processes:
+                is_running = any(proc in line for line in output_lines)
+                if not is_running:
+                    active_processes += restart_service(self, proc)
+                else:
+                    active_processes += 1
+
+            return len(self.processes) == active_processes
+
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -419,13 +426,41 @@ class ServerAgent(object):
 
             return False
 
+    def _is_ssh_service_active(self):
+        try:
+            proc = subprocess.Popen(
+                ['systemctl', 'is-active', 'ssh'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = proc.communicate()
+
+            if hasattr(stdout, 'decode'):
+                stdout = stdout.decode('utf-8')
+
+            stdout = stdout.strip().lower()
+
+            if stdout == 'active':
+                return True
+            else:
+                return restart_service(self, 'ssh')
+
+        except OSError as e:
+            maybe_log_message(
+                'SSH service check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True
+                )
+            return False
+
     @abc.abstractmethod
     def service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running()
+        return self._is_process_running() and self._is_ssh_service_active()
 
     def status_to_dict(self):
         return {

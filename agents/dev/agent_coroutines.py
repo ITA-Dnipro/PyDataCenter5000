@@ -30,7 +30,11 @@ def main():
 
     supervisor.schedule(agent.collect_server_metadata, 10)
     supervisor.schedule(agent.status_to_txt, 10)
-    supervisor.schedule_exit()
+
+    start_time = time.time()
+    supervisor.schedule_exit(
+        stop_condition=lambda: time.time() - start_time > 30
+    )
 
     supervisor.start()
 

@@ -19,6 +19,7 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
+from .utils import configtools
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
@@ -28,15 +29,15 @@ log_config_path = pkg_resources.resource_filename(
 
 PROTOCOLS = ('tcp', 'udp')
 
-# GLOBAL DEFAULTS FOR critical_processes
-config_path = os.path.join(os.path.dirname(__file__), 'global.ini')
-_global_cfg = ConfigParser.ConfigParser()
-_global_cfg.read(config_path)
-try:
-    raw = _global_cfg.get('controller', 'critical_processes')
-    GLOBAL_CRITICAL_PROCESSES = parse_csv_list(raw)
-except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-    GLOBAL_CRITICAL_PROCESSES = []
+_global_cfg = configtools.load_global_config()
+
+GLOBAL_CRITICAL_PROCESSES = configtools.get_config_option(
+    _global_cfg,
+    'controller',
+    'critical_processes',
+    cast=configtools.parse_csv_list,
+    default=[]
+)
 
 
 def get_ip_from_interface(interface):

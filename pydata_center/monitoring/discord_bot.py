@@ -65,8 +65,11 @@ def send_alert(message: str):
     Can be safely called from any Django context (sync or async).
     """
     global bot_loop
-    if bot_loop and bot_loop.is_running():
-        asyncio.run_coroutine_threadsafe(enqueue_alert(message), bot_loop)
+    if not bot_loop or not bot_loop.is_running():
+        logger.warning('Discord bot loop not running — alert not sent')
+        return
+
+    asyncio.run_coroutine_threadsafe(enqueue_alert(message), bot_loop)
 
 
 def start_discord_bot():

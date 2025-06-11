@@ -31,6 +31,9 @@ def authenticated_client(db):
 class TestServerStatusAPI:
     """Tests for the server status endpoint."""
 
+    def setup_method(self, method):
+        self.url = reverse('monitoring:receive_status')
+
     @pytest.mark.parametrize(
         'healthy, should_trigger',
         [(False, True), (True, False)],
@@ -52,13 +55,12 @@ class TestServerStatusAPI:
             'os': 'Linux',
             'server_name': hostname,
         }
-        url = reverse('monitoring:receive_status')
 
         if should_trigger:
             path_to_mock = 'monitoring.views.alert_if_unhealthy'
             with patch(path_to_mock) as mock_alert:
                 response = authenticated_client.post(
-                    url,
+                    self.url,
                     data=payload,
                     format='json'
                 )
@@ -68,7 +70,7 @@ class TestServerStatusAPI:
             path_to_mock = 'monitoring.alerts.send_discord_alert'
             with patch(path_to_mock) as mock_send_alert:
                 response = authenticated_client.post(
-                    url,
+                    self.url,
                     data=payload,
                     format='json'
                 )
@@ -101,9 +103,8 @@ class TestServerStatusAPI:
             self, authenticated_client, invalid_payload, test_id
     ):
         """Test that various types of bad payloads return a 400 status."""
-        url = reverse('monitoring:receive_status')
         response = authenticated_client.post(
-            url,
+            self.url,
             data=invalid_payload,
             format='json'
         )
@@ -112,13 +113,21 @@ class TestServerStatusAPI:
     def test_unauthenticated_access_is_denied(self):
         """Test that unauthenticated access to status endpoint is rejected."""
         client = APIClient()
-        url = reverse('monitoring:receive_status')
-        response = client.post(url, data={}, format='json')
+        response = client.post(self.url, data={}, format='json')
         assert response.status_code in (401, 403)
 
 
 class TestCommandHistoryAPI:
     """Tests for the command history endpoints."""
+
+    def setup_method(self, method):
+        self.command = CommandHistory.objects.create(
+            hostname='agent-setup', command='initial_command'
+        )
+        self.detail_url = reverse(
+            'monitoring:commandhistory-detail', args=[self.command.id]
+        )
+        self.submit_url = reverse('monitoring:submit_command_result')
 
     @pytest.mark.parametrize(
         'status, result, should_trigger',
@@ -131,28 +140,26 @@ class TestCommandHistoryAPI:
             self, authenticated_client, status, result, should_trigger
     ):
         """Tests alert behavior for command updates."""
-        command = CommandHistory.objects.create(
-            hostname='agent-x',
-            command='ls'
-        )
         payload = {'status': status, 'result': result}
-        url = reverse('monitoring:commandhistory-detail', args=[command.id])
 
         if should_trigger:
             path_to_mock = 'monitoring.views.alert_if_command_failed'
             with patch(path_to_mock) as mock_alert:
                 response = authenticated_client.patch(
-                    url,
+                    self.detail_url,
                     data=payload,
                     format='json'
                 )
                 assert response.status_code == 200
-                mock_alert.assert_called_once_with('agent-x', result)
+                mock_alert.assert_called_once_with(
+                    self.command.hostname,
+                    result
+                )
         else:
             path_to_mock = 'monitoring.alerts.send_discord_alert'
             with patch(path_to_mock) as mock_send_alert:
                 response = authenticated_client.patch(
-                    url,
+                    self.detail_url,
                     data=payload,
                     format='json'
                 )
@@ -170,28 +177,26 @@ class TestCommandHistoryAPI:
             self, authenticated_client, status, result, should_trigger
     ):
         """Tests alert behavior for command result submissions."""
-        command = CommandHistory.objects.create(
-            hostname='agent-ok',
-            command='whoami'
-        )
-        payload = {'id': command.id, 'status': status, 'result': result}
-        url = reverse('monitoring:submit_command_result')
+        payload = {'id': self.command.id, 'status': status, 'result': result}
 
         if should_trigger:
             path_to_mock = 'monitoring.views.alert_if_command_failed'
             with patch(path_to_mock) as mock_alert:
                 response = authenticated_client.patch(
-                    url,
+                    self.submit_url,
                     data=payload,
                     format='json'
                 )
                 assert response.status_code == 200
-                mock_alert.assert_called_once_with('agent-ok', result)
+                mock_alert.assert_called_once_with(
+                    self.command.hostname,
+                    result
+                )
         else:
             path_to_mock = 'monitoring.alerts.send_discord_alert'
             with patch(path_to_mock) as mock_send_alert:
                 response = authenticated_client.patch(
-                    url,
+                    self.submit_url,
                     data=payload,
                     format='json'
                 )
@@ -207,9 +212,7 @@ class TestCommandHistoryAPI:
         """
         url = reverse('monitoring:commandhistory-detail', args=[99999])
         payload = {'status': 'done', 'result': 'This should fail'}
-
         response = authenticated_client.patch(url, data=payload, format='json')
-
         assert response.status_code == 404
 
     @pytest.mark.parametrize(
@@ -233,14 +236,11 @@ class TestCommandHistoryAPI:
         Test that submitting a result with a missing or nonexistent command ID
         returns 404.
         """
-        url = reverse('monitoring:submit_command_result')
-
         response = authenticated_client.patch(
-            url,
+            self.submit_url,
             data=bad_payload,
             format='json'
         )
-
         assert response.status_code == 404
 
     def test_submit_result_with_invalid_status_returns_400(
@@ -249,19 +249,16 @@ class TestCommandHistoryAPI:
         """
         Test that submitting a result with an invalid status string returns 400
         """
-        command = CommandHistory.objects.create(
-            hostname='agent-x',
-            command='test'
-        )
-        url = reverse('monitoring:submit_command_result')
         payload = {
-            'id': command.id,
+            'id': self.command.id,
             'status': 'this-is-not-a-valid-status',
             'result': 'some result',
         }
-
-        response = authenticated_client.patch(url, data=payload, format='json')
-
+        response = authenticated_client.patch(
+            self.submit_url,
+            data=payload,
+            format='json'
+        )
         assert response.status_code == 400
 
     def test_update_unauthenticated_is_denied(self, db):
@@ -275,7 +272,6 @@ class TestCommandHistoryAPI:
             command='test'
         )
         url = reverse('monitoring:commandhistory-detail', args=[command.id])
-
         response = client.patch(url, data={})
         assert response.status_code in (401, 403)
 
@@ -286,6 +282,5 @@ class TestCommandHistoryAPI:
         """
         client = APIClient()
         url = reverse('monitoring:submit_command_result')
-
         response = client.patch(url, data={'id': 999})
         assert response.status_code in (401, 403)

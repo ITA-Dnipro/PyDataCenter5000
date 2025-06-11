@@ -3,8 +3,7 @@ import logging
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import (get_current_timezone, is_naive, make_aware,
-                                   now)
+from django.utils.timezone import is_naive, make_aware, now, utc
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -183,11 +182,10 @@ def metrics_history_view(request):
     start = parse_datetime(start_str) if start_str else None
     end = parse_datetime(end_str) if end_str else None
 
-    tz = get_current_timezone()
     if start and is_naive(start):
-        start = make_aware(start, tz)
+        start = make_aware(start, timezone=utc)
     if end and is_naive(end):
-        end = make_aware(end, tz)
+        end = make_aware(end, timezone=utc)
 
     filters = Q()
     if hostname:

@@ -36,8 +36,8 @@ class TestAlertIfCommandFailed:
         expected_message = f'Command failed:\n```\n{cleaned_result}\n```'
 
         mock_send.assert_called_once_with(
-            'agent-1',
-            expected_message,
+            hostname='agent-1',
+            message=expected_message,
             level='critical'
         )
 
@@ -63,8 +63,8 @@ class TestAlertIfUnhealthy:
         """Test that an alert is triggered when healthy=False."""
         alert_if_unhealthy('agent-1', healthy=False)
         mock_send.assert_called_once_with(
-            'agent-1',
-            'Agent reported unhealthy status.',
+            hostname='agent-1',
+            message='Agent reported unhealthy status.',
             level='warning'
         )
 

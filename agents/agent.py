@@ -109,7 +109,6 @@ class ServerAgent(object):
         interface=None,
         protocol=None,
         whitelist_commands=None,
-        extra_critical_processes=None,
         log_path=None,
 
     ):
@@ -127,18 +126,9 @@ class ServerAgent(object):
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
-        # INIT critical_processes from global + extras
-        self.critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
-
-        if extra_critical_processes:
-            if not isinstance(extra_critical_processes, Sequence):
-                raise TypeError(
-                    'critical_processes must be a sequence, not %s'
-                    % type(extra_critical_processes)
-                )
-            for proc in extra_critical_processes:
-                if proc not in self.critical_processes:
-                    self.critical_processes.append(proc)
+        # Seed critical_processes list from global defaults
+        if self.critical_processes is None:
+            self.critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -305,32 +295,21 @@ class ServerAgent(object):
             if whitelist_commands:
                 self.whitelist_commands.extend(whitelist_commands)
 
-            # APPEND per-instance critical_processes
-            self.logger.debug(
-                'Looking up [server]/critical_processes in %r', filename
+            # Merge per-instance critical_processes via get_config_option
+            per = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                default=[],
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
             )
-            try:
-                raw = config.get('server', 'critical_processes')
-                self.logger.debug('Found raw critical_processes: %r', raw)
-                per_instance = parse_csv_list(raw)
-            except (
-                    ConfigParser.NoSectionError, ConfigParser.NoOptionError
-            ) as e:
-                self.logger.warning(
-                    'No per-instance critical_processes in %r: %s', filename, e
-                )
-                per_instance = []
-
-            for proc in per_instance:
-                if proc not in self.critical_processes:
-                    self.logger.debug(
-                        'Appending custom critical_process %r', proc
-                    )
-                    self.critical_processes.append(proc)
-            self.logger.info(
-                'After parsing, critical_processes = %r',
-                self.critical_processes
-            )
+            # Extend, avoiding duplicates
+            self.critical_processes.extend([
+                p for p in per
+                if p not in self.critical_processes
+            ])
 
     def collect_server_metadata(self):
         """

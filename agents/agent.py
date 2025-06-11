@@ -13,7 +13,6 @@ import attr
 import ConfigParser
 import pkg_resources
 import psutil
-import Queue
 import urllib2
 from dateutil import parser
 from urlparse import urljoin
@@ -123,7 +122,7 @@ class ServerAgent(object):
         self.uptime = self.timestamp = None
 
         # Initialize thread-safe command queue
-        self.queue = Queue.Queue()
+        self.queue = []
 
         # Initialize logging from logging config file
         log_path = (
@@ -731,4 +730,4 @@ class ServerAgent(object):
             return
 
         if command_history.command in self.whitelist_commands:
-            self.queue.put(command_history)
+            self.queue.append(command_history)

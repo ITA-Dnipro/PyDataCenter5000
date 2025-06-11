@@ -36,11 +36,9 @@ def main():
         if data:
             agent.maybe_add_to_queue(data)
 
-    nexec = 0
+    nexec = [0]
 
     def execute_command(timeout):
-        nonlocal nexec
-
         command_history = None
 
         while True:
@@ -65,7 +63,7 @@ def main():
                 stdout, stderr = proc.communicate()
                 output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
-                nexec += 1
+                nexec[0] += 1
 
                 logging.info(
                     'Command %s finished with status %s' % (
@@ -83,7 +81,9 @@ def main():
     supervisor.schedule(fetch_command, interval=10, credentials=credentials)
     supervisor.schedule(execute_command, interval=10, timeout=5)
 
-    supervisor.schedule_exit(stop_condition=lambda: nexec >= 2, interval=10)
+    supervisor.schedule_exit(
+        stop_condition=lambda: nexec[0] >= 2, interval=10
+    )
 
     supervisor.start()
 

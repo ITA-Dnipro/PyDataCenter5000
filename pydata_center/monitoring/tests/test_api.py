@@ -1,7 +1,15 @@
+from unittest.mock import patch
+
+import pytest
+import requests
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from django.urls import reverse
-from monitoring.models import ServerStatus
+from django.utils import timezone
+from monitoring.discord import DiscordMessage, send_async_discord_message
+from monitoring.models import AgentMetric, AlertRule, ServerStatus
+from monitoring.tasks import evaluate_agent_alerts
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
@@ -402,3 +410,250 @@ class ReceiveStatusEndpointTests(APITestCase):
             response.data,
             "'server_name' should be reported as missing"
         )
+
+
+@pytest.mark.parametrize('status_code', [200, 204])
+def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
+    """Test handling and logging of succesfull Discord POST request."""
+    class MockResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+            self.text = 'OK'
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        'requests.post', lambda url, json: MockResponse(status_code)
+    )
+
+    msg = DiscordMessage(
+        'Mock message', webhook='https://discord.com/api/webhooks/mock'
+    )
+
+    with caplog.at_level('INFO'):
+        send_async_discord_message(msg)
+
+    assert (
+        f'POST request sent succesfully. Discord reposnse: {status_code} OK'
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize('fail_silently', [True, False])
+def test_send_async_discord_message_http_error(
+    monkeypatch, caplog, fail_silently
+):
+    """Test handling and logging of HTTP error."""
+    class MockResponse:
+        def __init__(self):
+            self.status_code = 400
+            self.text = 'Bad Request'
+
+        def raise_for_status(self):
+            raise requests.exceptions.HTTPError('Mock HTTP error')
+
+    monkeypatch.setattr('requests.post', lambda url, json: MockResponse())
+
+    msg = DiscordMessage(
+        'Mock message',
+        webhook='https://discord.com/api/webhooks/mock',
+        fail_silently=fail_silently,
+    )
+
+    with caplog.at_level('ERROR'):
+        if fail_silently:
+            send_async_discord_message(msg)
+        else:
+            with pytest.raises(
+                requests.exceptions.HTTPError,
+                match='Sending Discord message failed.',
+            ):
+                send_async_discord_message(msg)
+
+    assert (
+        (
+            f'Sending Discord message failed due to error: '
+            f'{requests.exceptions.HTTPError}'
+        )
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize('error_type', [
+    requests.exceptions.ConnectionError,
+    requests.exceptions.InvalidURL,
+])
+def test_send_async_discord_message_connection_or_url_error(
+    monkeypatch, caplog, error_type
+):
+    webhook = 'https://discord.com/api/webhooks/mock'
+
+    monkeypatch.setattr(
+        'requests.post',
+        lambda url, json: (
+            _ for _ in ()
+        ).throw(error_type(f'Failed to connect to URL {webhook}')),
+    )
+
+    msg = DiscordMessage('Mock message', webhook=webhook)
+
+    with caplog.at_level('ERROR'):
+        send_async_discord_message(msg)
+
+    assert (
+        f'Sending Discord message failed due to error: {error_type}'
+        in caplog.text
+    )
+    assert webhook not in caplog.text
+
+
+@pytest.mark.django_db
+class TestEvaluateAgentAlerts:
+    """Test suite for evaluate_agent_alerts task."""
+    def setup_method(self):
+        self.server = ServerStatus.objects.create(
+            hostname='test-alerts-server',
+            ip='0.0.0.0',
+            uptime=100,
+            timestamp=timezone.now(),
+            os='linux',
+            healthy=True,
+            server_name='test_alerts_server',
+        )
+        self.rule = AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold='10',
+            notify_message='CPU usage exceeded threshold of 10%',
+        )
+        AgentMetric.objects.create(
+            cpu=50, timestamp=timezone.now(), server_status=self.server
+        )
+
+    @pytest.mark.parametrize('destination,mocked', [
+        ('email', 'monitoring.email.send_async_email.apply_async'),
+        (
+            'discord',
+            'monitoring.discord.send_async_discord_message.apply_async',
+        )
+    ])
+    def test_alert_triggered(self, destination, mocked, caplog):
+        with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
+            evaluate_agent_alerts(destinations=[destination], batch=False)
+
+            assert mock_send_message.called
+        assert 'CPU usage exceeded threshold of 10%' in caplog.text
+
+    @pytest.mark.parametrize('destination,mocked', [
+        ('email', 'monitoring.email.send_async_email.apply_async'),
+        (
+            'discord',
+            'monitoring.discord.send_async_discord_message.apply_async',
+        )
+    ])
+    def test_no_alerts_triggered(self, destination, mocked, caplog):
+        self.rule.threshold = 60
+        self.rule.save()
+
+        with caplog.at_level('INFO'), patch(mocked) as mock_send_message:
+            evaluate_agent_alerts(destinations=[destination], batch=False)
+
+            assert not mock_send_message.called
+        assert 'No alerts triggered' in caplog.text
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_no_data_for_metric(self, mock_send, caplog):
+        self.rule.metric = 'ram'
+        self.rule.save()
+
+        with caplog.at_level('INFO'):
+            evaluate_agent_alerts(destinations=['email'], batch=False)
+
+        assert not mock_send.called
+        assert 'No data for rule' in caplog.text
+
+    @pytest.mark.parametrize('destination,mocked', [
+        ('email', 'monitoring.email.send_async_email.apply_async'),
+        (
+            'discord',
+            'monitoring.discord.send_async_discord_message.apply_async',
+        )
+    ])
+    def test_alert_triggered_with_less_than_operator(
+        self, destination, mocked, caplog
+    ):
+        self.rule.metric = 'cpu'
+        self.rule.operator = '<'
+        self.rule.threshold = 100
+        self.rule.notify_message = 'CPU usage below 100%'
+        self.rule.save()
+
+        with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
+            evaluate_agent_alerts(destinations=[destination], batch=False)
+
+            assert mock_send_message.called
+        assert 'CPU usage below 100%' in caplog.text
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_rate_limit(self, mock_send):
+        self.rule.operator = '>'
+        self.rule.threshold = 10
+        self.notify_message = 'CPU usage exceeded threshold of 10%'
+        self.rule.save()
+
+        cache.set(f'alert_sent_{self.rule.id}', True, timeout=1000)
+
+        evaluate_agent_alerts(destinations=['email'], batch=False)
+
+        assert not mock_send.called
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_batch_alerts_triggered(self, mock_send, caplog):
+        # Add another rule that will trigger an alert with existing
+        # agent metric.
+        AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold=25,
+            notify_message='CPU usage exceeded threshold of 25%'
+        )
+
+        with caplog.at_level('WARNING'):
+            evaluate_agent_alerts(destinations=['email'], batch=True)
+
+        assert mock_send.call_count == 1
+        assert (
+            'CPU usage exceeded threshold of 25%' in caplog.text
+            and 'CPU usage exceeded threshold of 10%' in caplog.text
+        )
+
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_rate_limit_batch_alerts_triggered(self, mock_send, caplog):
+        AlertRule.objects.create(
+            metric='cpu',
+            operator='>',
+            threshold=15,
+            notify_message='CPU usage exceeded threshold of 15%'
+        )
+
+        cache.set(f'alert_sent_{self.rule.id}', True, timeout=1000)
+
+        with caplog.at_level('WARNING'):
+            evaluate_agent_alerts(destinations=['email'], batch=True)
+
+        assert mock_send.call_count == 1
+        assert (
+            'CPU usage exceeded threshold of 15%' in caplog.text
+            and 'CPU usage exceeded threshold of 10%' not in caplog.text
+        )
+
+    @pytest.mark.parametrize('batch', [False, True])
+    @override_settings(DEFAULT_ALERT_DESTINATIONS=['unknown'])
+    @patch('monitoring.tasks.AlertDispatcher.send')
+    def test_bad_destination(self, mock_send, batch, caplog):
+        with caplog.at_level('ERROR'):
+            evaluate_agent_alerts(batch=batch)
+
+        assert not mock_send.called
+        assert 'Unknown alert destination unknown' in caplog.text

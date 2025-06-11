@@ -269,6 +269,42 @@ def dashboard_view(request):
     )
 
 
+@extend_schema(
+    tags=['Metrics'],
+    parameters=[
+        OpenApiParameter(
+            name='hostname',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Hostname of the server to filter metrics.'
+        ),
+        OpenApiParameter(
+            name='start',
+            type=OpenApiTypes.DATETIME,
+            location=OpenApiParameter.QUERY,
+            description='Start datetime (ISO 8601) for metrics filtering.'
+        ),
+        OpenApiParameter(
+            name='end',
+            type=OpenApiTypes.DATETIME,
+            location=OpenApiParameter.QUERY,
+            description='End datetime (ISO 8601) for metrics filtering.'
+        ),
+    ],
+    responses={
+        status.HTTP_200_OK: OpenApiResponse(
+            description='List of filtered agent metrics.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Invalid datetime format or query parameters.'
+        ),
+    },
+    description=(
+        'Returns historical server metrics (CPU, RAM, disk usage, '
+        'load average) based on optional filters: hostname, '
+        'start time, and end time.'
+    ),
+)
 @api_view(['GET'])
 def metrics_history_view(request):
     """

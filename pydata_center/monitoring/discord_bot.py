@@ -1,8 +1,6 @@
 """
 Discord alert bot for sending monitoring messages to a specific channel.
-Used by alerts.py via send_alert().
 """
-
 import asyncio
 import logging
 import os
@@ -12,73 +10,107 @@ from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 
-DISCORD_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', 0))
-
-intents = discord.Intents.default()
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-alert_queue = None
-alert_ready = asyncio.Event()
-bot_loop = None
+_bot_instance = None
 
 
-@bot.event
-async def on_ready():
-    global alert_queue, bot_loop
-    alert_queue = asyncio.Queue()
-    bot_loop = asyncio.get_running_loop()
-    alert_ready.set()
-    bot.loop.create_task(alert_worker())
-
-
-async def alert_worker():
+class AlertBot(commands.Bot):
     """
-    Background task that continuously sends messages from the queue to Discord.
+    A custom Bot class that encapsulates all state and logic for alerting.
     """
-    await bot.wait_until_ready()
-    await alert_ready.wait()
-    channel = bot.get_channel(CHANNEL_ID)
-    if not channel:
-        logger.warning('Discord channel not found (ID: %s)', CHANNEL_ID)
-        return
-    while True:
-        message = await alert_queue.get()
-        try:
-            await channel.send(message)
-        except Exception as e:
-            logger.exception('Failed to send Discord message: %s', str(e))
 
+    def __init__(self, channel_id: int, **kwargs):
+        intents = discord.Intents.default()
+        super().__init__(command_prefix='!', intents=intents, **kwargs)
+        self.channel_id = channel_id
 
-async def enqueue_alert(message: str):
-    """
-    Enqueue a message to be sent to Discord.
-    """
-    await alert_ready.wait()
-    if alert_queue is not None:
-        await alert_queue.put(message)
+        # State attributes are initialized here but populated in on_ready.
+        self.alert_queue = None
+        self.alert_ready_event = None
+
+    async def on_ready(self):
+        """
+        Called when the bot logs in and is ready.
+        This is the correct place to initialize asyncio-dependent objects
+        as the event loop is running at this point.
+        """
+        logger.info(f'Discord bot logged in as {self.user}')
+
+        self.alert_queue = asyncio.Queue()
+        self.alert_ready_event = asyncio.Event()
+
+        channel = self.get_channel(self.channel_id)
+        if not channel:
+            logger.warning(
+                'Discord channel not found (ID: %s)',
+                self.channel_id
+            )
+            return
+
+        self.alert_ready_event.set()
+        self.loop.create_task(self.alert_worker(channel))
+
+    async def alert_worker(self, channel: discord.TextChannel):
+        """
+        Background task that pulls messages from the queue and sends them.
+        """
+        logger.info(f'Alert worker started for channel #{channel.name}')
+        while True:
+            message = await self.alert_queue.get()
+            try:
+                await channel.send(message)
+            except Exception as e:
+                logger.exception('Failed to send Discord message: %s', str(e))
+            finally:
+                self.alert_queue.task_done()
+
+    async def enqueue_alert(self, message: str):
+        """
+        Puts a message into the internal queue if the bot is ready.
+        """
+        if not self.alert_ready_event or not self.alert_ready_event.is_set():
+            logger.warning('Bot is not ready, alert cannot be enqueued.')
+            return
+
+        await self.alert_ready_event.wait()
+        await self.alert_queue.put(message)
 
 
 def send_alert(message: str):
     """
-    Send an alert message to Discord.
-    Can be safely called from any Django context (sync or async).
+    Thread-safe function to send an alert from synchronous Django code.
     """
-    global bot_loop
-    if not bot_loop or not bot_loop.is_running():
-        logger.warning('Discord bot loop not running — alert not sent')
-        return
-
-    asyncio.run_coroutine_threadsafe(enqueue_alert(message), bot_loop)
+    if (
+            _bot_instance
+            and _bot_instance.loop
+            and _bot_instance.loop.is_running()
+    ):
+        asyncio.run_coroutine_threadsafe(
+            _bot_instance.enqueue_alert(message), _bot_instance.loop
+        )
+    else:
+        logger.warning('Discord bot loop not running — alert not sent.')
 
 
 def start_discord_bot():
     """
-    Start the bot once at Django startup.
+    Entry point to initialize and start the bot. Called from apps.py.
     """
-    if not DISCORD_TOKEN or not CHANNEL_ID:
+    global _bot_instance
+    token = os.getenv('DISCORD_BOT_TOKEN')
+    channel_id_str = os.getenv('DISCORD_CHANNEL_ID')
+
+    if not token or not channel_id_str:
+        logger.warning(
+            'DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID not set. '
+            'Bot will not start.'
+        )
         return
+
+    logger.info('Initializing Discord bot...')
+    _bot_instance = AlertBot(channel_id=int(channel_id_str))
+
     try:
-        bot.run(DISCORD_TOKEN)
+        logger.info('Starting Discord bot...')
+        _bot_instance.run(token)
     except Exception as e:
         logger.exception('Discord bot failed to start: %s', str(e))

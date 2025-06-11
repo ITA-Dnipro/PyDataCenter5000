@@ -196,105 +196,6 @@ def test_status_to_json_type_error():
     )
 
 
-def test_status_to_controller_success(monkeypatch):
-    """
-    Test that successful POST request to controller is properly handled
-    and logged.
-    """
-
-    def mock_urlopen(request, timeout=5):
-
-        class MockResponse(object):
-
-            def getcode(self):
-                return 201
-
-            def read(self):
-                return b'{"message":"status received"}'
-
-            def close(self):
-                pass
-
-        return MockResponse()
-
-    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
-
-    agent = MockAgent(port=12345)
-
-    agent.collect_server_metadata()
-
-    agent.controller_url = 'http://mock/api/status/'
-
-    agent.status_to_controller()
-
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
-
-    assert 'POST request status: 201' in contents, (
-        'Expected "POST request status: 201" in logs, got:\n%s' % contents
-    )
-
-
-def test_status_to_controller_missing_url():
-    """Test that missing controller URL is properly handled and logged."""
-    agent = MockAgent(port=12345)
-    agent.collect_server_metadata()
-
-    # Set controller's URL explicitly to be independent of changes
-    # of default values in agent.py/
-    agent.controller_url = None
-
-    agent.status_to_controller()
-
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
-
-    msg = "Couldn't send status update: controller URL is not set"
-
-    assert msg in contents, (
-        'Expected log message %s not found. Log contents:\n %s' % (
-            msg, contents
-        )
-    )
-
-
-def test_status_to_controller_error(monkeypatch):
-    """
-    Test that the HTTP, URL and timeout failures at POST request to
-    controller are properly handled and logged.
-    """
-    for error, msg in [
-        HTTP_ERROR_OUTPUT,
-        URL_ERROR_OUTPUT,
-        TIMEOUT_ERROR_OUTPUT,
-        UNEXPECTED_ERROR_OUTPUT,
-    ]:
-        def mock_urlopen(request, timeout=5):
-            raise error
-
-        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
-
-        agent = MockAgent(port=12345)
-
-        agent.collect_server_metadata()
-
-        agent.controller_url = 'http://mock/api/status/'
-
-        agent.status_to_controller(max_retries=1)
-
-        with open(agent.logfile.name, 'r') as f:
-            f.seek(0)
-            contents = f.read()
-
-        assert msg in contents, (
-            'Expected log message %s not found. Log contents:\n %s' % (
-                msg, contents
-            )
-        )
-
-
 def test_post_data_success(monkeypatch):
     agent = MockAgent(port=12345)
 
@@ -303,7 +204,7 @@ def test_post_data_success(monkeypatch):
             return 200
 
         def read(self):
-            return b'Success'
+            return b'{"message":"received"}'
 
         def close(self):
             pass
@@ -312,15 +213,16 @@ def test_post_data_success(monkeypatch):
         urllib2, 'urlopen', lambda req, timeout=None: MockResponse()
     )
 
-    result = agent.post_data('http://mock/api', {'test': 'data'})
+    agent.post_data('http://mock/api', {'test': 'data'})
 
     with open(agent.logfile.name) as f:
         f.seek(0)
         contents = f.read()
 
-    assert result == b'Success'
     assert 'POST request status: 200' in contents
-    assert 'Success on attempt 1' in contents
+    assert (
+        'POST request succeeded on attempt 1: %s' % b'{"message":"received"}'
+    ) in contents
 
 
 def test_post_data_retry(monkeypatch):
@@ -339,7 +241,7 @@ def test_post_data_retry(monkeypatch):
                 return 200
 
             def read(self):
-                return b'Retry Success'
+                return b'{"message":"received"}'
 
             def close(self):
                 pass
@@ -348,17 +250,25 @@ def test_post_data_retry(monkeypatch):
 
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-    result = agent.post_data(
-        'http://mock/api', {'retry': 'test'}, max_retries=3, delay=0
+    agent.post_data(
+        'http://mock/endpoint', {'retry': 'test'}, max_retries=3, delay=0
     )
 
     with open(agent.logfile.name) as f:
+        f.seek(0)
         contents = f.read()
 
+    msg = (
+        'POST request succeeded on attempt 2: %s'
+        % b'{"message":"received"}'
+    )
+
     assert call_count['count'] == 2
-    assert result == b'Retry Success'
-    assert 'Retrying in 0 seconds...' in contents
-    assert 'Success on attempt 2' in contents
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+    )
 
 
 def test_post_data_max_retries_fail(monkeypatch):
@@ -383,6 +293,78 @@ def test_post_data_max_retries_fail(monkeypatch):
 
     assert 'All 3 attempts failed. Data not sent.' in contents
     assert 'Permanent error' in contents
+
+
+def test_post_data_to_controller_success(monkeypatch):
+    """
+    Test that successful POST request to controller is properly handled
+    and logged.
+    """
+
+    def mock_urlopen(request, timeout=5):
+
+        class MockResponse(object):
+
+            def getcode(self):
+                return 201
+
+            def read(self):
+                return b'{"message":"received"}'
+
+            def close(self):
+                pass
+
+        return MockResponse()
+
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
+
+    agent = MockAgent(port=12345)
+    agent.controller_url = 'http://mock/controller/'
+
+    agent.post_data(
+        'server/status/', {'to_controller': 'test'}, to_controller=True
+    )
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = (
+        'POST request succeeded on attempt 1: %s' % b'{"message":"received"}'
+    )
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+    )
+
+
+def test_post_data_to_controller_missing_url():
+    """Test that missing controller URL is properly handled and logged."""
+    agent = MockAgent(port=12345)
+
+    # Set controller's URL explicitly to be independent of changes
+    # of default values in agent.py/
+    agent.controller_url = None
+
+    agent.post_data(
+        url='', payload={'to_controller': 'test'}, to_controller=True
+    )
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = (
+        "Couldn't send POST request to controller: controller URL is not set"
+    )
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
 def test_fetch_command_from_controller_success(monkeypatch):

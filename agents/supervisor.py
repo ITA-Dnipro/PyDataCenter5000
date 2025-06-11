@@ -12,6 +12,8 @@ class AgentSupervisor(object):
         self.agent = agent
         self.running = False
 
+        self._tasks = []
+
     @property
     def logger(self):
         return logging.getLogger(
@@ -49,7 +51,10 @@ class AgentSupervisor(object):
 
                 coro.sleep_relative(interval)
 
-        coro.spawn(run_task, *args, **kwargs)
+        coroutine = coro.spawn(run_task, *args, **kwargs)
+        self._tasks.append(coroutine)
+
+        return coroutine
 
     def schedule_exit(
         self, stop_condition, interval=30, prestop=None, *args, **kwargs
@@ -77,4 +82,4 @@ class AgentSupervisor(object):
 
                 coro.set_exit()
 
-        self.schedule(exit, interval=interval)
+        return self.schedule(exit, interval=interval)

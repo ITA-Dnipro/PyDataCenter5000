@@ -511,19 +511,64 @@ class ServerAgent(object):
             )
 
     def post_data(
-        self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
+        self,
+        url,
+        payload,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        to_controller=False,
+        **kwargs
     ):
         """
-        Sends a POST request with JSON data to the specified URL
-        with retry logic. Retries up to `max_retries` times with `delay`
+        Sends a POST request with JSON data to the specified URL with
+        retry logic. Retries up to `max_retries` times with `delay`
         seconds between attempts. Logs all attempts and failures.
+
+        Parameters:
+            url (str): Endpoint URL or, for `to_controller=True`,
+                suffix of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            payload (Any): Data to send via POST request. If not a string,
+                JSON serialization will be attempted.
+            api_key (str, optiona): API key for authorization. Default
+                is None.
+            max_retries (int, optional): Maximum number of retry attempts.
+                Default is 3.
+            delay (int, optional): Delay (in seconds) between retries.
+                Default is 5.
+            timeout (int, optional): POST request timeout (in seconds).
+                Default is 5.
+            to_controller (bool, optional): Whether data is to be sent
+                to controller. Default is False.
+            **kwargs: Key-value pairs to be appended to the header.
         """
+        if to_controller:
+            if not self.controller_url:
+                maybe_log_message(
+                    (
+                        "Couldn't send POST request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                )
+                return
+
+            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            url = urljoin(base_api_url, url)
+
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
                 {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
             )
-        payload = json.dumps(data).encode('utf-8')
+        if kwargs:
+            headers.update(kwargs)
+
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -550,7 +595,9 @@ class ServerAgent(object):
                 response.close()
 
                 maybe_log_message(
-                    'Success on attempt %d: %s' % (attempt, result),
+                    'POST request succeeded on attempt %d: %s' % (
+                        attempt, result
+                    ),
                     logger=self.logger,
                     fallback_logger=FALLBACK_LOGGER,
                     level=logging.INFO
@@ -585,67 +632,6 @@ class ServerAgent(object):
                     raise RuntimeError(
                         'POST failed after %d attempts' % max_retries
                     )
-
-    def status_to_controller(
-        self, api_key=None, max_retries=3, delay=5, timeout=5
-    ):
-        """
-        Sends a POST request with JSON data to the specified URL, including
-        optional authentication, and with built-in retry logic.
-
-        Parameters:
-            url (str): Target URL for the POST request.
-            data (dict): Data to send as JSON payload.
-            auth_token_type (str): Token type prefix for the Authorization
-                header (e.g., 'Bearer').
-            api_key (str): API key to be used for the Authorization header. If
-                None, no auth header is added.
-            max_retries (int): Maximum number of retry attempts on failure.
-                Default is MAX_RETRIES.
-            delay (int | float): Delay (in seconds) between
-        """
-        if not self.controller_url:
-            maybe_log_message(
-                "Couldn't send status update: controller URL is not set",
-                logger=self.logger,
-                fallback_logger=FALLBACK_LOGGER,
-            )
-            return
-
-        payload_str = self.status_to_json(log=False)
-        payload = json.loads(payload_str)
-
-        try:
-            result = self.post_data(
-                self.controller_url,
-                payload,
-                api_key,
-                max_retries,
-                delay,
-                timeout
-            )
-
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    fallback_logger=FALLBACK_LOGGER,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    fallback_logger=FALLBACK_LOGGER,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=FALLBACK_LOGGER,
-                exc_info=True,
-            )
 
     def fetch_command_from_controller(
         self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs

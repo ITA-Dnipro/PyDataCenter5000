@@ -7,6 +7,7 @@ import platform
 import socket
 import subprocess
 import time
+import uuid
 from collections import Sequence
 
 import attr
@@ -731,4 +732,4 @@ class ServerAgent(object):
             return
 
         if command_history.command in self.whitelist_commands:
-            self.queue.insert(command_history)
+            self.queue.insert(uuid.uuid4().int, command_history)

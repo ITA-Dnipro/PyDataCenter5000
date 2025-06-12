@@ -25,6 +25,7 @@ def main():
     credentials = base64.b64encode(credentials).decode('utf-8')
 
     agent = SMTPAgent.from_config_file()
+    agent.collect_server_metadata()
 
     supervisor = AgentSupervisor(agent)
 
@@ -38,7 +39,7 @@ def main():
 
             agent.maybe_add_to_queue(data)
 
-    nexec = [0]
+    retries = [0]
 
     def execute_command(timeout):
         command_history = None
@@ -66,8 +67,6 @@ def main():
                 stdout, stderr = proc.communicate()
                 output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
-                nexec[0] += 1
-
                 logging.info(
                     'Command %s finished with status %s' % (
                         command_history.command, proc.returncode
@@ -81,11 +80,13 @@ def main():
                     exc_info=True,
                 )
 
+        retries[0] += 1
+
     supervisor.schedule(fetch_command, interval=10, credentials=credentials)
     supervisor.schedule(execute_command, interval=10, timeout=5)
 
     supervisor.schedule_exit(
-        stop_condition=lambda: nexec[0] >= 2, interval=10
+        stop_condition=lambda: retries[0] >= 3, interval=10
     )
 
     supervisor.start()

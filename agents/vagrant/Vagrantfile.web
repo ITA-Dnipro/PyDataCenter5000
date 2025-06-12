@@ -13,91 +13,12 @@ Vagrant.configure("2") do |config|
     SHELL
   end
 
+  # Base system provisioning
   config.vm.provision "shell", inline: VagrantCommon.base_provision
 
   # Install and configure Nginx
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Nginx
-    sudo apt-get update
-    sudo apt-get install -y nginx
+  config.vm.provision "shell", path: File.join(File.dirname(__FILE__), "provision", "install_nginx.sh")
 
-    # Configure Nginx as reverse proxy
-    sudo tee /etc/nginx/sites-available/fastapi << 'NGINXCONF'
-server {
-    listen 80;
-    server_name _;
-
-    location / {
-        proxy_pass http://127.0.0.1:#{ENV_WEB["PORT"]};
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_redirect off;
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-NGINXCONF
-
-    # Enable the site and restart Nginx
-    sudo ln -sf /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
-    sudo rm -f /etc/nginx/sites-enabled/default
-    sudo nginx -t
-    sudo systemctl reload nginx
-  SHELL
-
-  # Set up Python virtual environment and FastAPI server
-  config.vm.provision "shell", inline: <<-SHELL
-    set -e
-
-    # Install python3-venv
-    sudo apt-get update
-    sudo apt-get install -y python3-venv
-
-    # Create virtual environment in /opt
-    sudo mkdir -p /opt/fastapi
-    sudo chown vagrant:vagrant /opt/fastapi
-    cd /opt/fastapi
-    python3 -m venv venv
-    source venv/bin/activate
-
-    # Install requirements
-    pip install -r /home/vagrant/server/requirements.txt
-
-    # Create systemd service for FastAPI
-    sudo tee /etc/systemd/system/fastapi.service << EOF
-[Unit]
-Description=FastAPI via Gunicorn
-After=network.target
-
-[Service]
-User=vagrant
-WorkingDirectory=/home/vagrant/server
-Environment="PATH=/opt/fastapi/venv/bin"
-Environment="VIRTUAL_ENV=/opt/fastapi/venv"
-Environment="PORT=#{ENV_WEB["PORT"]}"
-ExecStart=/opt/fastapi/venv/bin/gunicorn main:app \\
-  -k uvicorn.workers.UvicornWorker \\
-  --bind 0.0.0.0:\${PORT} \\
-  --workers $(nproc) \\
-  --pythonpath /home/vagrant/server
-Restart=always
-StandardOutput=journal
-StandardError=journal
-
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-
-    # Enable and start the service
-    sudo systemctl daemon-reload
-    sudo systemctl enable fastapi
-    sudo systemctl start fastapi
-  SHELL
+  # Set up Python environment and FastAPI server
+  config.vm.provision "shell", path: File.join(File.dirname(__FILE__), "provision", "setup_fastapi.sh")
 end

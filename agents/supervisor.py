@@ -10,15 +10,18 @@ class AgentSupervisor(object):
 
     def __init__(self, agent):
         self.agent = agent
-        self.running = False
 
-        self._tasks = []
+        self.coros = {}  # Store coroutine IDs and references
 
     @property
     def logger(self):
         return logging.getLogger(
             '-'.join([self.agent.server_name, 'supervisor'])
         )
+
+    @property
+    def last_coro(self):
+        return max(self.coros.keys()) if self.coros else 0
 
     def start(self):
         """Starts the event loop. Blocks until excplicitly stopped."""
@@ -32,14 +35,13 @@ class AgentSupervisor(object):
                 level=logging.INFO,
             )
 
-            self.running = False
             coro.set_exit()
 
     def sleep(self, interval):
         """Yield to event loop for a duration of the interval."""
         coro.sleep_relative(interval)
 
-    def schedule(self, task, interval=5, *args, **kwargs):
+    def schedule(self, task, max_retries=3, interval=5, *args, **kwargs):
         """
         Schedule a periodic coroutine task.
 
@@ -50,11 +52,10 @@ class AgentSupervisor(object):
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
         """
-        if not self.running:
-            self.running = True
+        idx = self.last_coro + 1
 
-        def run_task(*args, **kwargs):
-            while self.running:
+        def run_task():
+            for _ in range(max_retries):
                 try:
                     task(*args, **kwargs)
                 except Exception as e:
@@ -65,15 +66,31 @@ class AgentSupervisor(object):
                     )
 
                 self.sleep(interval)
+            else:
+                maybe_log_message(
+                    'Task %d finished' % idx,
+                    logger=self.logger,
+                    fallback_logger=FALLBACK_LOGGER,
+                )
 
-        coroutine = coro.spawn(run_task, *args, **kwargs)
-        self._tasks.append(coroutine)
+                self.unschedule(idx)
 
-        return coroutine
+        coroutine = coro.spawn(run_task)
+        self.coros[idx] = coroutine
 
-    def schedule_exit(
-        self, stop_condition, interval=5, prestop=None, *args, **kwargs
-    ):
+        return idx
+
+    def unschedule(self, idx):
+        if idx not in self.coros:
+            maybe_log_message(
+                'Coroutine %d not in tasks' % idx,
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+            )
+
+        self.coros.pop(idx)
+
+    def schedule_exit(self, interval=1, prestop=None, *args, **kwargs):
         """
         Schedule a periodic check for a stopping condition. When the
         condition is met, optionally run a prestop callable and exit.
@@ -89,14 +106,12 @@ class AgentSupervisor(object):
             **kwargs: Keyword arguments passed to prestop callable.
         """
         def exit():
-            if stop_condition():
+            while self.coros:
+                self.sleep(interval)
+            else:
                 if prestop is not None:
                     prestop(*args, **kwargs)
 
-                self.running = False
-
                 coro.set_exit()
 
-            self.sleep(interval)
-
-        return self.schedule(exit)
+        return self.schedule(exit, max_retries=1, interval=interval)

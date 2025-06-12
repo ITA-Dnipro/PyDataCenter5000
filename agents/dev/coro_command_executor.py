@@ -39,8 +39,6 @@ def main():
 
             agent.maybe_add_to_queue(data)
 
-    retries = [0]
-
     def execute_command(timeout):
         command_history = None
 
@@ -84,12 +82,10 @@ def main():
                     exc_info=True,
                 )
 
-        retries[0] += 1
-
     supervisor.schedule(fetch_command, interval=5, credentials=credentials)
     supervisor.schedule(execute_command, interval=5, timeout=2)
 
-    supervisor.schedule_exit(stop_condition=lambda: retries[0] >= 3)
+    supervisor.schedule_exit()
 
     supervisor.start()
 

@@ -1,13 +1,14 @@
 import json
 import os
+import platform
 import socket
 import tempfile
 import types
 
 import mock
+import psutil
 import pytest
 import urllib2
-import psutil
 
 from agents.agent import CommandHistory, ServerAgent
 
@@ -31,6 +32,26 @@ TIMEOUT_ERROR_OUTPUT = (
 UNEXPECTED_ERROR_OUTPUT = (
     Exception('Unexpected error occurred'), 'Unexpected error occurred'
 )
+
+
+def setup_interface_test(monkeypatch, net_if_addrs_mock):
+    """Helper function to setup common test environment for interface tests."""
+    def mock_gethostbyname(hostname):
+        raise socket.gaierror('Name or service not known')
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', net_if_addrs_mock)
+    monkeypatch.setattr(socket, 'gethostbyname', mock_gethostbyname)
+
+    agent = MockAgent(port=12345, interface='nonexistent')
+    agent.collect_server_metadata()
+
+    assert agent.ip is None
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    return contents
 
 
 class MockAgent(ServerAgent):
@@ -597,7 +618,7 @@ def test_is_port_open_invalid_port():
     """Test that is_port_open raises ValueError for invalid port."""
     agent = MockAgent()
     agent.port = -1
-    
+
     with pytest.raises(ValueError, match='Port not set'):
         agent.is_port_open()
 
@@ -606,7 +627,7 @@ def test_is_port_open_missing_ip():
     """Test that is_port_open returns False when IP is not set."""
     agent = MockAgent(port=12345)
     agent.ip = None
-    
+
     assert not agent.is_port_open()
 
 
@@ -614,7 +635,7 @@ def test_is_port_open_missing_protocol():
     """Test that is_port_open raises ValueError when protocol is not set."""
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
-    
+
     with pytest.raises(ValueError, match='Protocol not set'):
         agent.is_port_open()
 
@@ -628,21 +649,21 @@ def test_protocol_property_default():
 def test_protocol_setter_type_error():
     """Test that protocol setter raises TypeError for non-string values."""
     agent = MockAgent(port=12345)
-    
+
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = 123
-    
+
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = None
 
 
 def test_protocol_setter_value_error():
-    """Test that protocol setter raises ValueError for invalid protocol values."""
+    """Test that protocol setter raises ValueError for invalid protocols."""
     agent = MockAgent(port=12345)
-    
-    with pytest.raises(ValueError, match='Unknown protocol value invalid_protocol'):
+
+    with pytest.raises(ValueError, match='Unknown protocol value'):
         agent.protocol = 'invalid_protocol'
-    
+
     with pytest.raises(ValueError, match='Unknown protocol value'):
         agent.protocol = 'HTTP'
 
@@ -652,13 +673,13 @@ def test_is_port_open_tcp_success(monkeypatch):
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
     agent.protocol = 'tcp'
-    
+
     mock_socket = mock.MagicMock()
     mock_socket.connect = mock.MagicMock()
     mock_socket.close = mock.MagicMock()
-    
+
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
-    
+
     assert agent.is_port_open()
     mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
     mock_socket.close.assert_called_once()
@@ -669,13 +690,15 @@ def test_is_port_open_tcp_failure(monkeypatch):
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
     agent.protocol = 'tcp'
-    
+
     mock_socket = mock.MagicMock()
-    mock_socket.connect = mock.MagicMock(side_effect=socket.error('Connection refused'))
+    mock_socket.connect = mock.MagicMock(
+        side_effect=socket.error('Connection refused')
+    )
     mock_socket.close = mock.MagicMock()
-    
+
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
-    
+
     assert not agent.is_port_open()
     mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
     mock_socket.close.assert_called_once()
@@ -686,13 +709,13 @@ def test_is_port_open_udp_success(monkeypatch):
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
-    
+
     mock_socket = mock.MagicMock()
     mock_socket.sendto = mock.MagicMock()
     mock_socket.close = mock.MagicMock()
-    
+
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
-    
+
     assert agent.is_port_open()
     mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
     mock_socket.close.assert_called_once()
@@ -703,14 +726,16 @@ def test_is_port_open_udp_with_packet_size(monkeypatch):
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
-    
+
     mock_socket = mock.MagicMock()
     mock_socket.sendto = mock.MagicMock()
-    mock_socket.recvfrom = mock.MagicMock(return_value=(b'response', ('127.0.0.1', 12345)))
+    mock_socket.recvfrom = mock.MagicMock(
+        return_value=(b'response', ('127.0.0.1', 12345))
+    )
     mock_socket.close = mock.MagicMock()
-    
+
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
-    
+
     assert agent.is_port_open(packet_size=8)
     mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
     mock_socket.recvfrom.assert_called_once_with(8)
@@ -722,14 +747,16 @@ def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
     agent = MockAgent(port=12345)
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
-    
+
     mock_socket = mock.MagicMock()
     mock_socket.sendto = mock.MagicMock()
-    mock_socket.recvfrom = mock.MagicMock(return_value=(b'short', ('127.0.0.1', 12345)))
+    mock_socket.recvfrom = mock.MagicMock(
+        return_value=(b'short', ('127.0.0.1', 12345))
+    )
     mock_socket.close = mock.MagicMock()
-    
+
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
-    
+
     assert not agent.is_port_open(packet_size=8)
     mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
     mock_socket.recvfrom.assert_called_once_with(8)
@@ -740,9 +767,9 @@ def test_get_ip_from_interface_not_found(monkeypatch):
     """Test that None is returned when interface is not found."""
     def mock_net_if_addrs():
         return {'mock_interface': []}
-    
+
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
-    
+
     from agents.agent import get_ip_from_interface
     assert get_ip_from_interface('nonexistent_interface') is None
 
@@ -758,9 +785,9 @@ def test_get_ip_from_interface_loopback_only(monkeypatch):
                 )
             ]
         }
-    
+
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
-    
+
     from agents.agent import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') is None
 
@@ -776,9 +803,9 @@ def test_get_ip_from_interface_valid_ipv4(monkeypatch):
                 )
             ]
         }
-    
+
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
-    
+
     from agents.agent import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
 
@@ -802,11 +829,115 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
                 )
             ]
         }
-    
+
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
-    
+
     from agents.agent import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
+
+
+def test_collect_server_metadata_os_detection(monkeypatch):
+    """Test successful OS type detection."""
+    def mock_system():
+        return 'Linux'
+
+    monkeypatch.setattr(platform, 'system', mock_system)
+
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+
+    assert agent.os_type == 'linux'
+
+
+def test_collect_server_metadata_unknown_os(monkeypatch):
+    """Test handling of undetectable OS type."""
+    def mock_system():
+        return ''
+
+    monkeypatch.setattr(platform, 'system', mock_system)
+
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+
+    assert agent.os_type == 'unknown'
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    assert 'Could not deduce OS type' in contents
+
+
+def test_collect_server_metadata_interface_ip_success(monkeypatch):
+    """Test successful IP address retrieval from interface."""
+    def mock_net_if_addrs():
+        return {
+            'eth0': [
+                mock.MagicMock(
+                    address='192.168.1.1',
+                    family=socket.AF_INET
+                )
+            ]
+        }
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+
+    agent = MockAgent(port=12345, interface='eth0')
+    agent.collect_server_metadata()
+
+    assert agent.ip == '192.168.1.1'
+
+
+def test_collect_server_metadata_interface_key_error(monkeypatch):
+    """Test handling of KeyError when getting IP from interface."""
+    def mock_net_if_addrs():
+        return {}
+
+    contents = setup_interface_test(monkeypatch, mock_net_if_addrs)
+    expected_msg = (
+        'Could not deduce IP address from hostname: '
+        'Name or service not known'
+    )
+    assert expected_msg in contents
+
+
+def test_collect_server_metadata_interface_attribute_error(monkeypatch):
+    """Test handling of AttributeError when getting IP from interface."""
+    def mock_net_if_addrs():
+        return {
+            'eth0': [
+                mock.MagicMock(
+                    address=None,
+                    family=None
+                )
+            ]
+        }
+
+    contents = setup_interface_test(monkeypatch, mock_net_if_addrs)
+    expected_msg = (
+        'Could not deduce IP address from hostname: '
+        'Name or service not known'
+    )
+    assert expected_msg in contents
+
+
+def test_collect_server_metadata_hostname_error(monkeypatch):
+    """Test handling of socket error when getting hostname."""
+    def mock_gethostname():
+        raise socket.error('Failed to get hostname')
+
+    monkeypatch.setattr(socket, 'gethostname', mock_gethostname)
+
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+
+    assert agent.hostname == 'unknown'
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    assert 'Could not get hostname: Failed to get hostname' in contents
 
 
 def test_default_whitelist_commands_is_empty_list():
@@ -871,7 +1002,10 @@ whitelist_commands = cmd1,cmd2,cmd3
         assert agent.port == 12345
         assert agent.processes == ['proc1', 'proc2', 'proc3']
         assert agent.interface == 'eth0'
-        assert all(cmd in agent.whitelist_commands for cmd in ['cmd1', 'cmd2', 'cmd3'])
+        assert all(
+            cmd in agent.whitelist_commands
+            for cmd in ['cmd1', 'cmd2', 'cmd3']
+        )
 
 
 def test_config_file_missing_options():
@@ -901,7 +1035,7 @@ def test_config_file_empty_processes():
 [server]
 name = test_server
 port = 12345
-processes = 
+processes =
 """
         tmp.write(config_content)
         tmp.flush()
@@ -919,7 +1053,7 @@ name = test_server
 port = 12345
 
 [controller]
-whitelist_commands = 
+whitelist_commands =
 """
         tmp.write(config_content)
         tmp.flush()

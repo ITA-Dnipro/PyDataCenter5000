@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from dateutil.parser import isoparse
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
@@ -506,10 +507,16 @@ class MetricsHistoryViewTests(APITestCase):
             status.HTTP_200_OK,
             f'Expected 200 OK, got {response.status_code}'
         )
-        self.assertEqual(
-            len(response.data),
-            2,
-            f'Expected 2 metrics, got {len(response.data)}'
+        expected_timestamps = {
+            self.metric_mid.timestamp,
+            self.metric_latest.timestamp
+        }
+        returned_timestamps = {item['timestamp'] for item in response.data}
+        self.assertSetEqual(
+            returned_timestamps,
+            expected_timestamps,
+            f'Expected timestamps {expected_timestamps}, '
+            f'got {returned_timestamps}'
         )
 
     def test_filter_by_end_time(self):
@@ -526,6 +533,12 @@ class MetricsHistoryViewTests(APITestCase):
             len(response.data),
             1,
             f'Expected 1 metric, got {len(response.data)}'
+        )
+        self.assertEqual(
+            response.data[0]['timestamp'],
+            self.metric_early.timestamp,
+            f'Expected timestamp {self.metric_early.timestamp.isoformat()}, '
+            f"got {response.data[0]['timestamp']}"
         )
 
     def test_filter_by_start_and_end_time(self):
@@ -550,6 +563,13 @@ class MetricsHistoryViewTests(APITestCase):
             f'Expected 1 metric between start and end, got '
             f'{len(response.data)}'
         )
+        expected_ts = self.metric_mid.timestamp
+        self.assertEqual(
+            response.data[0]['timestamp'],
+            expected_ts,
+            f'Expected timestamp {expected_ts}, '
+            f"got {response.data[0]['timestamp']}"
+        )
 
     def test_invalid_time_format(self):
         response = self.client.get(self.url, {'start': 'invalid-date'})
@@ -561,7 +581,7 @@ class MetricsHistoryViewTests(APITestCase):
         )
         self.assertIn(
             'start', response.data, "Expected 'start' key in error response"
-            )
+        )
 
     def test_unauthenticated_access_denied(self):
         self.client.logout()

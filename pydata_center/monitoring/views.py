@@ -11,10 +11,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .helpers import get_latest_agents
-from .models import AgentMetric, CommandHistory, ServerStatus
+from .models import CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
-                          ServerStatusSerializer)
-from .utils import extract_status_data, get_client_ip
+                          ServerStatusSerializer, TriggeredAlertSerializer)
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 
@@ -295,3 +295,8 @@ def create_agent_metric(request):
         serializer.save()
         return Response({'status': 'metric recorded'}, status=201)
     return Response(serializer.errors, status=400)
+
+
+class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TriggeredAlert.objects.order_by('-triggered_at')
+    serializer_class = TriggeredAlertSerializer

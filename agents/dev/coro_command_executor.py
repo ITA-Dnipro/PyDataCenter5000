@@ -53,6 +53,10 @@ def main():
 
             if len(agent.queue) > 0:
                 command_history = agent.queue.pop()
+
+                logging.warning(
+                    'Command %s received' % command_history.command
+                )
                 break
 
             supervisor.sleep(0.1)

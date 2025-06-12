@@ -264,6 +264,7 @@ else:
             },
         },
         'loggers': {
+            'root': {'handlers': ['console'], 'level': 'DEBUG'},
             'django': {
                 'handlers': ['file', 'console'],
                 'level': 'INFO',
@@ -280,6 +281,22 @@ SIMPLE_JWT = {
   'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+ALERT_RATE_LIMIT_SECONDS = 300
+
+CELERY_BEAT_SCHEDULE = {
+    'evaluate-agent-alerts-every-5-minutes': {
+        'task': 'monitoring.tasks.evaluate_agent_alerts',
+        'schedule': 30.0,
+    },
+}
+
+DEFAULT_ALERT_DESTINATIONS = ['discord']
+ALERT_FAIL_SILENTLY = True
+
+ALERT_EMAIL_RECIPIENTS = []
+DEFAULT_FROM_EMAIL = ALERT_EMAIL_SENDER = ''
+
+ALERT_DISCORD_WEBHOOK = os.environ.get('DISCORD_ALERT_WEBHOOK')
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

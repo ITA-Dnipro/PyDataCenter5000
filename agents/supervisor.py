@@ -22,7 +22,18 @@ class AgentSupervisor(object):
 
     def start(self):
         """Starts the event loop. Blocks until excplicitly stopped."""
-        coro.event_loop()
+        try:
+            coro.event_loop()
+        except KeyboardInterrupt:
+            maybe_log_message(
+                'Interrupted: exiting event loop...',
+                logger=self.logger,
+                fallback_logger=FALLBACK_LOGGER,
+                level=logging.INFO,
+            )
+
+            self.running = False
+            coro.set_exit()
 
     def sleep(self, interval):
         """Yield to event loop for a duration of the interval."""

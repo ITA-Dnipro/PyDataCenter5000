@@ -741,7 +741,7 @@ class ServerAgent(object):
         Get the current RAM usage percentage.
         """
         try:
-            mem = psutil.virtual_memory().percent()
+            mem = psutil.virtual_memory()
             return mem.percent
         except Exception as e:
             maybe_log_message(
@@ -770,7 +770,7 @@ class ServerAgent(object):
         Get the current disk usage percentage for the root filesystem.
         """
         try:
-            usage = psutil.disk_usage('/').percent()
+            usage = psutil.disk_usage('/')
             return usage.percent
         except Exception as e:
             maybe_log_message(
@@ -786,18 +786,20 @@ class ServerAgent(object):
         """
         return {
             'hostname': self.hostname,
-            'cpu_usage_percent': self.get_cpu_usage(),
-            'ram_usage_percent': self.get_ram_usage(),
-            'disk_usage_percent': self.get_disk_usage(),
-            'load_avg_1min': self.get_load_average()
+            'cpu': self.get_cpu_usage(),
+            'ram': self.get_ram_usage(),
+            'disk': self.get_disk_usage(),
+            'load_avg': self.get_load_average(),
+            'timestamp': datetime.datetime.now().isoformat(),
         }
 
     def send_metrics_to_controller(
         self,
+        suffix='agent/metrics/',
         api_key=None,
         max_retries=3,
         delay=5,
-        timeout=5
+        timeout=5,
     ):
         """
         Sends a POST request with JSON data to the controller URL,
@@ -809,27 +811,20 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
-            return False
+            return
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        metrics_api_url = urljoin(base_api_url, suffix)
 
-        try:
-            payload_str = self.status_to_json(log=False)
-            payload = json.loads(payload_str)
-        except Exception as e:
-            maybe_log_message(
-                'Failed to prepare payload: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return False
+        payload = self.generate_report()
 
         try:
             result = self.post_data(
-                url=self.controller_url,
-                data=payload,
-                api_key=api_key,
-                max_retries=max_retries,
-                delay=delay,
-                timeout=timeout
+                metrics_api_url,
+                payload,
+                api_key,
+                max_retries,
+                delay,
+                timeout
             )
 
             if result:
@@ -839,16 +834,13 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO,
                 )
-                return True
             else:
                 maybe_log_message(
-                    'POST request to controller returned empty result.',
+                    'POST request to controller failed after retries.',
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
-                    level=logging.WARNING,
+                    exc_info=True,
                 )
-                return False
-
         except Exception as e:
             maybe_log_message(
                 'Unexpected error during status update: %s' % str(e),
@@ -856,4 +848,3 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
-            return False

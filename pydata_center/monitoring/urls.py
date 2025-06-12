@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import (CommandHistoryViewSet, dashboard_view,
+from .views import (CommandHistoryViewSet, create_agent_metric, dashboard_view,
                     fetch_pending_command, receive_status,
                     submit_command_result)
 
@@ -28,4 +28,7 @@ urlpatterns = [
         dashboard_view,
         name='dashboard'
     ),
+    path('agent/metrics/',
+         create_agent_metric,
+         name='agent-metrics')
 ]

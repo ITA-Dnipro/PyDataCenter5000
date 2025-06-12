@@ -49,6 +49,8 @@ def main():
         start = time.time()
 
         while True:
+            logging.info('Waiting for commands')
+
             if time.time() - start > timeout:
                 logging.warning('No command received in allocated time')
                 break

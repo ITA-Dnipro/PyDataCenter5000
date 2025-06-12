@@ -7,7 +7,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('monitoring', '0006_webhook'),
-        ('monitoring', '0011_remove_alertrule_monitoring__metric_078946_idx_and_more'),
+        (
+            'monitoring',
+            '0011_remove_alertrule_monitoring__metric_078946_idx_and_more'
+        ),
     ]
 
     operations = [

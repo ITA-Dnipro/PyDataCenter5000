@@ -63,7 +63,6 @@ class AgentSupervisor(object):
                         logger=self.logger,
                         fallback_logger=FALLBACK_LOGGER,
                     )
-                self.sleep(5)
 
         coroutine = coro.spawn(run_task, *args, **kwargs)
         self._tasks.append(coroutine)

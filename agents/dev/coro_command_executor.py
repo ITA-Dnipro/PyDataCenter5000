@@ -29,7 +29,7 @@ def main():
 
     supervisor = AgentSupervisor(agent)
 
-    def fetch_command(credentials, interval=5, **kwargs):
+    def fetch_command(credentials, **kwargs):
         data = agent.fetch_command_from_controller(
             Authorization='Basic %s' % credentials, **kwargs
         )
@@ -39,11 +39,9 @@ def main():
 
             agent.maybe_add_to_queue(data)
 
-        supervisor.sleep(interval)
-
     retries = [0]
 
-    def execute_command(timeout, interval=5):
+    def execute_command(timeout):
         command_history = None
 
         start = time.time()
@@ -88,10 +86,8 @@ def main():
 
         retries[0] += 1
 
-        supervisor.sleep(interval)
-
-    supervisor.schedule(fetch_command, credentials=credentials)
-    supervisor.schedule(execute_command, timeout=10)
+    supervisor.schedule(fetch_command, interval=5, credentials=credentials)
+    supervisor.schedule(execute_command, interval=5, timeout=2)
 
     supervisor.schedule_exit(stop_condition=lambda: retries[0] >= 3)
 

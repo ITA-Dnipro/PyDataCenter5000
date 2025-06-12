@@ -39,7 +39,7 @@ class AgentSupervisor(object):
         """Yield to event loop for a duration of the interval."""
         coro.sleep_relative(interval)
 
-    def schedule(self, task, *args, **kwargs):
+    def schedule(self, task, interval=5, *args, **kwargs):
         """
         Schedule a periodic coroutine task.
 
@@ -63,6 +63,8 @@ class AgentSupervisor(object):
                         logger=self.logger,
                         fallback_logger=FALLBACK_LOGGER,
                     )
+
+                self.sleep(interval)
 
         coroutine = coro.spawn(run_task, *args, **kwargs)
         self._tasks.append(coroutine)

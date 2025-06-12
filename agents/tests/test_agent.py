@@ -1085,3 +1085,171 @@ whitelist_commands = config_cmd1,config_cmd2
         assert 'config_cmd2' in agent.whitelist_commands
 
     MockAgent.whitelist_commands = None
+
+
+def test_fetch_command_from_controller_headers_default():
+    """Test that default headers are set correctly."""
+    agent = MockAgent(port=12345)
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.fetch_command_from_controller()
+
+    assert captured_request['headers'] == {'Accept': 'application/json'}
+
+
+def test_fetch_command_from_controller_headers_with_api_key():
+    """Test that headers include Authorization when api_key is provided."""
+    agent = MockAgent(port=12345)
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+    agent.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.fetch_command_from_controller(api_key='test-token')
+
+    expected_headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer test-token'
+    }
+    assert captured_request['headers'] == expected_headers
+
+
+def test_fetch_command_from_controller_headers_with_kwargs():
+    """Test that additional headers from kwargs are added correctly."""
+    agent = MockAgent(port=12345)
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+    agent.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.fetch_command_from_controller(
+            api_key='test-token',
+            CustomHeader='custom-value',
+            XRequestID='12345'
+        )
+
+    expected_headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer test-token',
+        'Customheader': 'custom-value',
+        'Xrequestid': '12345'
+    }
+    assert captured_request['headers'] == expected_headers
+
+
+def test_fetch_command_from_controller_headers_kwargs_override():
+    """Test that kwargs headers override default headers."""
+    agent = MockAgent(port=12345)
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+    agent.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.fetch_command_from_controller(
+            api_key='test-token',
+            Accept='text/plain'
+        )
+
+    expected_headers = {
+        'Accept': 'text/plain',
+        'Authorization': 'Bearer test-token'
+    }
+    assert captured_request['headers'] == expected_headers
+
+
+def test_fetch_command_from_controller_headers_update():
+    """Test that headers.update correctly adds Authorization header."""
+    agent = MockAgent(port=12345)
+    agent.hostname = 'mock_server'
+    agent.controller_url = 'http://mock/'
+    agent.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.fetch_command_from_controller(api_key='test-token')
+
+    expected_headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer test-token'
+    }
+    assert captured_request['headers'] == expected_headers
+
+
+def test_post_data_headers_update():
+    """Test that post_data correctly adds Authorization header."""
+    agent = MockAgent(port=12345)
+    agent.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.post_data(
+            url='http://mock/api',
+            data={'test': 'data'},
+            api_key='test-token'
+        )
+
+    expected_headers = {
+        'Content-type': 'application/json',
+        'Authorization': 'Bearer test-token'
+    }
+    assert captured_request['headers'] == expected_headers

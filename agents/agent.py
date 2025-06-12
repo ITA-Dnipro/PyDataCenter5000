@@ -18,8 +18,7 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
-from .utils.configtools import (get_config_option, parse_csv_list,
-                                restart_service)
+from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
@@ -455,12 +454,84 @@ class ServerAgent(object):
             return False
 
     @abc.abstractmethod
-    def service_healthy(self):
+    def is_service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
         return self._is_process_running() and self._is_ssh_service_active()
+
+    def restart_service(self, service, attempts):
+        """
+        Attempts to restart a system service with exponential backoff
+        if it is found to be inactive. Logs each attempt and result.
+
+        Parameters:
+            agent (ServerAgent): Agent instance used for logging. Must have
+            `logger` and `fallback_logger` attributes.
+            service (str): Name of the system service to restart (e.g., 'ssh').
+
+        Returns:
+            bool: True if the service was restarted, False otherwise.
+
+        Notes:
+            This function uses 'sudo systemctl restart <service>' and expects
+            that the agent has sufficient privileges to perform the operation.
+            Backoff strategy uses 2s, 4s, and 8s delays between attempts.
+        """
+
+        maybe_log_message(
+            '%s not active. Attempting restart...' % service,
+            self.logger,
+            fallback_logger=self.fallback_logger
+            )
+
+        for delay in range(1, attempts+1):
+            try:
+                maybe_log_message(
+                    'Restarting %s (delay before restart: %s).' % (
+                        service,
+                        delay
+                        ),
+                    self.logger,
+                    fallback_logger=self.fallback_logger
+                    )
+
+                time.sleep(2**delay)
+
+                retcode = subprocess.call([
+                    'sudo',
+                    'systemctl',
+                    'restart',
+                    service
+                    ])
+
+                if retcode == 0:
+                    maybe_log_message(
+                        '%s service restarted successfully.' % service,
+                        self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.INFO
+                        )
+                    return True
+                else:
+                    maybe_log_message(
+                        '%s restart failed with code %s.' % (service, retcode),
+                        self.logger,
+                        fallback_logger=self.fallback_logger
+                        )
+
+            except Exception as restart_err:
+                maybe_log_message(
+                    'Error during %s service restart: %s' % (
+                        service,
+                        restart_err),
+                    self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True
+                    )
+                return False  # Stop after first fatal error
+        return False  # If restsrting failed
 
     def status_to_dict(self):
         return {

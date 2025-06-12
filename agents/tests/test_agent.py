@@ -8,7 +8,7 @@ import mock
 import pytest
 import urllib2
 
-from agents.agent import CommandHistory, ServerAgent
+from ..agent import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -762,3 +762,89 @@ def test_generate_report():
         ram_patch.stop()
         disk_patch.stop()
         load_patch.stop()
+
+
+def test_send_metrics_to_controller_no_url_returns_none():
+    agent = MockAgent()
+    agent.controller_url = None
+
+    result = agent.send_metrics_to_controller()
+
+    assert result is None
+
+
+def test_send_metrics_to_controller_post_success_returns_true():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+
+    fake_payload = {'data': 'value'}
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            return_value=True
+        ) as mock_post:
+            result = agent.send_metrics_to_controller(api_key='key123')
+
+            expected_url = 'http://controller/api/agent/metrics/'
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                'key123',
+                3,
+                5,
+                5
+            )
+
+            assert result is None
+
+
+def test_send_metrics_to_controller_post_failure_returns_none():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+
+    fake_payload = {'data': 'value'}
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            return_value=False
+        ):
+            result = agent.send_metrics_to_controller()
+            assert result is None
+
+
+def test_send_metrics_to_controller_post_raises_returns_none():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+
+    fake_payload = {'data': 'value'}
+
+    def raise_exc(*args, **kwargs):
+        raise RuntimeError('Boom!')
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            side_effect=raise_exc
+        ):
+            result = agent.send_metrics_to_controller()
+            assert result is None

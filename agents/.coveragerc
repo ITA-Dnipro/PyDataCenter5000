@@ -1,0 +1,6 @@
+[run]
+omit =
+    agents/dev/*
+
+[html]
+directory = agents/htmlcov

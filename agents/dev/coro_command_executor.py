@@ -53,7 +53,7 @@ def main():
                 logging.warning('No command received in allocated time')
                 break
 
-            if agent.queue:
+            if len(agent.queue) > 0:
                 command_history = agent.queue.pop()
                 break
 

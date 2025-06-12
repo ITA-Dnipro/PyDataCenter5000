@@ -41,7 +41,9 @@ class AgentSupervisor(object):
         """Yield to event loop for a duration of the interval."""
         coro.sleep_relative(interval)
 
-    def schedule(self, task, max_retries=3, interval=5, *args, **kwargs):
+    def schedule(
+        self, task, max_retries=3, interval=5, idx=None, *args, **kwargs
+    ):
         """
         Schedule a periodic coroutine task.
 
@@ -52,7 +54,8 @@ class AgentSupervisor(object):
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
         """
-        idx = self.last_coro + 1
+        if idx is None:
+            idx = self.last_coro + 1
 
         def run_task():
             for _ in range(max_retries):
@@ -106,7 +109,7 @@ class AgentSupervisor(object):
             **kwargs: Keyword arguments passed to prestop callable.
         """
         def exit():
-            while self.coros:
+            while any(idx != 0 for idx in self.coros):
                 self.sleep(interval)
             else:
                 if prestop is not None:
@@ -114,4 +117,4 @@ class AgentSupervisor(object):
 
                 coro.set_exit()
 
-        return self.schedule(exit, max_retries=1, interval=interval)
+        return self.schedule(exit, max_retries=1, interval=interval, idx=0)

@@ -58,7 +58,9 @@ class AgentSupervisor(object):
 
         return coroutine
 
-    def schedule_exit(self, stop_condition, prestop=None, *args, **kwargs):
+    def schedule_exit(
+        self, stop_condition, interval=5, prestop=None, *args, **kwargs
+    ):
         """
         Schedule a periodic check for a stopping condition. When the
         condition is met, optionally run a prestop callable and exit.
@@ -81,5 +83,7 @@ class AgentSupervisor(object):
                 self.running = False
 
                 coro.set_exit()
+
+            self.sleep(interval)
 
         return self.schedule(exit)

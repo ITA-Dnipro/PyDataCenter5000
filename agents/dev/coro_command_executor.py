@@ -86,7 +86,7 @@ def main():
 
         retries[0] += 1
 
-        coro.sleep_relative(interval)
+        supervisor.sleep(interval)
 
     supervisor.schedule(fetch_command, credentials=credentials)
     supervisor.schedule(execute_command, timeout=10)

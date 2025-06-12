@@ -39,7 +39,7 @@ def main():
 
             agent.maybe_add_to_queue(data)
 
-        supervisor.sleep(interval)
+        # supervisor.sleep(interval)
 
     retries = [0]
 

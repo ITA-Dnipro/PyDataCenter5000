@@ -88,13 +88,14 @@ class ServerAgent(object):
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
-    default_critical_processes = []
+    critical_processes = None
 
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
@@ -109,16 +110,15 @@ class ServerAgent(object):
         if protocol is not None:
             self.protocol = protocol
 
-        if self.whitelist_commands is None:
-            self.whitelist_commands = []
-
+        self.whitelist_commands = self.whitelist_commands or []
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
-        # Seed critical_processes list from class attribute
-        # (set in __init__.py)
-
-        self._critical_processes = list(self.critical_processes)
+        # Extend the list of global critical processes with those that
+        # are server-specific.
+        self.critical_processes = self.critical_processes or []
+        if critical_processes is not None:
+            self.critical_processes.extend(critical_processes)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -200,19 +200,6 @@ class ServerAgent(object):
     def protocol(self):
         return getattr(self, '_protocol', None)
 
-    @property
-    def critical_processes(self):
-        return getattr(self, '_critical_processes', [])
-
-    @critical_processes.setter
-    def critical_processes(self, value):
-        if not isinstance(value, Sequence):
-            raise TypeError(
-                'critical_processes must be a sequence, not %s' % type(value)
-            )
-
-        self._critical_processes = value
-
     @protocol.setter
     def protocol(self, value):
         if not isinstance(value, (str, unicode)):
@@ -264,6 +251,22 @@ class ServerAgent(object):
                 cast=parse_csv_list,
             )
 
+            # Append server-specific critical_processes
+            critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
+            )
+            # Extend, avoiding duplicates
+            if critical_processes:
+                self.critical_processes.extend(
+                    proc for proc in critical_processes
+                    if proc not in self.critical_processes
+                )
+
             self.interface = get_config_option(
                 config,
                 'server',
@@ -276,30 +279,16 @@ class ServerAgent(object):
                 config,
                 'controller',
                 'whitelist_commands',
-                [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:
-                self.whitelist_commands.extend(whitelist_commands)
-
-            # Merge per-instance critical_processes via get_config_option
-            per = get_config_option(
-                config,
-                'server',
-                'critical_processes',
-                default=self.critical_processes,
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                cast=parse_csv_list,
-            )
-            # Extend, avoiding duplicates
-            self.critical_processes.extend([
-                p for p in per
-                if p not in self.critical_processes
-            ])
+                self.whitelist_commands.extend(
+                    cmd for cmd in whitelist_commands
+                    if cmd not in self.whitelist_commands
+                )
 
     def collect_server_metadata(self):
         """

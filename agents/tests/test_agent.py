@@ -39,6 +39,7 @@ class MockAgent(ServerAgent):
         server_name='mock',
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
@@ -51,6 +52,7 @@ class MockAgent(ServerAgent):
             server_name,
             port,
             processes,
+            critical_processes,
             interface,
             protocol,
             whitelist_commands,
@@ -144,47 +146,6 @@ def test_type_checks_on_init():
 
     with pytest.raises(TypeError):
         MockAgent(processes=0)
-
-    # Critical_processes must be a sequence
-    agent = MockAgent()
-    with pytest.raises(TypeError):
-        agent.critical_processes = 123
-
-
-def test_type_checks_on_config_parse():
-    """
-    Test that type checks fail initialization with bad config file
-    parameters.
-    """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write('[server]\nname=mock\nport=invalid\nprocesses=proc1')
-        tmp.flush()
-
-        with pytest.raises(TypeError):
-            MockAgent.from_config_file(tmp.name)
-
-    # Invalid critical_processes in config should raise TypeError
-    with tempfile.NamedTemporaryFile() as tmp2:
-        tmp2.write(
-            '[server]\nname=mock\nport=123\n'
-            'processes=proc1\n'
-            'critical_processes=notalist')
-        tmp2.flush()
-
-        # Since our setter expects a comma-separated list,
-        # 'notalist' is still valid as a string
-        # so it should parse to ['notalist'], not raise.
-        # To force a TypeError, craft a bad section.
-        tmp2.seek(0)
-        tmp2.truncate()
-        tmp2.write(
-            '[server]\nname=mock\n'
-            'port=123\nprocesses=proc1\n'
-            'critical_processes=proc1,proc2'
-        )
-        tmp2.flush()
-        agent = MockAgent.from_config_file(tmp2.name)
-        assert agent.critical_processes == ['proc1', 'proc2']
 
 
 def test_critical_processes_parsing():

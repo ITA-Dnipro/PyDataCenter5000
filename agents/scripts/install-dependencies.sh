@@ -20,10 +20,11 @@ fi
 set +a
 
 # Set defaults if not set
+: "${INSTALL_ZLIB1G_DEV:=true}"
 : "${INSTALL_FFI:=false}"
 : "${INSTALL_NCURSES:=false}"
 : "${INSTALL_GDBM:=false}"
-: "${INSTALL_OPEN_SSL:=false}"
+: "${INSTALL_OPEN_SSL:=true}"
 : "${INSTALL_READLINE:=false}"
 : "${INSTALL_SQLITE:=false}"
 : "${PYTHON_DIR:=/opt/python2.6}"
@@ -72,6 +73,10 @@ install_python_package_from_src() {
 echo "[INFO] Updating and installing system packages..."
 apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update
 apt-get install -y build-essential zlib1g-dev wget git
+
+if [ "$INSTALL_ZLIB1G_DEV" = "true" ]; then
+    apt-get install -y zlib1g-dev
+fi
 
 if [ "$INSTALL_FFI" = "true" ]; then
     apt-get install -y libffi-dev
@@ -170,6 +175,21 @@ fi
 if ! python -c "import dateutil"; then
     get_package_src_from_tar dateutil "https://files.pythonhosted.org/packages/54/bb/f1db86504f7a49e1d9b9301531181b00a1c7325dc85a29160ee3eaa73a54/python-dateutil-2.6.1.tar.gz"
     install_python_package_from_src dateutil
+fi
+
+if ! python -c "import cython"; then
+    get_package_src_from_tar cython "https://files.pythonhosted.org/packages/b1/51/bd5ef7dff3ae02a2c6047aa18d3d06df2fb8a40b00e938e7ea2f75544cac/Cython-0.24.tar.gz"
+    install_python_package_from_src cython
+fi
+
+if ! python -c "import distribute"; then
+    get_package_src_from_tar distribute "https://files.pythonhosted.org/packages/03/08/16815ba1e7d7dc21289c0ea89bffea4c34cc4d10979d2f3f64837ee51087/distribute-0.6.26.tar.gz"
+    install_python_package_from_src distribute
+fi
+
+if ! python -c "import coro"; then
+    get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"
+    install_python_package_from_src coro
 fi
 
 echo "[INFO] Setup completed successfully."

@@ -9,6 +9,7 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -321,6 +322,11 @@ def metrics_history_view(request):
     start = parse_datetime(start_str) if start_str else None
     end = parse_datetime(end_str) if end_str else None
 
+    if start_str and not start:
+        raise ValidationError({'start': 'Invalid datetime format.'})
+    if end_str and not end:
+        raise ValidationError({'end': 'Invalid datetime format.'})
+
     if start and is_naive(start):
         start = make_aware(start, timezone=utc)
     if end and is_naive(end):
@@ -351,7 +357,7 @@ def metrics_history_view(request):
     return Response(records)
 
 
-def metrics_graphing_view(request):
+def metrics_graphing_page(request):
     hostnames = (
         ServerStatus.objects
         .values_list('hostname', flat=True)

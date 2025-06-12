@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
@@ -549,15 +551,44 @@ class MetricsHistoryViewTests(APITestCase):
             f'{len(response.data)}'
         )
 
-    def test_invalid_time_format_returns_empty(self):
+    def test_invalid_time_format(self):
         response = self.client.get(self.url, {'start': 'invalid-date'})
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
-            f'Expected 200 OK for invalid date, got {response.status_code}'
+            status.HTTP_400_BAD_REQUEST,
+            'Expected 400 Bad Request for invalid date, '
+            f'got {response.status_code}'
         )
+        self.assertIn(
+            'start', response.data, "Expected 'start' key in error response"
+            )
+
+    def test_unauthenticated_access_denied(self):
+        self.client.logout()
+        response = self.client.get(self.url)
         self.assertEqual(
-            len(response.data),
-            3,
-            f'Expected fallback to all 3 metrics, got {len(response.data)}'
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+            'Expected 403 FORBIDDEN for unauthenticated access '
+            f'got {response.status_code}'
+        )
+
+    def test_no_metrics_in_range(self):
+        start = (self.fixed_now + timedelta(minutes=1)).isoformat()
+        response = self.client.get(self.url, {'start': start})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            'Expected 200 OK for no metrics in range, '
+            f'got {response.status_code}'
+        )
+        self.assertEqual(len(response.data), 0)
+
+    def test_naive_start_datetime_is_made_aware(self):
+        naive_start = datetime(2025, 6, 1, 10, 0, 0).isoformat()
+        response = self.client.get(self.url, {'start': naive_start})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK for naive datetime, got {response.status_code}'
         )

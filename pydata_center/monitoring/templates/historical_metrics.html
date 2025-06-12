@@ -27,8 +27,9 @@
 
   <button type="submit">Apply Filter</button>
 </form>
+<div id="loading" style="display: none;">Loading data...</div>
 
-<canvas id="metricsChart" width="800" height="300"></canvas>
+<canvas id="metricsChart"></canvas>
 
 <script src="{% static 'js/historical_metrics.js' %}"></script>
 {% endblock %}

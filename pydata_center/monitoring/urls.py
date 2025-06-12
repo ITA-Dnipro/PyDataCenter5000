@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (CommandHistoryViewSet, dashboard_view,
-                    fetch_pending_command, metrics_graphing_view,
+                    fetch_pending_command, metrics_graphing_page,
                     metrics_history_view, receive_status,
                     submit_command_result)
 
@@ -30,5 +30,5 @@ urlpatterns = [
         name='dashboard'
     ),
     path('metrics/history/', metrics_history_view, name='metrics_history'),
-    path('metrics/graphic/', metrics_graphing_view, name='metrics_graphic'),
+    path('metrics/graphic/', metrics_graphing_page, name='metrics_graphic'),
 ]

@@ -61,6 +61,11 @@ document.getElementById('filterForm').addEventListener('submit', function(e) {
     return;
   }
 
+  if (startInput && endInput && new Date(startInput) > new Date(endInput)) {
+    alert("End date must be after start date.");
+    return;
+  }
+
   const params = new URLSearchParams();
   params.append('hostname', hostname);
 
@@ -86,23 +91,33 @@ document.getElementById('filterForm').addEventListener('submit', function(e) {
 
   const url = `/api/v1/metrics/history/?${params.toString()}`;
 
+  const submitButton = document.querySelector("#filterForm button[type='submit']");
+  document.getElementById('loading').style.display = 'block';
+  submitButton.disabled = true;
+
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      const labels = data.map(item => new Date(item.timestamp).toLocaleString());
-      const cpuData = data.map(item => item.cpu);
-      const ramData = data.map(item => item.ram);
-      const diskData = data.map(item => item.disk);
-      const loadAvgData = data.map(item => item.load_avg);
+      if (!Array.isArray(data) || data.length === 0) {
+        alert("No data available for the selected filters.");
+        return;
+      }
 
-      chart.data.labels = labels;
-      chart.data.datasets[0].data = cpuData;
-      chart.data.datasets[1].data = ramData;
-      chart.data.datasets[2].data = diskData;
-      chart.data.datasets[3].data = loadAvgData;
+      const metricKeys = ['cpu', 'ram', 'disk', 'load_avg'];
+      chart.data.labels = data.map(item => new Date(item.timestamp).toLocaleString());
+
+      metricKeys.forEach((key, i) => {
+        chart.data.datasets[i].data = data.map(item => item[key]);
+      });
+
       chart.update();
     })
     .catch(err => {
       console.error('Error loading data:', err);
+      alert("Failed to load data.");
+    })
+    .finally(() => {
+      document.getElementById('loading').style.display = 'none';
+      submitButton.disabled = false;
     });
 });

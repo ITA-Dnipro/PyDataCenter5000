@@ -14,8 +14,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .helpers import get_latest_agents
-from .models import AgentMetric, CommandHistory, ServerStatus
-from .serializers import CommandHistorySerializer, ServerStatusSerializer
+from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
+from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
+                          TriggeredAlertSerializer)
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -183,6 +184,11 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
 )
 @api_view(['GET'])
 def fetch_pending_command(request):
+    """
+    Endpoint for agents to request pending commands.
+    Returns the earliest command with status 'pending'
+    for the given hostname.
+    """
     hostname = request.query_params.get('hostname')
 
     if not hostname:
@@ -268,6 +274,11 @@ def dashboard_view(request):
         template_name='monitoring/dashboard.html',
         context={'agents': agents}
     )
+
+
+class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TriggeredAlert.objects.order_by('-triggered_at')
+    serializer_class = TriggeredAlertSerializer
 
 
 @extend_schema(

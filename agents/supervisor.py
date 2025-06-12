@@ -24,7 +24,11 @@ class AgentSupervisor(object):
         """Starts the event loop. Blocks until excplicitly stopped."""
         coro.event_loop()
 
-    def schedule(self, task, interval=30, *args, **kwargs):
+    def sleep(self, interval):
+        """Yield to event loop for a duration of the interval."""
+        coro.sleep_relative(interval)
+
+    def schedule(self, task, *args, **kwargs):
         """
         Schedule a periodic coroutine task.
 
@@ -49,16 +53,12 @@ class AgentSupervisor(object):
                         fallback_logger=FALLBACK_LOGGER,
                     )
 
-                coro.sleep_relative(interval)
-
         coroutine = coro.spawn(run_task, *args, **kwargs)
         self._tasks.append(coroutine)
 
         return coroutine
 
-    def schedule_exit(
-        self, stop_condition, interval=30, prestop=None, *args, **kwargs
-    ):
+    def schedule_exit(self, stop_condition, prestop=None, *args, **kwargs):
         """
         Schedule a periodic check for a stopping condition. When the
         condition is met, optionally run a prestop callable and exit.
@@ -82,4 +82,4 @@ class AgentSupervisor(object):
 
                 coro.set_exit()
 
-        return self.schedule(exit, interval=interval)
+        return self.schedule(exit)

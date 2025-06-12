@@ -1,7 +1,6 @@
 from typing import Any, Dict
 
 import requests
-from celery import shared_task
 from django.http import HttpRequest
 
 from .models import Webhook
@@ -32,21 +31,3 @@ def extract_status_data(
         'ip': data.get('ip') or get_client_ip(request),
         'uptime': data.get('uptime', 'unknown')
     }
-
-
-@shared_task
-def send_alert_to_slack(message):
-    webhooks = Webhook.objects.filter(enabled=True, service='slack')
-
-    for hook in webhooks:
-        try:
-            payload = {'text': message}
-
-            if hook.service == 'slack':
-                requests.post(hook.url, json=payload, timeout=5)
-            elif hook.service == 'email':
-                pass
-            else:
-                requests.post(hook.url, json=payload, timeout=5)
-        except Exception as e:
-            print('[ERROR] Failed to send webhook alert:', e)

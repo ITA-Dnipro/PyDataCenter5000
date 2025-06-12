@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import AgentMetric, AlertRule, CommandHistory, ServerStatus, Webhook
+from .models import (AgentMetric, AlertRule, CommandHistory, ServerStatus,
+                     Webhook)
 
 
 @admin.register(CommandHistory)
@@ -84,6 +85,7 @@ class AlertRuleAdmin(admin.ModelAdmin):
         self.message_user(request, f'{nrules} rule(s) deactivated.')
     activate_rules.short_description = 'Deactivate selected alert rules'
 
+
 @admin.register(Webhook)
 class WebhookAdmin(admin.ModelAdmin):
-    list_display = ('service', 'url', 'enabled')
+    list_display = ('url', 'enabled')

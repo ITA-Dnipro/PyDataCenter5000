@@ -25,17 +25,14 @@ class AgentSupervisor(object):
 
     def start(self):
         """Starts the event loop. Blocks until excplicitly stopped."""
-        try:
-            coro.event_loop()
-        except KeyboardInterrupt:
+        if not self.coros:
             maybe_log_message(
-                'Interrupted: exiting event loop...',
+                'Coroutine queue is empty',
                 logger=self.logger,
-                fallback_logger=FALLBACK_LOGGER,
-                level=logging.INFO,
+                level=logging.WARNING,
             )
 
-            coro.set_exit()
+        coro.event_loop()
 
     def sleep(self, interval):
         """Yield to event loop for a duration of the interval."""
@@ -93,14 +90,12 @@ class AgentSupervisor(object):
 
         self.coros.pop(idx)
 
-    def schedule_exit(self, interval=1, prestop=None, *args, **kwargs):
+    def schedule_exit(self, interval=30, prestop=None, *args, **kwargs):
         """
         Schedule a periodic check for a stopping condition. When the
         condition is met, optionally run a prestop callable and exit.
 
         Parameters:
-            stop_condition (Callable): Function-like returning True if
-                the event loop should be stopped.
             interval (int, optional): Time (in seconds) between stopping
                 condition checks. Default is 30.
             prestop (Callable, optional): Function-like to call before

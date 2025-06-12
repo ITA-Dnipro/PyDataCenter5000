@@ -54,7 +54,7 @@ def main():
                 break
 
             if agent.queue:
-                command_history = agent.queue.pop(0)
+                command_history = agent.queue.pop()
                 break
 
             supervisor.sleep(0.1)

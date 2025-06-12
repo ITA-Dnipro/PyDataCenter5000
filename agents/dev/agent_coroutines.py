@@ -34,6 +34,8 @@ def main():
         )
 
         if data:
+            logging.info('Data received - maybe adding command to queue')
+
             agent.maybe_add_to_queue(data)
 
     nexec = [0]
@@ -41,9 +43,9 @@ def main():
     def execute_command(timeout):
         command_history = None
 
-        while True:
-            start = time.time()
+        start = time.time()
 
+        while True:
             if agent.queue:
                 command_history = agent.queue.pop(0)
 

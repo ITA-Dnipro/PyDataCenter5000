@@ -18,7 +18,6 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
-from .utils import configtools
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
@@ -27,16 +26,6 @@ log_config_path = pkg_resources.resource_filename(
 )
 
 PROTOCOLS = ('tcp', 'udp')
-
-_global_cfg = configtools.load_global_config()
-
-GLOBAL_CRITICAL_PROCESSES = configtools.get_config_option(
-    _global_cfg,
-    'controller',
-    'critical_processes',
-    cast=configtools.parse_csv_list,
-    default=[]
-)
 
 
 def get_ip_from_interface(interface):
@@ -99,6 +88,7 @@ class ServerAgent(object):
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
+    default_critical_processes = []
 
     def __init__(
         self,
@@ -125,8 +115,10 @@ class ServerAgent(object):
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
-        # Seed critical_processes list from global defaults unconditionally
-        self._critical_processes = list(GLOBAL_CRITICAL_PROCESSES)
+        # Seed critical_processes list from class attribute
+        # (set in __init__.py)
+
+        self._critical_processes = list(self.critical_processes)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -298,7 +290,7 @@ class ServerAgent(object):
                 config,
                 'server',
                 'critical_processes',
-                default=[],
+                default=self.critical_processes,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,

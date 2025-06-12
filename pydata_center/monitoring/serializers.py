@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AgentMetric, CommandHistory, ServerStatus
+from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 
 
 class AgentMetricSerializer(serializers.ModelSerializer):
@@ -69,3 +69,10 @@ class CommandHistorySerializer(serializers.ModelSerializer):
         if len(value.strip()) == 0:
             raise serializers.ValidationError('Command cannot be empty.')
         return value
+
+
+class TriggeredAlertSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = TriggeredAlert
+        fields = '__all__'

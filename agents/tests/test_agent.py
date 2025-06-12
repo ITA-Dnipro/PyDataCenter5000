@@ -752,10 +752,10 @@ def test_generate_report():
     try:
         report = agent.generate_report()
         print(report)
-        assert report['cpu_usage_percent'] == 10.1
-        assert report['ram_usage_percent'] == 20.2
-        assert report['disk_usage_percent'] == 30.3
-        assert report['load_avg_1min'] == 40.4
+        assert report['cpu'] == 10.1
+        assert report['ram'] == 20.2
+        assert report['disk'] == 30.3
+        assert report['load_avg'] == 40.4
         assert report['hostname'] == agent.hostname
     finally:
         cpu_patch.stop()

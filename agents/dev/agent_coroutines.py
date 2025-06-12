@@ -6,8 +6,8 @@ import os
 import subprocess
 import time
 
+import coro
 import dotenv
-import Queue
 
 from agents.smtp.smtp import SMTPAgent
 from agents.supervisor import AgentSupervisor
@@ -50,6 +50,7 @@ def main():
             if time.time() - start > timeout:
                 logging.warning('No command received in allocated time')
                 break
+            coro.sleep_relative(0.1)
 
         if command_history:
             try:

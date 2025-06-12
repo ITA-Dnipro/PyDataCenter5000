@@ -47,12 +47,13 @@ def main():
         start = time.time()
 
         while True:
-            if agent.queue:
-                command_history = agent.queue.pop(0)
-
             if time.time() - start > timeout:
                 logging.warning('No command received in allocated time')
                 break
+
+            if agent.queue:
+                command_history = agent.queue.pop(0)
+
             coro.sleep_relative(0.1)
 
         if command_history:
@@ -83,7 +84,7 @@ def main():
         retries[0] += 1
 
     supervisor.schedule(fetch_command, interval=10, credentials=credentials)
-    supervisor.schedule(execute_command, interval=10, timeout=5)
+    supervisor.schedule(execute_command, interval=10, timeout=10)
 
     supervisor.schedule_exit(
         stop_condition=lambda: retries[0] >= 3, interval=10

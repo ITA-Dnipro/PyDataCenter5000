@@ -46,6 +46,7 @@ def test_schedule_unschedule_coro(mock_supervisor):
 
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
+    """Test coroutine execution in the event loop."""
     flag = {'ran': False}
 
     def mock_task(*args, **kwargs):

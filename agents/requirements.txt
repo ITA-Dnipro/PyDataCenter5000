@@ -8,3 +8,4 @@ attrs==15.2.0
 python-dateutil==2.6.1
 cython==0.24
 distribute==0.6.26
+pycrypto==2.6.1

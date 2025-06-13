@@ -2,7 +2,7 @@ import logging
 
 import coro
 
-from .utils.logtools import FALLBACK_LOGGER, maybe_log_message
+from .utils.logtools import maybe_log_message
 
 
 class AgentSupervisor(object):
@@ -80,7 +80,6 @@ class AgentSupervisor(object):
                     maybe_log_message(
                         'Scheduled task failed due to error: %s' % str(e),
                         logger=self.logger,
-                        fallback_logger=FALLBACK_LOGGER,
                     )
 
                 self.sleep(interval)
@@ -88,7 +87,7 @@ class AgentSupervisor(object):
                 maybe_log_message(
                     'Task %d finished' % idx,
                     logger=self.logger,
-                    fallback_logger=FALLBACK_LOGGER,
+                    level=logging.INFO,
                 )
 
                 self.unschedule(idx)
@@ -103,7 +102,7 @@ class AgentSupervisor(object):
             maybe_log_message(
                 'Coroutine %d not in tasks' % idx,
                 logger=self.logger,
-                fallback_logger=FALLBACK_LOGGER,
+                level=logging.WARNING,
             )
 
         self.coros.pop(idx)

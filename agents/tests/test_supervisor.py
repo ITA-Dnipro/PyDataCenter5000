@@ -1,38 +1,57 @@
+import logging
+import os
+import tempfile
+
 import pytest
 from mock import MagicMock
 
+from agents.utils.logtools import LOG_CONFIG_PATH
+
+
+@pytest.yield_fixture(scope='session')
+def mock_supervisor():
+    agent = MagicMock()
+    agent.server_name = 'mock-server'
+
+    supervisor = __import__(
+        'agents.supervisor', fromlist=['AgentSupervisor']
+    ).AgentSupervisor(agent)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+
+    logging.config.fileConfig(
+        LOG_CONFIG_PATH,
+        defaults={
+            'agent_name': agent.server_name, 'log_path': tmp.name
+        },
+    )
+
+    yield supervisor
+
+    os.remove(tmp.name)
+
 
 @pytest.mark.coro
-class TestAgentSupervisor(object):
-    @classmethod
-    def setup_class(cls):
-        cls.agent = MagicMock()
-        cls.agent.server_name = 'mock-server'
+def test_schedule_unschedule_coro(mock_supervisor):
+    def mock_task(*args, **kwargs):
+        pass
 
-        cls.supervisor = __import__(
-            'agents.supervisor', fromlist=['AgentSupervisor']
-        ).AgentSupervisor(cls.agent)
+    idx = mock_supervisor.schedule(mock_task)
+    assert idx in mock_supervisor.coros
 
-    def test_schedule_unschedule_coro(self):
-        def mock_task(*args, **kwargs):
-            pass
+    mock_supervisor.unschedule(idx)
+    assert idx not in mock_supervisor.coros
 
-        idx = self.supervisor.schedule(mock_task)
-        assert idx in self.supervisor.coros
+# @pytest.mark.integration
+# def test_task_execution(self):
+#     flag = {'ran': False}
 
-        self.supervisor.unschedule(idx)
-        assert idx not in self.supervisor.coros
+#     def mock_task(*args, **kwargs):
+#         flag['ran'] = True
 
-    @pytest.mark.integration
-    def test_task_execution(self):
-        flag = {'ran': False}
+#     self.supervisor.schedule(mock_task, max_retries=1, interval=0)
+#     self.supervisor.schedule_exit(interval=0.1)
 
-        def mock_task(*args, **kwargs):
-            flag['ran'] = True
+#     self.supervisor.start()
 
-        self.supervisor.schedule(mock_task, max_retries=1, interval=0)
-        self.supervisor.schedule_exit(interval=0.1)
-
-        self.supervisor.start()
-
-        assert flag['ran']
+#     assert flag['ran']

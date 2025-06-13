@@ -33,6 +33,7 @@ def mock_supervisor():
 
 @pytest.mark.coro
 def test_schedule_unschedule_coro(mock_supervisor):
+    """Test task scheduling and unscheduling with supervisor."""
     def mock_task(*args, **kwargs):
         pass
 
@@ -42,16 +43,17 @@ def test_schedule_unschedule_coro(mock_supervisor):
     mock_supervisor.unschedule(idx)
     assert idx not in mock_supervisor.coros
 
-# @pytest.mark.integration
-# def test_task_execution(self):
-#     flag = {'ran': False}
 
-#     def mock_task(*args, **kwargs):
-#         flag['ran'] = True
+@pytest.mark.integration
+def test_task_execution(mock_supervisor):
+    flag = {'ran': False}
 
-#     self.supervisor.schedule(mock_task, max_retries=1, interval=0)
-#     self.supervisor.schedule_exit(interval=0.1)
+    def mock_task(*args, **kwargs):
+        flag['ran'] = True
 
-#     self.supervisor.start()
+    mock_supervisor.schedule(mock_task, max_retries=1, interval=0)
+    mock_supervisor.schedule_exit(interval=0.1)
 
-#     assert flag['ran']
+    mock_supervisor.start()
+
+    assert flag['ran']

@@ -11,7 +11,6 @@ from collections import Sequence
 
 import attr
 import ConfigParser
-import coro
 import pkg_resources
 import psutil
 import urllib2
@@ -122,8 +121,9 @@ class ServerAgent(object):
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # Initialize thread-safe command queue
-        self.queue = coro.event_queue()
+        # self._queue will store a time-stamped event queue with
+        # pending commands
+        self._queue = None
 
         # Initialize logging from logging config file
         log_path = (
@@ -204,6 +204,14 @@ class ServerAgent(object):
             raise ValueError('Unknown protocol value %s' % value)
 
         self._protocol = value
+
+    @property
+    def queue(self):
+        """Ensure lazy setup of coro event queue"""
+        if self._queue is None:
+            self._queue = __import__('coro').event_queue()
+
+        return self._queue
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""

@@ -1,8 +1,6 @@
 import pytest
 from mock import MagicMock
 
-from agents.supervisor import AgentSupervisor
-
 
 @pytest.mark.coro
 class TestAgentSupervisor(object):
@@ -11,7 +9,9 @@ class TestAgentSupervisor(object):
         cls.agent = MagicMock()
         cls.agent.server_name = 'mock-server'
 
-        cls.supervisor = AgentSupervisor(cls.agent)
+        cls.supervisor = __import__(
+            'agents.supervisor'
+        ).AgentSupervisor(cls.agent)
 
     def test_schedule_unschedule_coro(self):
         def mock_task(*args, **kwargs):

@@ -35,5 +35,4 @@ if cfg:
         'servers',
         'critical_processes',
         cast=configtools.parse_csv_list,
-        default=agent.ServerAgent.default_critical_processes,
     )

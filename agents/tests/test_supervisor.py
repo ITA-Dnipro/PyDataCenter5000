@@ -13,9 +13,12 @@ class TestAgentSupervisor(object):
 
         cls.supervisor = AgentSupervisor(cls.agent)
 
-    def test_schedule_coro(self):
+    def test_schedule_unschedule_coro(self):
         def mock_task(*args, **kwargs):
             pass
 
         idx = self.supervisor.schedule(mock_task, max_retries=3, interval=1)
         assert idx in self.supervisor.coros
+
+        self.supervisor.unschedule(idx)
+        assert idx not in self.supervisor.coros

@@ -1,7 +1,7 @@
 import socket
 
 from ..agent import ServerAgent
-from ..utils.logtools import FALLBACK_LOGGER, maybe_log_message
+from ..utils.logtools import maybe_log_message
 
 
 class SMTPAgent(ServerAgent):

@@ -26,5 +26,5 @@ class NTPAgent(ServerAgent):
     ):
         status = super(NTPAgent, self).service_healthy()
         return status and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
-            )
+            timeout=timeout, payload=payload, packet_size=packet_size
+        )

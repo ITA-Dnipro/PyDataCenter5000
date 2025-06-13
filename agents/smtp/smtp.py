@@ -45,7 +45,6 @@ class SMTPAgent(ServerAgent):
             maybe_log_message(
                 'Banner check failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=FALLBACK_LOGGER,
             )
         finally:
             sock.close()

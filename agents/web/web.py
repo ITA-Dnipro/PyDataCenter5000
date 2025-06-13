@@ -8,7 +8,7 @@ class WebAgent(ServerAgent):
     def __init__(
         self,
         server_name='web',
-        port=8000,
+        port=None,
         processes=None,
         interface=None,
         protocol='tcp',
@@ -31,7 +31,7 @@ class WebAgent(ServerAgent):
         )
 
     def service_healthy(
-            self, timeout=2, payload=None, packet_size=0
+        self, timeout=2, payload=None, packet_size=0
     ):
         # TODO: extend health check.
         status = super(WebAgent, self).service_healthy()

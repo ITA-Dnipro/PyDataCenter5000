@@ -1,0 +1,20 @@
+import pytest
+from mock import MagicMock
+
+from agents.supervisor import AgentSupervisor
+
+
+class TestAgentSupervisor(object):
+    @classmethod
+    def setup_class(cls):
+        cls.agent = MagicMock()
+        cls.agent.server_name = 'mock-server'
+
+        cls.supervisor = AgentSupervisor(cls.agent)
+
+    def test_schedule_coro(self):
+        def mock_task(*args, **kwargs):
+            pass
+
+        idx = self.supervisor.schedule(mock_task, max_retries=3, interval=1)
+        assert idx in self.supervisor.coros

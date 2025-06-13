@@ -23,6 +23,7 @@ class TestAgentSupervisor(object):
         self.supervisor.unschedule(idx)
         assert idx not in self.supervisor.coros
 
+    @pytest.mark.integration
     def test_task_execution(self):
         flag = {'ran': False}
 
@@ -30,6 +31,6 @@ class TestAgentSupervisor(object):
             flag['ran'] = True
 
         self.supervisor.schedule(mock_task, max_retries=1, interval=0)
-        # self.supervisor.coros[idx]()
+        self.supervisor.start(timeout=0.1)
 
-        # assert flag['ran']
+        assert flag['ran']

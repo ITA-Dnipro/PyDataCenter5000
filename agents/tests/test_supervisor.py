@@ -17,8 +17,19 @@ class TestAgentSupervisor(object):
         def mock_task(*args, **kwargs):
             pass
 
-        idx = self.supervisor.schedule(mock_task, max_retries=3, interval=1)
+        idx = self.supervisor.schedule(mock_task)
         assert idx in self.supervisor.coros
 
         self.supervisor.unschedule(idx)
         assert idx not in self.supervisor.coros
+
+    def test_task_execution(self):
+        flag = {'ran': False}
+
+        def mock_task(*args, **kwargs):
+            flag['ran'] = True
+
+        idx = self.supervisor.schedule(mock_task, max_retries=1, interval=0)
+        self.supervisor.coros[idx]()
+
+        assert flag['ran']

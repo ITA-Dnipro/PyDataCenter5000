@@ -4,6 +4,7 @@ from mock import MagicMock
 from agents.supervisor import AgentSupervisor
 
 
+@pytest.mark.coro
 class TestAgentSupervisor(object):
     @classmethod
     def setup_class(cls):

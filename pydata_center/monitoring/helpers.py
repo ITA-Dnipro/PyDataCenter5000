@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Max, Q
+from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
 
 from .models import ServerStatus
@@ -9,17 +9,13 @@ from .models import ServerStatus
 def get_latest_agents(cutoff_seconds=60):
     cutoff_time = now() - timedelta(seconds=cutoff_seconds)
 
-    latest = (
-        ServerStatus.objects
-        .values('hostname')
-        .annotate(latest_ts=Max('timestamp'))
-    )
+    latest_subquery = ServerStatus.objects.filter(
+        hostname=OuterRef('hostname')
+    ).order_by('-timestamp').values('pk')[:1]
 
-    query = Q()
-    for entry in latest:
-        query |= Q(hostname=entry['hostname'], timestamp=entry['latest_ts'])
-
-    latest_statuses = ServerStatus.objects.filter(query)
+    latest_statuses = ServerStatus.objects.filter(
+        pk=Subquery(latest_subquery)
+    ).order_by('hostname')
 
     return [
         {

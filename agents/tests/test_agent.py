@@ -543,15 +543,20 @@ def test_maybe_add_to_queue_adds_item():
 
     m = coro.mutex()
     m.lock()
+
     assert len(agent.queue) == 1
+
     m.unlock()
 
 
+@pytest.mark.coro
 def test_maybe_add_to_queue_logs_bad_input():
     """
     Test that bad command history input is logged by server agent and
     not added to queue.
     """
+    import coro
+
     data = {
         'command': None,
         'hostname': 'test-server',
@@ -575,8 +580,12 @@ def test_maybe_add_to_queue_logs_bad_input():
         )
     )
 
-    with agent.queue.mutex:
-        assert len(agent.queue.queue) == 0
+    m = coro.mutex()
+    m.lock()
+
+    assert len(agent.queue) == 0
+
+    m.unlock()
 
 
 def test_status_to_dict_keys():

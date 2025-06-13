@@ -10,7 +10,7 @@ class TestAgentSupervisor(object):
         cls.agent.server_name = 'mock-server'
 
         cls.supervisor = __import__(
-            'agents.supervisor'
+            'agents.supervisor', fromlist=['AgentSupervisor']
         ).AgentSupervisor(cls.agent)
 
     def test_schedule_unschedule_coro(self):

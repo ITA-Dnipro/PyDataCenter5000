@@ -6,7 +6,25 @@ from .utils.logtools import FALLBACK_LOGGER, maybe_log_message
 
 
 class AgentSupervisor(object):
-    """Supervisor that monitors and manages agent coroutines."""
+    """
+    Supervisor that monitors and manages agent coroutines.
+
+    Attributes:
+        agent (ServerAgent): Agent instance under supervision.
+        coros (dict): Dictionary mapping coroutine IDs to coroutine
+            references. ID 0 is reserved for exit coroutine.
+
+    Methods:
+        last_coro(): Get ID of the last scheduled coroutine.
+        start(): Start the event loop and block until explicitly stopped.
+        sleep(interval): Yield to event loop and sleep for a duration of
+            the interval.
+        schedule(task, max_retries, interval, idx, ...): Schedule a
+            periodic coroutine task.
+        unschedule(idx): Unschedule a coroutine by ID.
+        schedule_exit(interval, prestop, ...): Schedule a periodic
+            coroutine to monitor for exit.
+    """
 
     def __init__(self, agent):
         self.agent = agent

@@ -54,6 +54,7 @@ def test_task_execution(mock_supervisor):
     mock_supervisor.schedule(mock_task, max_retries=1, interval=0)
     mock_supervisor.schedule_exit(interval=0.1)
 
-    mock_supervisor.start()
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
 
     assert flag['ran']

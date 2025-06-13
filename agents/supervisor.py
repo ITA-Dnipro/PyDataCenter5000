@@ -41,7 +41,7 @@ class AgentSupervisor(object):
     def last_coro(self):
         return max(self.coros.keys()) if self.coros else 0
 
-    def start(self):
+    def start(self, timeout=30):
         """Starts the event loop. Blocks until excplicitly stopped."""
         if not self.coros:
             maybe_log_message(
@@ -50,7 +50,7 @@ class AgentSupervisor(object):
                 level=logging.WARNING,
             )
 
-        coro.event_loop()
+        coro.event_loop(timeout)
 
     def sleep(self, interval):
         """Yield to event loop for a duration of the interval."""

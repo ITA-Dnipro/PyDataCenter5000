@@ -31,6 +31,8 @@ class TestAgentSupervisor(object):
             flag['ran'] = True
 
         self.supervisor.schedule(mock_task, max_retries=1, interval=0)
-        self.supervisor.start(timeout=0.1)
+        self.supervisor.schedule_exit(interval=0.1)
+
+        self.supervisor.start()
 
         assert flag['ran']

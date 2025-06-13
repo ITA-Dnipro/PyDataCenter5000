@@ -11,7 +11,8 @@ from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
-from monitoring.util.webhook_dispatcher import send_alert_to_webhooks
+from monitoring.webhook import (SlackMessage, WebhookMessage,
+                                send_async_webhook_message)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,11 @@ ALERT_DESTINATION_MAP = {
         content=f'{subject} {body}',
         webhook=settings.ALERT_DISCORD_WEBHOOK,
         fail_silently=fail_silently,
+    ),
+    'slack': lambda subject, body, fail_silently=True: SlackMessage(
+        content=f'{subject} {body}',
+        webhook=settings.ALERT_SLACK_WEBHOOK,
+        fail_silently=fail_silently,
     )
 }
 
@@ -51,6 +57,10 @@ class AlertDispatcher:
     @send.register
     def _(self, message: DiscordMessage, **kwargs):
         send_async_discord_message.apply_async(kwargs={'message': message})
+
+    @send.register
+    def _(self, message: WebhookMessage, **kwargs):
+        send_async_webhook_message.apply_async(kwargs={'message': message})
 
 
 # At the moment, a module-level singleton is sufficient.
@@ -127,20 +137,12 @@ def evaluate_agent_alerts(
                     # parameters with default values and kwargs to pass
                     # optional arguments to different factories.
 
-                    if destination == 'slack':
-                        msg = (
-                            f'[ALERT] Rule triggered: {rule.metric} '
-                            f'{rule.operator} {rule.threshold} '
-                            f'(avg: {avg:.2f})'
-                        )
-                        send_alert_to_webhooks(msg)
-                    else:
-                        msg = factory(
-                            subject=f'[{rule.metric.upper()} ALERT]',
-                            body=rule.notify_message,
-                            fail_silently=settings.ALERT_FAIL_SILENTLY,
-                        )
-                        dispatcher.send(msg)
+                    msg = factory(
+                        subject=f'[{rule.metric.upper()} ALERT]',
+                        body=rule.notify_message,
+                        fail_silently=settings.ALERT_FAIL_SILENTLY,
+                    )
+                    dispatcher.send(msg)
 
                 cache.set(
                     cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
@@ -169,16 +171,12 @@ def evaluate_agent_alerts(
                 )
                 continue
 
-            if destination == 'slack':
-                msg = f'{subject}\n{summary}'
-                send_alert_to_webhooks(msg)
-            else:
-                msg = factory(
-                    subject=subject,
-                    body=summary,
-                    fail_silently=settings.ALERT_FAIL_SILENTLY,
-                )
-                dispatcher.send(msg)
+            msg = factory(
+                subject=subject,
+                body=summary,
+                fail_silently=settings.ALERT_FAIL_SILENTLY,
+            )
+            dispatcher.send(msg)
 
         for rule in triggered_alerts:
             # Make sure batch respects the cooldown.

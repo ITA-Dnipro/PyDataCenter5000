@@ -51,7 +51,7 @@ jobs:
             cd /pydata && \
             pip install -r agents/requirements.txt && \
             pip install pytest pytest-cov==2.4.0 && \
-            python -m pytest agents --cov=agents --cov-config=.coveragerc --cov-report=xml:/pydata/agents/coverage.xml
+            python -m pytest agents --cov=agents --cov-config=agents/.coveragerc --cov-report=xml:/pydata/agents/coverage.xml
           "
 
       - name: Upload Coverage Report to Codecov

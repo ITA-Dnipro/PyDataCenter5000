@@ -4,3 +4,6 @@ omit =
 
 [html]
 directory = agents/htmlcov
+omit =
+    agents/dev/*
+    

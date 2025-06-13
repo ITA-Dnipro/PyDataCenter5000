@@ -20,15 +20,15 @@ fi
 set +a
 
 # Set defaults if not set
-: "${INSTALL_ZLIB1G_DEV:=true}"
 : "${INSTALL_FFI:=false}"
 : "${INSTALL_NCURSES:=false}"
 : "${INSTALL_GDBM:=false}"
-: "${INSTALL_OPEN_SSL:=true}"
+: "${INSTALL_OPEN_SSL:=false}"
 : "${INSTALL_READLINE:=false}"
 : "${INSTALL_SQLITE:=false}"
 : "${PYTHON_DIR:=/opt/python2.6}"
 : "${BUILD_ZLIB_FROM_SRC:=true}"
+: "${INSTALL_CORO:=true}"
 
 get_package_src_from_tar() {
     local name=$1
@@ -73,10 +73,6 @@ install_python_package_from_src() {
 echo "[INFO] Updating and installing system packages..."
 apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update
 apt-get install -y build-essential zlib1g-dev wget git
-
-if [ "$INSTALL_ZLIB1G_DEV" = "true" ]; then
-    apt-get install -y zlib1g-dev
-fi
 
 if [ "$INSTALL_FFI" = "true" ]; then
     apt-get install -y libffi-dev
@@ -177,19 +173,36 @@ if ! python -c "import dateutil"; then
     install_python_package_from_src dateutil
 fi
 
-if ! python -c "import cython"; then
-    get_package_src_from_tar cython "https://files.pythonhosted.org/packages/b1/51/bd5ef7dff3ae02a2c6047aa18d3d06df2fb8a40b00e938e7ea2f75544cac/Cython-0.24.tar.gz"
-    install_python_package_from_src cython
-fi
+if [ "$INSTALL_CORO" = "true" ]; then
+    if ! python -c "import cython"; then
+        get_package_src_from_tar cython "https://files.pythonhosted.org/packages/b1/51/bd5ef7dff3ae02a2c6047aa18d3d06df2fb8a40b00e938e7ea2f75544cac/Cython-0.24.tar.gz"
+        install_python_package_from_src cython
+    fi
 
-if ! python -c "import distribute"; then
-    get_package_src_from_tar distribute "https://files.pythonhosted.org/packages/03/08/16815ba1e7d7dc21289c0ea89bffea4c34cc4d10979d2f3f64837ee51087/distribute-0.6.26.tar.gz"
-    install_python_package_from_src distribute
-fi
+    if ! python -c "import distribute"; then
+        get_package_src_from_tar distribute "https://files.pythonhosted.org/packages/03/08/16815ba1e7d7dc21289c0ea89bffea4c34cc4d10979d2f3f64837ee51087/distribute-0.6.26.tar.gz"
+        install_python_package_from_src distribute
+    fi
 
-if ! python -c "import coro"; then
-    get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"
-    install_python_package_from_src coro
+    if ! python -c "import pycrypto"; then
+        get_package_src_from_tar pycrypto "https://files.pythonhosted.org/packages/60/db/645aa9af249f059cc3a368b118de33889219e0362141e75d4eaf6f80f163/pycrypto-2.6.1.tar.gz"
+        install_python_package_from_src pycrypto
+    fi
+
+    if ! python -c "import coro"; then
+        cp /etc/apt/sources.list /etc/apt/sources.list.bak
+        echo "deb [trusted=yes] http://security.ubuntu.com/ubuntu bionic-security main" > /etc/apt/sources.list
+
+        apt update && apt-cache policy libssl1.0-dev
+        apt-get install libssl1.0-dev
+
+        get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"
+        install_python_package_from_src coro
+
+        echo "[INFO] Restoring original sources.list..."
+        mv /etc/apt/sources.list.bak /etc/apt/sources.list
+        apt update
+    fi
 fi
 
 echo "[INFO] Setup completed successfully."

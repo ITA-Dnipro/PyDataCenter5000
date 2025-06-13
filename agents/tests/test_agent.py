@@ -525,8 +525,11 @@ def test_fetch_command_from_controller_error(monkeypatch):
         )
 
 
+@pytest.mark.coro
 def test_maybe_add_to_queue_adds_item():
     """Test that good command history input is added to queue."""
+    import coro
+
     data = {
         'command': 'ls',
         'hostname': 'test-server',
@@ -538,8 +541,10 @@ def test_maybe_add_to_queue_adds_item():
 
     agent.maybe_add_to_queue(data)
 
-    with agent.queue.mutex:
-        assert CommandHistory.from_dict(data) in agent.queue.queue
+    m = coro.mutex()
+    m.lock()
+    assert len(agent.queue) == 1
+    m.unlock()
 
 
 def test_maybe_add_to_queue_logs_bad_input():

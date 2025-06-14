@@ -158,7 +158,7 @@ def test_task_error(mock_supervisor):
     def mock_task(*args, **kwargs):
         raise RuntimeError('Task failed for some reason')
 
-    idx = mock_supervisor.schedule(max_retries=1, interval=0.1)
+    idx = mock_supervisor.schedule(mock_task, max_retries=1, interval=0.1)
     mock_supervisor.schedule_exit(interval=0.1)
 
     with pytest.raises(SystemExit):

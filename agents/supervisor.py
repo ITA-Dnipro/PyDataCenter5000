@@ -62,7 +62,7 @@ class AgentSupervisor(object):
         max_retries=3,
         interval=5,
         timeout=None,
-        idx=None,
+        weak=False,
         *args,
         **kwargs
     ):
@@ -76,44 +76,47 @@ class AgentSupervisor(object):
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
         """
-        if idx is None:
-            idx = self.last_coro + 1
+        idx = self.last_coro + 1
 
         def run_task():
-            for _ in range(max_retries):
-                try:
-                    if timeout:
-                        coro.with_timeout(timeout, task, *args, **kwargs)
+            try:
+                for _ in range(max_retries):
+                    try:
+                        if timeout:
+                            coro.with_timeout(timeout, task, *args, **kwargs)
+                        else:
+                            task(*args, **kwargs)
+                    except coro.TimeoutError:
+                        maybe_log_message('Task timed out', logger=self.logger)
+                    except Exception as e:
+                        maybe_log_message(
+                            'Scheduled task failed due to error: %s' % str(e),
+                            logger=self.logger,
+                        )
                     else:
-                        task(*args, **kwargs)
-                except coro.TimeoutError:
-                    maybe_log_message('Task timed out', logger=self.logger)
-                except Exception as e:
-                    maybe_log_message(
-                        'Scheduled task failed due to error: %s' % str(e),
-                        logger=self.logger,
-                    )
+                        maybe_log_message(
+                            'Task %d finished successfully' % idx,
+                            logger=self.logger,
+                            level=logging.INFO,
+                        )
+
+                        return
+
+                    self.sleep(interval)
                 else:
                     maybe_log_message(
-                        'Task %d finished successfully' % idx,
+                        'Task %d could not complete' % idx,
                         logger=self.logger,
-                        level=logging.INFO,
+                        level=logging.WARNING,
                     )
 
                     return
-
-                self.sleep(interval)
-            else:
-                maybe_log_message(
-                    'Task %d could not complete' % idx,
-                    logger=self.logger,
-                    level=logging.WARNING,
-                )
-
-                return
+            finally:
+                self.unschedule(idx)
 
         coroutine = coro.spawn(run_task)
-        self.coros[idx] = coroutine
+        if not weak:
+            self.coros[idx] = coroutine
 
         return idx
 
@@ -138,24 +141,9 @@ class AgentSupervisor(object):
                 condition checks. Default is 30.
         """
         def exit():
-            while any(idx != 0 for idx in self.coros):
-                for idx, co in self.coros.items():
-                    if idx == 0:
-                        continue
-
-                    # Check for dead coroutines that may be stalling the
-                    # exit - unschedule them if found.
-                    if co.dead:
-                        maybe_log_message(
-                            'Coroutine %d is dead' % idx,
-                            logger=self.logger,
-                            level=logging.WARNING,
-                        )
-
-                        self.unschedule(idx)
-
+            while self.coros:
                 self.sleep(interval)
             else:
                 coro.set_exit()
 
-        return self.schedule(exit, max_retries=1, interval=interval, idx=0)
+        return self.schedule(exit, max_retries=1, interval=interval, weak=True)

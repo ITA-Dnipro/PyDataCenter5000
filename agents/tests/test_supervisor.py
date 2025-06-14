@@ -49,27 +49,35 @@ def test_schedule_unschedule_coro(mock_supervisor):
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
-    flag = {'ran': False}
+    # Run three tests
+    for ntasks in range(1, 4):
+        flags = {'task %d ran' % n + 1: False for n in range(ntasks)}
 
-    def mock_task(*args, **kwargs):
-        flag['ran'] = True
+        def mock_task(num, *args, **kwargs):
+            flags['task %d ran' % num] = True
 
-    mock_supervisor.schedule(mock_task, max_retries=1, interval=0)
-    mock_supervisor.schedule_exit(interval=0.1)
+        for n in range(ntasks):
+            # Schedule mock_task ntask times
+            mock_supervisor.schedule(
+                mock_task, max_retries=1, interval=1, num=n + 1
+            )
 
-    with pytest.raises(SystemExit):
-        mock_supervisor.start()
+        mock_supervisor.schedule_exit(interval=0.1)
 
-    assert flag['ran']
+        with pytest.raises(SystemExit):
+            mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
+        assert all(flags.values()), 'Not all scheduled tasks have run'
 
-    msg = 'Task 1 finished'
+        with open(mock_supervisor.logfile.name, 'r') as f:
+            f.seek(0)
+            contents = f.read()
 
-    assert msg in contents, (
-        'Expected log message %s not found. Log contents:\n %s' % (
-            msg, contents
-        )
-    )
+        for n in range(ntasks):
+            msg = 'Task %d finished' % n + 1
+
+            assert msg in contents, (
+                'Expected log message %s not found. Log contents:\n %s' % (
+                    msg, contents
+                )
+            )

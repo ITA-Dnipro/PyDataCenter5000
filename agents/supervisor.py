@@ -122,6 +122,21 @@ class AgentSupervisor(object):
         """
         def exit():
             while any(idx != 0 for idx in self.coros):
+                for idx, co in self.coros.items():
+                    if idx == 0:
+                        continue
+
+                    # Check for dead coroutines that may be stalling the
+                    # exit - unschedule them if found.
+                    if co.dead:
+                        maybe_log_message(
+                            'Coroutine %d is dead' % idx,
+                            logger=self.logger,
+                            level=logging.WARNING,
+                        )
+
+                        self.unschedule(idx)
+
                 self.sleep(interval)
             else:
                 if prestop is not None:

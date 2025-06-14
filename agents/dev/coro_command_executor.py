@@ -39,17 +39,11 @@ def main():
 
             agent.maybe_add_to_queue(data)
 
-    def execute_command(timeout):
+    def execute_command():
         command_history = None
-
-        start = time.time()
 
         while True:
             logging.info('Waiting for commands')
-
-            if time.time() - start > timeout:
-                logging.warning('No command received in allocated time')
-                break
 
             if len(agent.queue) > 0:
                 command_history = agent.queue.pop()

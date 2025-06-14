@@ -71,8 +71,16 @@ class AgentSupervisor(object):
 
         Parameters:
             task (Callable): Function-like to execute periodically.
-            interval (int, optional): Time (in seconds) between task
-                executions. Default is 30.
+            max_retries (int, optional): Maximum number of retries on
+                failure. Default is 3.
+            interval (int, optional): Time (in seconds) between retries.
+                Default is 5.
+            timeout (int, optional): Timeout for task run. Task is
+                considered timed out if it didn't execute in the
+                allocated time. Default is None.
+            weak (bool, optional): 'Weak' rask will not be tracked by the
+                supervisor, i.e., the event loop can be stopped regardless
+                of whether the task has finished. Default is False.
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
         """
@@ -121,6 +129,13 @@ class AgentSupervisor(object):
         return idx
 
     def unschedule(self, idx):
+        """
+        Unscedule task, i.e., remove it from the list of tracked
+        coroutines.
+
+        Parameters:
+            idx (int): Index of coroutine to unschedule.
+        """
         if idx not in self.coros:
             maybe_log_message(
                 'Coroutine %d not in tasks' % idx,
@@ -133,8 +148,9 @@ class AgentSupervisor(object):
 
     def schedule_exit(self, interval=30):
         """
-        Schedule a periodic check for a stopping condition. When the
-        condition is met, optionally run a prestop callable and exit.
+        Schedule a periodic check for whether all of the tracked tasks
+        have finished. Once the task queue is empty, the event loop will
+        be stopped via SystemExit.
 
         Parameters:
             interval (int, optional): Time (in seconds) between stopping

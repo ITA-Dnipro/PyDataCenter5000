@@ -8,7 +8,7 @@ from mock import MagicMock
 from agents.utils.logtools import LOG_CONFIG_PATH
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.yield_fixture
 def mock_supervisor(monkeypatch):
     agent = MagicMock()
     agent.server_name = 'mock-server'

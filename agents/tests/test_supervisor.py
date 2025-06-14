@@ -128,10 +128,11 @@ def test_task_execution(mock_supervisor):
 @pytest.mark.integration
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
-    def mock_task(num, *args, **kwargs):
-        __import__('coro').sleep_relative(10)
-
-    idx = mock_supervisor.schedule(mock_task, max_retries=1, timeout=0.1)
+    idx = mock_supervisor.schedule(
+        lambda: __import__('coro').sleep_relative(10),
+        max_retries=1,
+        timeout=0.1,
+    )
     mock_supervisor.schedule_exit(interval=0.1)
 
     with pytest.raises(SystemExit):
@@ -142,6 +143,32 @@ def test_task_timeout(mock_supervisor):
         contents = f.read()
 
     msg = 'Task %d timed out' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
+def test_task_error(mock_supervisor):
+    """Test proper handling and logging of task error."""
+    def mock_task(*args, **kwargs):
+        raise RuntimeError('Task failed for some reason')
+
+    idx = mock_supervisor.schedule(max_retries=1, interval=0.1)
+    mock_supervisor.schedule_exit(interval=0.1)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Task %d failed due to error: Task failed for some reason' % idx
 
     assert msg in contents, (
         'Expected log message %s not found. Log contents:\n %s' % (

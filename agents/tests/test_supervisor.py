@@ -50,7 +50,7 @@ def test_schedule_unschedule_coro(mock_supervisor):
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
     # Run three tests
-    for ntasks in range(2, 3):
+    for ntasks in range(1, 3):
         flags = {}
 
         def mock_task(num, *args, **kwargs):

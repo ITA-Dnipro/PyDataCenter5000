@@ -116,6 +116,7 @@ class AgentSupervisor(object):
                 logger=self.logger,
                 level=logging.WARNING,
             )
+            return
 
         self.coros.pop(idx)
 

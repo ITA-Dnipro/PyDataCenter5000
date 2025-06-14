@@ -9,7 +9,7 @@ from agents.utils.logtools import LOG_CONFIG_PATH
 
 
 @pytest.yield_fixture
-def mock_supervisor(monkeypatch):
+def mock_supervisor():
     agent = MagicMock()
     agent.server_name = 'mock-server'
 
@@ -26,7 +26,7 @@ def mock_supervisor(monkeypatch):
         },
     )
 
-    monkeypatch.setattr(supervisor, 'logfile', tmp)
+    setattr(supervisor, 'logfile', tmp)
 
     yield supervisor
 

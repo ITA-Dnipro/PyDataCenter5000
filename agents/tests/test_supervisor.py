@@ -46,6 +46,34 @@ def test_schedule_unschedule_coro(mock_supervisor):
     assert idx not in mock_supervisor.coros
 
 
+@pytest.mark.coro
+def test_unschedule_nonexistent_coro(mock_supervisor):
+    """
+    Test proper handling and logging of trying to unschedule nonexistent
+    coro.
+    """
+    def mock_task(*args, **kwargs):
+        pass
+
+    assert 0 not in mock_supervisor.coros, (
+        'Unexpected coroutine found in the scheduler'
+    )
+
+    mock_supervisor.unschedule(0)
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine 0 not in tasks'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""

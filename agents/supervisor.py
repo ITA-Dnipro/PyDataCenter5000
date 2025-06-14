@@ -64,7 +64,7 @@ class AgentSupervisor(object):
         timeout=None,
         idx=None,
         *args,
-        **kwargs,
+        **kwargs
     ):
         """
         Schedule a periodic coroutine task.

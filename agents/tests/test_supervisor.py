@@ -47,6 +47,16 @@ def test_schedule_unschedule_coro(mock_supervisor):
 
 
 @pytest.mark.coro
+def test_schedule_weak_coro(mock_supervisor):
+    """Test proper scheduling of a 'weak' coro."""
+    def mock_task(*args, **kwargs):
+        pass
+
+    idx = mock_supervisor.schedule(mock_task, weak=True)
+    assert idx not in mock_supervisor.coros
+
+
+@pytest.mark.coro
 def test_unschedule_nonexistent_coro(mock_supervisor):
     """
     Test proper handling and logging of trying to unschedule nonexistent

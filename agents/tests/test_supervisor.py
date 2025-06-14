@@ -9,7 +9,7 @@ from agents.utils.logtools import LOG_CONFIG_PATH
 
 
 @pytest.yield_fixture(scope='session')
-def mock_supervisor():
+def mock_supervisor(monkeypatch):
     agent = MagicMock()
     agent.server_name = 'mock-server'
 
@@ -25,6 +25,8 @@ def mock_supervisor():
             'agent_name': agent.server_name, 'log_path': tmp.name
         },
     )
+
+    monkeypatch.setattr(supervisor, 'logfile', tmp)
 
     yield supervisor
 
@@ -59,3 +61,15 @@ def test_task_execution(mock_supervisor):
         mock_supervisor.start()
 
     assert flag['ran']
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Task 1 finished'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )

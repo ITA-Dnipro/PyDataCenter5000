@@ -51,12 +51,14 @@ def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
     # Run three tests
     for ntasks in range(1, 4):
-        flags = {'task %d ran' % (n + 1): False for n in range(ntasks)}
+        flags = {}
 
         def mock_task(num, *args, **kwargs):
             flags['task %d ran' % num] = True
 
         for n in range(ntasks):
+            flags['task %d ran' % (n + 1)] = False
+
             # Schedule mock_task ntask times
             mock_supervisor.schedule(
                 mock_task, max_retries=1, interval=1, num=n + 1

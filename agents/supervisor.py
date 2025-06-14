@@ -80,30 +80,37 @@ class AgentSupervisor(object):
             idx = self.last_coro + 1
 
         def run_task():
-            try:
-                for _ in range(max_retries):
-                    try:
-                        if timeout:
-                            coro.with_timeout(timeout, task, *args, **kwargs)
-                        else:
-                            task(*args, **kwargs)
-                    except coro.TimeoutError:
-                        maybe_log_message('Task timed out', logger=self.logger)
-                    except Exception as e:
-                        maybe_log_message(
-                            'Scheduled task failed due to error: %s' % str(e),
-                            logger=self.logger,
-                        )
-
-                    self.sleep(interval)
+            for _ in range(max_retries):
+                try:
+                    if timeout:
+                        coro.with_timeout(timeout, task, *args, **kwargs)
+                    else:
+                        task(*args, **kwargs)
+                except coro.TimeoutError:
+                    maybe_log_message('Task timed out', logger=self.logger)
+                except Exception as e:
+                    maybe_log_message(
+                        'Scheduled task failed due to error: %s' % str(e),
+                        logger=self.logger,
+                    )
                 else:
                     maybe_log_message(
-                        'Task %d finished' % idx,
+                        'Task %d finished successfully' % idx,
                         logger=self.logger,
                         level=logging.INFO,
                     )
-            finally:
-                self.unschedule(idx)
+
+                    return
+
+                self.sleep(interval)
+            else:
+                maybe_log_message(
+                    'Task %d could not complete' % idx,
+                    logger=self.logger,
+                    level=logging.WARNING,
+                )
+
+                return
 
         coroutine = coro.spawn(run_task)
         self.coros[idx] = coroutine
@@ -149,6 +156,6 @@ class AgentSupervisor(object):
 
                 self.sleep(interval)
             else:
-                return coro.set_exit()
+                coro.set_exit()
 
         return self.schedule(exit, max_retries=1, interval=interval, idx=0)

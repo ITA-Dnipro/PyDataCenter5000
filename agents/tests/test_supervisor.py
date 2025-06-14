@@ -74,7 +74,7 @@ def test_task_execution(mock_supervisor):
             contents = f.read()
 
         for n in range(ntasks):
-            msg = 'Task %d finished' % n + 1
+            msg = 'Task %d finished' % (n + 1)
 
             assert msg in contents, (
                 'Expected log message %s not found. Log contents:\n %s' % (

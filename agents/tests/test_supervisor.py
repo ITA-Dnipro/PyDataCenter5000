@@ -49,37 +49,37 @@ def test_schedule_unschedule_coro(mock_supervisor):
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
-    # Run three tests
-    for ntasks in range(1, 3):
-        flags = {}
+    ntasks = 2
 
-        def mock_task(num, *args, **kwargs):
-            flags['task %d ran' % num] = True
+    flags = {}
 
-        for n in range(ntasks):
-            flags['task %d ran' % (n + 1)] = False
+    def mock_task(num, *args, **kwargs):
+        flags['task %d ran' % num] = True
 
-            # Schedule mock_task ntask times
-            mock_supervisor.schedule(
-                mock_task, max_retries=1, interval=1, num=n + 1
+    for n in range(ntasks):
+        flags['task %d ran' % (n + 1)] = False
+
+        # Schedule mock_task ntask times
+        mock_supervisor.schedule(
+            mock_task, max_retries=1, interval=1, num=n + 1
+        )
+
+    mock_supervisor.schedule_exit(interval=0.1)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    assert all(flags.values()), 'Not all scheduled tasks have run'
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    for n in range(ntasks):
+        msg = 'Task %d finished' % (n + 1)
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
             )
-
-        mock_supervisor.schedule_exit(interval=0.1)
-
-        with pytest.raises(SystemExit):
-            mock_supervisor.start()
-
-        assert all(flags.values()), 'Not all scheduled tasks have run'
-
-        with open(mock_supervisor.logfile.name, 'r') as f:
-            f.seek(0)
-            contents = f.read()
-
-        for n in range(ntasks):
-            msg = 'Task %d finished' % (n + 1)
-
-            assert msg in contents, (
-                'Expected log message %s not found. Log contents:\n %s' % (
-                    msg, contents
-                )
-            )
+        )

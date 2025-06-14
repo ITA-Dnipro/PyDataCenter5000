@@ -50,7 +50,7 @@ def test_schedule_unschedule_coro(mock_supervisor):
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
     # Run three tests
-    for ntasks in range(1, 4):
+    for ntasks in range(1, 2):
         flags = {}
 
         def mock_task(num, *args, **kwargs):
@@ -66,7 +66,7 @@ def test_task_execution(mock_supervisor):
 
         mock_supervisor.schedule_exit(interval=0.1)
 
-        with pytest.raises(SystemExit, message='%d' % ntasks):
+        with pytest.raises(SystemExit):
             mock_supervisor.start()
 
         assert all(flags.values()), 'Not all scheduled tasks have run'

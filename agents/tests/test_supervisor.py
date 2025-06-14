@@ -1,7 +1,6 @@
 import logging
 import os
 import tempfile
-import time
 
 import pytest
 from mock import MagicMock
@@ -130,13 +129,13 @@ def test_task_execution(mock_supervisor):
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
     def mock_task(num, *args, **kwargs):
-        time.sleep(10)
+        __import__('coro').sleep_relative(10)
 
     idx = mock_supervisor.schedule(mock_task, max_retries=1, timeout=0.1)
     mock_supervisor.schedule_exit(interval=0.1)
 
-    # with pytest.raises(SystemExit):
-    mock_supervisor.start()
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)

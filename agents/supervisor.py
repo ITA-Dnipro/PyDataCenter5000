@@ -57,7 +57,14 @@ class AgentSupervisor(object):
         coro.sleep_relative(interval)
 
     def schedule(
-        self, task, max_retries=3, interval=5, idx=None, *args, **kwargs
+        self,
+        task,
+        max_retries=3,
+        interval=5,
+        timeout=None,
+        idx=None,
+        *args,
+        **kwargs,
     ):
         """
         Schedule a periodic coroutine task.
@@ -75,7 +82,14 @@ class AgentSupervisor(object):
         def run_task():
             for _ in range(max_retries):
                 try:
-                    task(*args, **kwargs)
+                    if timeout:
+                        coro.with_timeout(timeout, task, *args, **kwargs)
+                    else:
+                        task(*args, **kwargs)
+                except coro.TimeoutError as e:
+                    maybe_log_message(
+                        'Task timed out: %s' % str(e), logger=self.logger
+                    )
                 except Exception as e:
                     maybe_log_message(
                         'Scheduled task failed due to error: %s' % str(e),
@@ -139,6 +153,7 @@ class AgentSupervisor(object):
 
                 self.sleep(interval)
             else:
+                # Maybe do some cleanup
                 if prestop is not None:
                     prestop(*args, **kwargs)
 

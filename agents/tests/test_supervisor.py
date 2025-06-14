@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import time
 
 import pytest
 from mock import MagicMock
@@ -84,6 +85,7 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
     )
 
 
+@pytest.mark.coro
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
@@ -121,3 +123,29 @@ def test_task_execution(mock_supervisor):
                 msg, contents
             )
         )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
+def test_task_timeout(mock_supervisor):
+    """Test proper handling and logging of task timeout."""
+    def mock_task(num, *args, **kwargs):
+        time.sleep(1)
+
+    idx = mock_supervisor.schedule(mock_task, max_retries=1, timeout=0.1)
+    mock_supervisor.schedule_exit(interval=0.1)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Task %d timed out' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )

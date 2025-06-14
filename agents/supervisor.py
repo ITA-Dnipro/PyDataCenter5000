@@ -95,10 +95,12 @@ class AgentSupervisor(object):
                         else:
                             task(*args, **kwargs)
                     except coro.TimeoutError:
-                        maybe_log_message('Task timed out', logger=self.logger)
+                        maybe_log_message(
+                            'Task %d timed out' % idx, logger=self.logger
+                        )
                     except Exception as e:
                         maybe_log_message(
-                            'Scheduled task failed due to error: %s' % str(e),
+                            'Task %d failed due to error: %s' % (idx, str(e)),
                             logger=self.logger,
                         )
                     else:

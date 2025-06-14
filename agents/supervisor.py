@@ -80,28 +80,29 @@ class AgentSupervisor(object):
             idx = self.last_coro + 1
 
         def run_task():
-            for _ in range(max_retries):
-                try:
-                    if timeout:
-                        coro.with_timeout(timeout, task, *args, **kwargs)
-                    else:
-                        task(*args, **kwargs)
-                except coro.TimeoutError:
-                    maybe_log_message('Task timed out', logger=self.logger)
-                except Exception as e:
+            try:
+                for _ in range(max_retries):
+                    try:
+                        if timeout:
+                            coro.with_timeout(timeout, task, *args, **kwargs)
+                        else:
+                            task(*args, **kwargs)
+                    except coro.TimeoutError:
+                        maybe_log_message('Task timed out', logger=self.logger)
+                    except Exception as e:
+                        maybe_log_message(
+                            'Scheduled task failed due to error: %s' % str(e),
+                            logger=self.logger,
+                        )
+
+                    self.sleep(interval)
+                else:
                     maybe_log_message(
-                        'Scheduled task failed due to error: %s' % str(e),
+                        'Task %d finished' % idx,
                         logger=self.logger,
+                        level=logging.INFO,
                     )
-
-                self.sleep(interval)
-            else:
-                maybe_log_message(
-                    'Task %d finished' % idx,
-                    logger=self.logger,
-                    level=logging.INFO,
-                )
-
+            finally:
                 self.unschedule(idx)
 
         coroutine = coro.spawn(run_task)
@@ -120,7 +121,7 @@ class AgentSupervisor(object):
 
         self.coros.pop(idx)
 
-    def schedule_exit(self, interval=30, prestop=None, *args, **kwargs):
+    def schedule_exit(self, interval=30):
         """
         Schedule a periodic check for a stopping condition. When the
         condition is met, optionally run a prestop callable and exit.
@@ -128,10 +129,6 @@ class AgentSupervisor(object):
         Parameters:
             interval (int, optional): Time (in seconds) between stopping
                 condition checks. Default is 30.
-            prestop (Callable, optional): Function-like to call before
-                stopping the event loop. Default is None.
-            *args: Positional arguments passed to prestop callable.
-            **kwargs: Keyword arguments passed to prestop callable.
         """
         def exit():
             while any(idx != 0 for idx in self.coros):
@@ -152,10 +149,6 @@ class AgentSupervisor(object):
 
                 self.sleep(interval)
             else:
-                # Maybe do some cleanup
-                if prestop is not None:
-                    prestop(*args, **kwargs)
-
                 coro.set_exit()
 
         return self.schedule(exit, max_retries=1, interval=interval, idx=0)

@@ -130,7 +130,7 @@ def test_task_execution(mock_supervisor):
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
     def mock_task(num, *args, **kwargs):
-        time.sleep(1)
+        time.sleep(10)
 
     idx = mock_supervisor.schedule(mock_task, max_retries=1, timeout=0.1)
     mock_supervisor.schedule_exit(interval=0.1)

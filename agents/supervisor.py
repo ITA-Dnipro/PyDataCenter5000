@@ -53,7 +53,17 @@ class AgentSupervisor(object):
         coro.event_loop(timeout)
 
     def sleep(self, interval):
-        """Yield to event loop for a duration of the interval."""
+        """
+        Sleep and yield to event loop for a duration of the interval.
+
+        interval (int): Sleep interval duration (in seconds).
+        """
+        if interval < 0:
+            maybe_log_message(
+                'Negative sleep interval not allowed', logger=self.logger
+            )
+            return
+
         coro.sleep_relative(interval)
 
     def schedule(

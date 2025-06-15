@@ -142,7 +142,9 @@ def test_task_timeout(mock_supervisor):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    assert not mock_supervisor.coros
+    assert not mock_supervisor.coros, (
+        'Unexpected supervisor status: coro queue is not empty'
+    )
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)
@@ -169,6 +171,10 @@ def test_task_error(mock_supervisor):
 
     with pytest.raises(SystemExit):
         mock_supervisor.start()
+
+    assert not mock_supervisor.coros, (
+        'Unexpected supervisor status: coro queue is not empty'
+    )
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)

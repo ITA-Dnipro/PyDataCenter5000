@@ -29,6 +29,7 @@ set +a
 : "${PYTHON_DIR:=/opt/python2.6}"
 : "${BUILD_ZLIB_FROM_SRC:=true}"
 : "${INSTALL_CORO:=true}"
+: "${INSTALL_PYTEST_XDIST:=false}"
 
 get_package_src_from_tar() {
     local name=$1
@@ -203,6 +204,26 @@ if [ "$INSTALL_CORO" = "true" ]; then
         mv /etc/apt/sources.list.bak /etc/apt/sources.list
         apt update
     fi
+fi
+
+if [ "$INSTALL_PYTEST_XDIST" = "true" ]; then
+    if ! python -c "import setuptools_scm"; then
+        get_package_src_from_tar setuptools-scm "https://files.pythonhosted.org/packages/d4/96/4b253a56454d92d8477704417c490d1949ca866bda1f8696bcc5fff49613/setuptools_scm-1.15.7.tar.gz"
+        install_python_package_from_src setuptools-scm
+    fi
+
+    if ! python -c "import apipkg"; then
+        get_package_src_from_tar apipkg "https://files.pythonhosted.org/packages/32/37/6ce6dbaa8035730efa95e60b09498ec17000d137742391ff46974d9ef859/apipkg-1.4.tar.gz"
+        install_python_package_from_src apipkg
+    fi
+
+    if ! python -c "import execnet"; then
+        get_package_src_from_tar execnet "https://files.pythonhosted.org/packages/eb/ee/43729e7dee8772e69b3b01715ab9742790be2eace2d18cf53d219b9c31f8/execnet-1.4.1.tar.gz"
+        install_python_package_from_src execnet
+    fi
+
+    get_package_src_from_tar pytest-xdist "https://files.pythonhosted.org/packages/eb/ee/43729e7dee8772e69b3b01715ab9742790be2eace2d18cf53d219b9c31f8/execnet-1.4.1.tar.gz"
+    install_python_package_from_src pytest-xdist
 fi
 
 echo "[INFO] Setup completed successfully."

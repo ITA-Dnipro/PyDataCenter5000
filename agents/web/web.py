@@ -23,14 +23,8 @@ class WebAgent(ServerAgent):
         log_path=None,
         server_host=None,
     ):
-        if port is None and 'PORT' not in os.environ:
-            raise ValueError('PORT environment variable is not set.')
-
-        if server_host is None and 'SERVER_HOST' not in os.environ:
-            raise ValueError('SERVER_HOST environment variable is not set.')
-
-        port = port or int(os.environ['PORT'])
-        self.server_host = server_host or os.environ['SERVER_HOST']
+        port = int(self._get_env_or_param(port, 'PORT'))
+        self.server_host = self._get_env_or_param(server_host, 'SERVER_HOST')
 
         super(WebAgent, self).__init__(
             server_name=server_name,
@@ -41,18 +35,6 @@ class WebAgent(ServerAgent):
             whitelist_commands=whitelist_commands,
             log_path=log_path,
         )
-
-    def _build_url(self, endpoint):
-        """
-        Build the full URL for a given endpoint.
-
-        Args:
-            endpoint (str): The API endpoint to call
-
-        Returns:
-            str: The complete URL including host, port and endpoint
-        """
-        return 'http://%s:%d/%s' % (self.server_host, self.port, endpoint)
 
     def service_healthy(
             self, timeout=2, payload=None, packet_size=0
@@ -88,3 +70,33 @@ class WebAgent(ServerAgent):
         return server_health_status == 'ok' and status and self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )
+
+    def _build_url(self, endpoint):
+        """
+        Build the full URL for a given endpoint.
+
+        Args:
+            endpoint (str): The API endpoint to call
+
+        Returns:
+            str: The complete URL including host, port and endpoint
+        """
+        return 'http://%s:%d/%s' % (self.server_host, self.port, endpoint)
+
+    def _get_env_or_param(self, param_value, env_name):
+        """
+        Get value from parameter or environment variable.
+
+        Args:
+            param_value: Value passed as parameter
+            env_name (str): Name of environment variable
+
+        Returns:
+            The parameter value if provided, otherwise environment variable
+
+        Raises:
+            ValueError: If neither parameter nor environment variable is set
+        """
+        if param_value is None and env_name not in os.environ:
+            raise ValueError('%s environment variable is not set.' % env_name)
+        return param_value or os.environ[env_name]

@@ -13,8 +13,6 @@ from agents.web.web import WebAgent
 @pytest.yield_fixture
 def web_agent():
     """Fixture to create a WebAgent instance with required environment setup"""
-    os.environ['PORT'] = '8000'
-
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 

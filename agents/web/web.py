@@ -8,7 +8,7 @@ class WebAgent(ServerAgent):
     def __init__(
         self,
         server_name='web',
-        port=8000,
+        port=None,
         processes=None,
         interface=None,
         protocol='tcp',

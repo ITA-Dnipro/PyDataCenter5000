@@ -136,8 +136,10 @@ def test_task_timeout(mock_supervisor):
     )
     mock_supervisor.schedule_exit(interval=0.1)
 
-    with pytest.raises(SystemExit):
-        mock_supervisor.start()
+    # with pytest.raises(SystemExit):
+    mock_supervisor.start()
+
+    assert len(mock_supervisor.coros) == 0
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)

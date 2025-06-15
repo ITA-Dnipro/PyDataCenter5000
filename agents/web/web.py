@@ -55,21 +55,51 @@ class WebAgent(ServerAgent):
         Returns:
             bool: True if the service is healthy, False otherwise.
         """
-        request = urllib2.Request(self._build_url('health'))
-        response = urllib2.urlopen(request, timeout=timeout)
+        try:
+            request = urllib2.Request(self._build_url('health'))
+            response = urllib2.urlopen(request, timeout=timeout)
 
-        if response.getcode() != 200:
+            if not (200 <= response.getcode() < 300):
+                maybe_log_message(
+                    'Server responded with status code %d' % (
+                        response.getcode()
+                    ),
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            response_data = json.loads(response.read())
+            if 'status' not in response_data:
+                maybe_log_message(
+                    'Health check failed: Response missing status key',
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            server_health_status = response_data['status']
+            if server_health_status != 'ok':
+                maybe_log_message(
+                    'Health check failed: Server status is %s' % (
+                        server_health_status
+                    ),
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            status = super(WebAgent, self).service_healthy()
+            return status and self.is_port_open(
+                timeout=timeout, payload=payload, packet_size=packet_size
+            )
+        except Exception as e:
+            maybe_log_message(
+                'Health check failed with error: %s' % str(e),
+                self.logger,
+                self.fallback_logger
+            )
             return False
-
-        server_health_status = json.loads(response.read())['status']
-
-        if server_health_status != 'ok':
-            maybe_log_message()
-
-        status = super(WebAgent, self).service_healthy()
-        return server_health_status == 'ok' and status and self.is_port_open(
-            timeout=timeout, payload=payload, packet_size=packet_size
-        )
 
     def _build_url(self, endpoint):
         """

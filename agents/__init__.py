@@ -2,7 +2,6 @@ from . import agent
 from .dns.dns import DNSAgent
 from .ntp.ntp import NTPAgent
 from .smtp.smtp import SMTPAgent
-from .supervisor import AgentSupervisor
 from .utils import configtools
 from .web.web import WebAgent
 

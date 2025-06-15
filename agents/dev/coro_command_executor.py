@@ -9,7 +9,8 @@ import time
 import coro
 import dotenv
 
-from agents import AgentSupervisor, SMTPAgent
+from agents import SMTPAgent
+from agents.supervisor import AgentSupervisor
 
 
 def main():

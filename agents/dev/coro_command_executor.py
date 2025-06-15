@@ -9,8 +9,7 @@ import time
 import coro
 import dotenv
 
-from agents.smtp.smtp import SMTPAgent
-from agents.supervisor import AgentSupervisor
+from agents import AgentSupervisor, SMTPAgent
 
 
 def main():

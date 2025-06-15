@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import re
 import socket
 import tempfile
 import types
@@ -1253,3 +1254,65 @@ def test_post_data_headers_update():
         'Authorization': 'Bearer test-token'
     }
     assert captured_request['headers'] == expected_headers
+
+
+def test_status_to_dict_format():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+    result = agent.status_to_dict()
+
+    required_keys = set([
+        'os', 'hostname', 'ip', 'server_name', 'uptime', 'timestamp',
+        'healthy'
+    ])
+    assert set(result.keys()) == required_keys
+
+    assert isinstance(result['os'], str)
+    assert isinstance(result['hostname'], str)
+    assert isinstance(result['ip'], (str, type(None)))
+    assert result['server_name'] == 'mock'
+    assert isinstance(result['uptime'], (int, float))
+    assert isinstance(result['timestamp'], str)
+    assert isinstance(result['healthy'], bool)
+
+
+def test_status_to_dict_timestamp_format():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+    result = agent.status_to_dict()
+    timestamp = result['timestamp']
+
+    assert re.match(
+        r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp
+    ) is not None
+
+
+@mock.patch('agents.agent.ServerAgent.service_healthy')
+def test_status_to_dict_healthy_status(mock_healthy):
+    agent = MockAgent(port=12345)
+
+    mock_healthy.return_value = True
+    result = agent.status_to_dict()
+    assert result['healthy'] is True
+
+    mock_healthy.return_value = False
+    result = agent.status_to_dict()
+    assert result['healthy'] is False
+
+
+def test_status_to_txt():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+
+    with open(agent.logfile.name, 'w') as f:
+        f.truncate(0)
+
+    agent.status_to_txt()
+
+    with open(agent.logfile.name, 'r') as f:
+        contents = f.read()
+
+    dict_data = agent.status_to_dict()
+    for key, value in dict_data.items():
+        expected_message = '%s: %s' % (key, value)
+        assert expected_message in contents

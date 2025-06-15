@@ -122,7 +122,8 @@ class AgentSupervisor(object):
 
                     return
             finally:
-                self.unschedule(idx)
+                if not weak:
+                    self.unschedule(idx)
 
         coroutine = coro.spawn(run_task)
         if not weak:

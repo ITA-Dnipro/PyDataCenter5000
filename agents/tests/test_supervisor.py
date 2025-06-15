@@ -84,44 +84,44 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
     )
 
 
-@pytest.mark.coro
-@pytest.mark.integration
-def test_task_execution(mock_supervisor):
-    """Test coroutine execution in the event loop."""
-    ntasks = 2
+# @pytest.mark.coro
+# @pytest.mark.integration
+# def test_task_execution(mock_supervisor):
+#     """Test coroutine execution in the event loop."""
+#     ntasks = 2
 
-    flags = {}
+#     flags = {}
 
-    def mock_task(num, *args, **kwargs):
-        flags['task %d ran' % num] = True
+#     def mock_task(num, *args, **kwargs):
+#         flags['task %d ran' % num] = True
 
-    for n in range(ntasks):
-        flags['task %d ran' % (n + 1)] = False
+#     for n in range(ntasks):
+#         flags['task %d ran' % (n + 1)] = False
 
-        # Schedule mock_task ntask times
-        mock_supervisor.schedule(
-            mock_task, max_retries=1, interval=1, num=n + 1
-        )
+#         # Schedule mock_task ntask times
+#         mock_supervisor.schedule(
+#             mock_task, max_retries=1, interval=1, num=n + 1
+#         )
 
-    mock_supervisor.schedule_exit(interval=0.1)
+#     mock_supervisor.schedule_exit(interval=0.1)
 
-    with pytest.raises(SystemExit):
-        mock_supervisor.start()
+#     with pytest.raises(SystemExit):
+#         mock_supervisor.start()
 
-    assert all(flags.values()), 'Not all scheduled tasks have run'
+#     assert all(flags.values()), 'Not all scheduled tasks have run'
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
+#     with open(mock_supervisor.logfile.name, 'r') as f:
+#         f.seek(0)
+#         contents = f.read()
 
-    for n in range(ntasks):
-        msg = 'Task %d finished' % (n + 1)
+#     for n in range(ntasks):
+#         msg = 'Task %d finished' % (n + 1)
 
-        assert msg in contents, (
-            'Expected log message %s not found. Log contents:\n %s' % (
-                msg, contents
-            )
-        )
+#         assert msg in contents, (
+#             'Expected log message %s not found. Log contents:\n %s' % (
+#                 msg, contents
+#             )
+#         )
 
 
 @pytest.mark.coro

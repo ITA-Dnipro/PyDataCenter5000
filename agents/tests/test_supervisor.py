@@ -128,6 +128,8 @@ def test_task_execution(mock_supervisor):
 @pytest.mark.integration
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
+    assert not mock_supervisor.coros
+
     idx = mock_supervisor.schedule(
         lambda: __import__('coro').sleep_relative(10),
         max_retries=1,
@@ -139,7 +141,7 @@ def test_task_timeout(mock_supervisor):
     # with pytest.raises(SystemExit):
     mock_supervisor.start()
 
-    assert len(mock_supervisor.coros) == 0
+    assert not mock_supervisor.coros
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)

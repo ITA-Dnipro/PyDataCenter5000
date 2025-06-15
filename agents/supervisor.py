@@ -164,7 +164,6 @@ class AgentSupervisor(object):
             while self.coros:
                 self.sleep(interval)
             else:
-                pass
-                # coro.set_exit()
+                coro.set_exit()
 
         return self.schedule(exit, max_retries=1, interval=interval, weak=True)

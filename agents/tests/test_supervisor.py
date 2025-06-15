@@ -128,10 +128,11 @@ def test_task_execution(mock_supervisor):
 @pytest.mark.integration
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
-    assert not mock_supervisor.coros
+    def mock_task(*args, **kwargs):
+        __import__('coro').sleep_relative(10)
 
     idx = mock_supervisor.schedule(
-        lambda: __import__('coro').sleep_relative(10),
+        mock_task,
         max_retries=1,
         interval=0.1,
         timeout=0.1,

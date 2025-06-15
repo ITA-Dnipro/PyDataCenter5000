@@ -131,7 +131,7 @@ def test_task_timeout(mock_supervisor):
     idx = mock_supervisor.schedule(
         lambda: __import__('coro').sleep_relative(10),
         max_retries=1,
-        interval=0,
+        interval=0.1,
         timeout=0.1,
     )
     mock_supervisor.schedule_exit(interval=0.1)
@@ -159,7 +159,7 @@ def test_task_error(mock_supervisor):
     def mock_task(*args, **kwargs):
         raise RuntimeError('Task failed for some reason')
 
-    idx = mock_supervisor.schedule(mock_task, max_retries=1, interval=0)
+    idx = mock_supervisor.schedule(mock_task, max_retries=1, interval=0.1)
     mock_supervisor.schedule_exit(interval=0.1)
 
     with pytest.raises(SystemExit):

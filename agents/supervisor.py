@@ -88,7 +88,7 @@ class AgentSupervisor(object):
 
         def run_task():
             try:
-                for _ in range(max_retries):
+                for retry in range(1, max_retries + 1):
                     try:
                         if timeout:
                             coro.with_timeout(timeout, task, *args, **kwargs)
@@ -112,7 +112,8 @@ class AgentSupervisor(object):
 
                         return
 
-                    self.sleep(interval)
+                    if retry != max_retries:
+                        self.sleep(interval)
                 else:
                     maybe_log_message(
                         'Task %d could not complete' % idx,

@@ -578,6 +578,8 @@ class TestEvaluateAgentAlerts:
         (
             'discord',
             'monitoring.discord.send_async_discord_message.apply_async',
+            'slack',
+            'monitoring.webhook.send_async_webhook_message.apply_async'
         )
     ])
     def test_alert_triggered_with_less_than_operator(

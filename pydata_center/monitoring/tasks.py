@@ -55,10 +55,6 @@ class AlertDispatcher:
         send_async_email.apply_async(kwargs={'message': message})
 
     @send.register
-    def _(self, message: DiscordMessage, **kwargs):
-        send_async_discord_message.apply_async(kwargs={'message': message})
-
-    @send.register
     def _(self, message: WebhookMessage, **kwargs):
         send_async_webhook_message.apply_async(kwargs={'message': message})
 

@@ -30,7 +30,7 @@ class WebAgent(ServerAgent):
             log_path=log_path,
         )
 
-    def service_healthy(
+    def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
         # TODO: extend health check.

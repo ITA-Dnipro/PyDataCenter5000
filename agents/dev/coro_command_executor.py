@@ -81,7 +81,7 @@ def main():
     supervisor.schedule(fetch_command, interval=5, credentials=credentials)
     supervisor.schedule(execute_command, max_retries=2, interval=5, timeout=2)
 
-    supervisor.schedule_exit()
+    supervisor.schedule_exit(interval=1)
 
     supervisor.start()
 

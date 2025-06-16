@@ -1,8 +1,11 @@
+import logging
 from dataclasses import dataclass
 from typing import Union
 
 from celery import shared_task
 from django.core.mail import send_mail
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -15,17 +18,22 @@ class EmailMessage:
 
 
 @shared_task
-def send_async_email(message: EmailMessage):
+def send_async_email(serialized_message):
     """
     Wraps Django's send_mail to send emails asynchronously.
 
     Parameters:
-        message (EmailMessage): EmailMessage dataclass instance.
+        serialized_message (Any): JSON-serialized EmailMessage.
     """
-    send_mail(
-        subject=message['subject'],
-        message=message['body'],
-        recipient_list=message['recipients'],
-        from_email=message['sender'],
-        fail_silently=message['fail_silently'],
-    )
+    try:
+        message = EmailMessage(**serialized_message)
+
+        send_mail(
+            subject=message.subject,
+            message=message.body,
+            recipient_list=message.recipients,
+            from_email=message.sender,
+            fail_silently=message.fail_silently,
+        )
+    except TypeError as e:
+        logger.error(f'Error due to missing or invalid arguments: {e}')

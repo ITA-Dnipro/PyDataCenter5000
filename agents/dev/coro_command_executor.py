@@ -4,9 +4,7 @@ import base64
 import logging
 import os
 import subprocess
-import time
 
-import coro
 import dotenv
 
 from agents import SMTPAgent

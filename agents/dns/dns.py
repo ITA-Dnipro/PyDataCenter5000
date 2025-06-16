@@ -67,7 +67,7 @@ class DNSAgent(ServerAgent):
             )
             return False
 
-    def service_healthy(self, timeout=2, payload=None, packet_size=0):
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         process_status = super(DNSAgent, self).is_service_healthy()
         port = self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
@@ -75,3 +75,17 @@ class DNSAgent(ServerAgent):
         dns_status = self.is_dns_running()
 
         return process_status and port and dns_status
+
+    def maybe_restart_service(self):
+        inactive_services = []
+        if not self.is_dns_running():
+            inactive_services.append('named')
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if not inactive_services:
+            return 'All services are heathy and running'
+        else:
+            for service in inactive_services:
+                self.restart_service(service)

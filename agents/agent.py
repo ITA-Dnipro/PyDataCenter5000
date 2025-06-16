@@ -404,16 +404,13 @@ class ServerAgent(object):
                 output = output.decode('utf-8')
 
             output_lines = output.lower().splitlines()
-            active_processes = 0
 
             for proc in self.processes:
                 is_running = any(proc in line for line in output_lines)
-                if not is_running:
-                    active_processes += restart_service(self, proc)
-                else:
-                    active_processes += 1
+                if is_running:
+                    return True
 
-            return len(self.processes) == active_processes
+            return False
 
         except OSError as e:
             maybe_log_message(
@@ -425,7 +422,7 @@ class ServerAgent(object):
 
             return False
 
-    def _is_ssh_service_active(self):
+    def is_ssh_service_active(self):
         try:
             proc = subprocess.Popen(
                 ['systemctl', 'is-active', 'ssh'],
@@ -441,8 +438,8 @@ class ServerAgent(object):
 
             if stdout == 'active':
                 return True
-            else:
-                return restart_service(self, 'ssh')
+
+            return False
 
         except OSError as e:
             maybe_log_message(
@@ -459,9 +456,9 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running() and self._is_ssh_service_active()
+        return self._is_process_running() and self.is_ssh_service_active()
 
-    def restart_service(self, service, attempts):
+    def restart_service(self, service, attempts=3):
         """
         Attempts to restart a system service with exponential backoff
         if it is found to be inactive. Logs each attempt and result.
@@ -486,7 +483,7 @@ class ServerAgent(object):
             fallback_logger=self.fallback_logger
             )
 
-        for delay in range(1, attempts+1):
+        for i in range(1, attempts+1):
             try:
                 maybe_log_message(
                     'Restarting %s (delay before restart: %s).' % (
@@ -497,7 +494,8 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger
                     )
 
-                time.sleep(2**delay)
+                delay = 2**i
+                time.sleep(delay)
 
                 retcode = subprocess.call([
                     'sudo',
@@ -513,7 +511,7 @@ class ServerAgent(object):
                         fallback_logger=self.fallback_logger,
                         level=logging.INFO
                         )
-                    return True
+                    return True  # If restsrting successful
                 else:
                     maybe_log_message(
                         '%s restart failed with code %s.' % (service, retcode),
@@ -533,6 +531,10 @@ class ServerAgent(object):
                 return False  # Stop after first fatal error
         return False  # If restsrting failed
 
+    @abc.abstractmethod
+    def maybe_restart_service(self):
+        pass
+
     def status_to_dict(self):
         return {
             'os': self.os_type,
@@ -541,7 +543,7 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(),
+            'healthy': self.is_service_healthy(),
         }
 
     def status_to_json(self, log=False):

@@ -24,7 +24,6 @@ class WebAgent(ServerAgent):
         server_host=None,
     ):
         port = int(self._get_env_or_param(port, 'PORT'))
-        self.server_host = self._get_env_or_param(server_host, 'SERVER_HOST')
 
         super(WebAgent, self).__init__(
             server_name=server_name,
@@ -35,6 +34,9 @@ class WebAgent(ServerAgent):
             whitelist_commands=whitelist_commands,
             log_path=log_path,
         )
+
+        self.server_host = self._get_env_or_param(server_host, 'SERVER_HOST')
+        self.health_url = self._build_url('health')
 
     def service_healthy(
             self, timeout=2, payload=None, packet_size=0
@@ -56,7 +58,7 @@ class WebAgent(ServerAgent):
             bool: True if the service is healthy, False otherwise.
         """
         try:
-            request = urllib2.Request(self._build_url('health'))
+            request = urllib2.Request(self.health_url)
             response = urllib2.urlopen(request, timeout=timeout)
 
             if not (200 <= response.getcode() < 300):

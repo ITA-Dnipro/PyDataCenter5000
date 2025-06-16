@@ -1,7 +1,8 @@
+import logging
 import subprocess
 
 from ..agent import ServerAgent
-from ..utils.configtools import is_valid_ip
+from ..utils.helpers import is_valid_ip, restart_service
 from ..utils.logtools import maybe_log_message
 
 
@@ -85,7 +86,21 @@ class DNSAgent(ServerAgent):
             inactive_services.append('ssh')
 
         if not inactive_services:
-            return 'All services are heathy and running'
+            maybe_log_message(
+                'All services are heathy and running',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return True
         else:
             for service in inactive_services:
-                self.restart_service(service)
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restsrt services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False

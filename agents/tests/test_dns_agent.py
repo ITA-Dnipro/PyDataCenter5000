@@ -73,7 +73,7 @@ def test_service_healthy_true(mock_dns, mock_port, mock_proc, dns_agent):
     returns True when all checks (process, port, DNS) pass.
     """
     msg = 'Expected service_healthy() to return True when all checks pass'
-    assert dns_agent.service_healthy() is True, msg
+    assert dns_agent.is_service_healthy() is True, msg
 
 
 @patch.object(DNSAgent, 'is_port_open', return_value=True)
@@ -92,7 +92,7 @@ def test_service_healthy_fails_due_to_process(
     msg = (
         'Expected service_healthy() to return False when process check fails'
     )
-    assert dns_agent.service_healthy() is False, msg
+    assert dns_agent.is_service_healthy() is False, msg
 
 
 def test_is_dns_running_raises_oserror(dns_agent):

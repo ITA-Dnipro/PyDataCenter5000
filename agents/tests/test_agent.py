@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import subprocess
 import tempfile
 import types
 
@@ -9,7 +10,6 @@ import pytest
 import urllib2
 
 from agents.agent import CommandHistory, ServerAgent
-from agents.utils.configtools import restart_service
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -62,8 +62,11 @@ class MockAgent(ServerAgent):
         if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)
 
-    def service_healthy(self):
-        return super(MockAgent, self).service_healthy()
+    def is_service_healthy(self):
+        return super(MockAgent, self).is_service_healthy()
+
+    def maybe_restart_service(self):
+        return super(MockAgent, self).maybe_restart_service()
 
 
 def test_command_history_valid_data():
@@ -647,286 +650,126 @@ def test_status_to_dict_with_missing_fields():
     assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
 
 
-# def test_is_process_running_when_all_ok():
-#     agent = MockAgent(processes=['nginx', 'named'])
-#     output = 'COMMAND\nnginx\nssh\nnamed\n'
+def test_is_process_running_when_any_process_running():
+    agent = MockAgent(processes=['nginx', 'named'])
+    output = 'COMMAND\nnginx\nssh\nnamed\n'
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch('subprocess.call') as mock_call:
-#             with mock.patch('agents.agent.restart_service') as mock_restart:
+    with mock.patch('subprocess.Popen') as mock_popen:
+        process_mock = mock.Mock()
+        process_mock.communicate.return_value = [output]
+        mock_popen.return_value = process_mock
 
-#                 process_mock = mock.Mock()
-#                 process_mock.communicate.return_value = [output]
-#                 mock_popen.return_value = process_mock
+        result = agent._is_process_running()
 
-#                 mock_restart.return_value = True
-
-#                 assert agent._is_process_running() is True, (
-#                     'Expected _is_process_running to return True when '
-#                     'all processes are running.'
-#                 )
-#                 assert mock_restart.call_count == 0, (
-#                     'Expected restart_service not to be called when '
-#                     'all processes are active.'
-#                 )
+        assert result is True, (
+            'Expected _is_process_running to return True when at '
+            'least one process from the list is running.'
+        )
 
 
-# def test_is_process_running_when_one_process_missing_and_restarted():
-#     agent = MockAgent(processes=['nginx', 'ssh'])
-#     output = 'COMMAND\nnginx\n'
+def test_is_process_running_didnt_find_any_process():
+    agent = MockAgent(processes=['nginx', 'ssh'])
+    output = 'COMMAND\napache\npostgres\n'
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch('subprocess.call') as mock_call:
-#             with mock.patch('agents.agent.restart_service') as mock_restart:
+    with mock.patch('subprocess.Popen') as mock_popen:
+        process_mock = mock.Mock()
+        process_mock.communicate.return_value = [output]
+        mock_popen.return_value = process_mock
 
-#                 process_mock = mock.Mock()
-#                 process_mock.communicate.return_value = [output]
-#                 mock_popen.return_value = process_mock
+        result = agent._is_process_running()
 
-#                 mock_restart.return_value = True# simulate successful restart
-
-#                 assert agent._is_process_running() is True, (
-#                     'Expected _is_process_running to return True when '
-#                     'a missing process is restarted successfully.'
-#                 )
-#                 mock_restart.assert_called_once_with(agent, 'ssh'), (
-#                     'Expected restart_service to be called once for the '
-#                     '"ssh" process.'
-#                 )
+        assert result is False, (
+            'Expected _is_process_running to return False when '
+            'none of the required processes are found.'
+            )
 
 
-# def test_restart_service_success():
-#     agent = MockAgent()
+def test_is_process_running_with_error():
+    agent = MockAgent(processes=['nginx'])
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch('subprocess.call') as mock_call:
-#             with mock.patch('time.sleep') as mock_sleep:
-#                 with mock.patch(
-#                     'agents.utils.configtools.maybe_log_message'
-#                 ) as mock_log:
+    with mock.patch('subprocess.Popen', side_effect=OSError('boom')):
+        with mock.patch('agents.agent.maybe_log_message') as mock_log:
 
-#                     mock_call.return_value = 0# Simulate success on first try
+            result = agent._is_process_running()
 
-#                     success = restart_service(agent, 'ssh')
+            assert result is False, (
+                'Expected _is_process_running to return False '
+                'when OSError is raised.'
+            )
 
-#                     assert success is True, (
-#                         'Expected restart_service to return True on success.'
-#                     )
-#                     mock_call.assert_called_once_with([
-#                         'sudo',
-#                         'systemctl',
-#                         'restart',
-#                         'ssh'
-#                     ]), (
-#                         'Expected subprocess.call to be called once '
-#                         'with correct restart command.'
-#                     )
-#                     assert mock_sleep.call_count == 1, (
-#                         'Expected time.sleep to be called once before retry.'
-#                     )
-
-#                     expected_logs = [
-#                         mock.call(
-#                             'ssh not active. Attempting restart...',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Restarting ssh (delay before restart: 2).',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'ssh service restarted successfully.',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                     ]
-
-#                     mock_log.assert_has_calls(
-#                         expected_logs, any_order=False
-#                     ), (
-#                         'Expected maybe_log_message to be called with '
-#                         'correct log messages in order.'
-#                     )
-#                     assert mock_log.call_count == 3, (
-#                         'Expected maybe_log_message to be called 3 times.'
-#                     )
+            mock_log.assert_called_once_with(
+                'Process check failed: boom',
+                agent.logger,
+                fallback_logger=agent.fallback_logger,
+                exc_info=True
+            )
 
 
-# def test_restart_service_fails_all_retries():
-#     agent = MockAgent()
+def test_is_ssh_service_active_returns_true_when_active():
+    agent = MockAgent()
+    output = 'active\n'
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch('subprocess.call') as mock_call:
-#             with mock.patch('time.sleep') as mock_sleep:
-#                 with mock.patch(
-#                     'agents.utils.configtools.maybe_log_message'
-#                 ) as mock_log:
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        process_mock = mock.Mock()
+        process_mock.communicate.return_value = (output, '')
+        mock_popen.return_value = process_mock
 
-#                     mock_call.return_value = 1  # Fail all retries
-#                     success = restart_service(agent, 'ssh')
+        result = agent.is_ssh_service_active()
 
-#                     assert success is False, (
-#                         'Expected restart_service to return False '
-#                         'if all retries fail.'
-#                     )
-#                     assert mock_call.call_count == 3, (
-#                         'Expected subprocess.call to be called 3 times.'
-#                     )
-#                     assert mock_sleep.call_count == 3, (
-#                         'Expected time.sleep to be called 3 times.'
-#                     )
-
-#                     # Checking logs
-#                     expected_msgs = [
-#                         mock.call(
-#                             'ssh not active. Attempting restart...',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Restarting ssh (delay before restart: 2).',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'ssh restart failed with code 1.',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Restarting ssh (delay before restart: 4).',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'ssh restart failed with code 1.',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Restarting ssh (delay before restart: 8).',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'ssh restart failed with code 1.',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                     ]
-#                     mock_log.assert_has_calls(
-#                         expected_msgs,
-#                         any_order=False), (
-#                         'Expected maybe_log_message to be called with '
-#                         'correct log messages in the exact order.'
-#                     )
+        assert result is True, (
+            'Expected is_ssh_service_active return True when '
+            'ssh active'
+        )
 
 
-# def test_restart_service_raises_exception():
-#     agent = MockAgent()
+def test_is_ssh_service_active_returns_false_when_inactive():
+    agent = MockAgent()
+    output = 'inactive\n'
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch(
-#             'subprocess.call',
-#             side_effect=OSError('boom')
-#             ) as mock_call:
-#             with mock.patch('time.sleep'):
-#                 with mock.patch(
-#                     'agents.utils.configtools.maybe_log_message'
-#                 ) as mock_log:
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        process_mock = mock.Mock()
+        process_mock.communicate.return_value = (output, '')
+        mock_popen.return_value = process_mock
 
-#                     success = restart_service(agent, 'ssh')
+        result = agent.is_ssh_service_active()
 
-#                     assert success is False, (
-#                         'Expected restart_service to return False if '
-#                         'an exception is raised during restart.'
-#                     )
-
-#                     expected_calls = [
-#                         mock.call(
-#                             'ssh not active. Attempting restart...',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Restarting ssh (delay before restart: 2).',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger
-#                         ),
-#                         mock.call(
-#                             'Error during ssh service restart: boom',
-#                             agent.logger,
-#                             fallback_logger=agent.fallback_logger,
-#                             exc_info=True
-#                         ),
-#                     ]
-#                     mock_log.assert_has_calls(
-#                         expected_calls,
-#                         any_order=False
-#                     ), (
-#                         'Expected maybe_log_message to be called with'
-#                         ' specific error log messages in order.'
-#                     )
+        assert result is False, (
+            'Expected is_ssh_service_active return False when '
+            'ssh inactive'
+        )
 
 
-# def test_is_ssh_service_active_returns_true_when_active():
-#     agent = MockAgent()
+def test_is_ssh_service_active_returns_false_when_output_empty():
+    agent = MockAgent()
+    output = ''
 
-#     output = 'active\n'
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        process_mock = mock.Mock()
+        process_mock.communicate.return_value = (output, '')
+        mock_popen.return_value = process_mock
 
-#     with mock.patch('subprocess.Popen') as mock_popen:
-#         with mock.patch('agents.agent.restart_service') as mock_restart:
+        result = agent.is_ssh_service_active()
 
-#             process_mock = mock.Mock()
-#             process_mock.communicate.return_value = [output, '']
-#             mock_popen.return_value = process_mock
-#             mock_restart.return_value = False  # Should NOT be called
-
-#             result = agent._is_ssh_service_active()
-
-#             assert result is True, 'Expected True when ssh service is active'
-#             assert mock_restart.call_count == 0, (
-#                 'restart_service should not be called when ssh active'
-#                 )
+        assert result is False, (
+            'Expected is_ssh_service_active return False when '
+            'output is empty'
+        )
 
 
-# def test_is_ssh_service_active_restarts_when_inactive():
-#     agent = MockAgent()
+def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
+    agent = MockAgent()
 
-#     output = "inactive\n"
+    with mock.patch(
+        'agents.agent.subprocess.Popen',
+        side_effect=OSError('boom')
+    ):
+        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+            result = agent.is_ssh_service_active()
 
-#     with mock.patch('subprocess.Popen') as mock_popen, \
-#          mock.patch('agents.agent.restart_service') as mock_restart:
-
-#         process_mock = mock.Mock()
-#         process_mock.communicate.return_value = [output, '']
-#         mock_popen.return_value = process_mock
-#         mock_restart.return_value = True
-
-#         result = agent._is_ssh_service_active()
-
-#         assert result is True, ('Expected True after successful restart '
-#                                 'service when inactive')
-#         mock_restart.assert_called_once_with(agent, 'ssh')
-
-
-# def test_is_ssh_service_active_returns_false_on_exception():
-#     agent = MockAgent()
-
-#     with mock.patch('subprocess.Popen', side_effect=OSError('boom')), \
-#          mock.patch('agents.agent.maybe_log_message') as mock_log:
-
-#         result = agent._is_ssh_service_active()
-
-#         assert result is False, 'Expected False when raises OSError'
-
-#         expected_log_call = mock.call(
-#             'SSH service check failed: boom',
-#             agent.logger,
-#             fallback_logger=agent.fallback_logger,
-#             exc_info=True
-#         )
-#         mock_log.assert_called_once_with(
-    # *expected_log_call.args, **expected_log_call.kwargs)
+            assert result is False, 'Expected return False, when OSError'
+            mock_log.assert_called_once()
+            args, kwargs = mock_log.call_args
+            assert 'SSH service check failed: boom' in args[0]
+            assert args[1] == agent.logger
+            assert kwargs['fallback_logger'] == agent.fallback_logger
+            assert kwargs['exc_info'] is True

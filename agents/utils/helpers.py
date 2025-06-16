@@ -33,13 +33,14 @@ def restart_service(logger, fallback_logger, service, attempts=3):
 
     for i in range(1, attempts+1):
         try:
+            delay = 2**i
+
             maybe_log_message(
                 'Restarting %s (delay before restart: %s).' % (service, delay),
                 logger,
                 fallback_logger=fallback_logger
                 )
 
-            delay = 2**i
             time.sleep(delay)
 
             retcode = subprocess.call([
@@ -74,7 +75,7 @@ def restart_service(logger, fallback_logger, service, attempts=3):
                 exc_info=True
                 )
             return False  # Stop after first fatal error
-    return False  # If restsrting failed
+    return False  # If restarting failed
 
 
 def is_valid_ip(output):

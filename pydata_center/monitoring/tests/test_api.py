@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
+from monitoring.email import send_async_email
 from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts
 from rest_framework import status
@@ -410,6 +411,35 @@ class ReceiveStatusEndpointTests(APITestCase):
             response.data,
             "'server_name' should be reported as missing"
         )
+
+
+@pytest.mark.parametrize('func,msg', [
+    (send_async_discord_message, {'content': 'mock-content'}),
+    (
+        send_async_discord_message,
+        {'content': 'mock-content', 'webhook': 'mock-webhook', 'bad': 'arg'}
+    ),
+    (send_async_email, {'body': 'mock-body'}),
+    (
+        send_async_email,
+        {
+            'subject': 'mock-subject',
+            'body': 'mock-body',
+            'recipients': ['mock-rec'],
+            'bad': 'arg',
+        }
+    ),
+])
+def test_send_async_bad_serialized_message(caplog, func, msg):
+    """
+    Test handling and logging of invalid serialized message passed to
+    send_async_discord_message or send_async_email.
+    """
+    with caplog.at_level('ERROR'):
+        result = func(msg)
+
+    assert result is None
+    assert 'Error due to missing or invalid arguments' in caplog.text
 
 
 @pytest.mark.parametrize('status_code', [200, 204])

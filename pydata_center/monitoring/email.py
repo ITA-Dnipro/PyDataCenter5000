@@ -23,9 +23,9 @@ def send_async_email(message: EmailMessage):
         message (EmailMessage): EmailMessage dataclass instance.
     """
     send_mail(
-        subject=message.subject,
-        message=message.body,
-        recipient_list=message.recipients,
-        from_email=message.sender,
-        fail_silently=message.fail_silently,
+        subject=message['subject'],
+        message=message['body'],
+        recipient_list=message['recipients'],
+        from_email=message['sender'],
+        fail_silently=message['fail_silently'],
     )

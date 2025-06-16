@@ -18,15 +18,17 @@ class EmailMessage:
 
 
 @shared_task
-def send_async_email(serialized_message):
+def send_async_email(message):
     """
     Wraps Django's send_mail to send emails asynchronously.
 
     Parameters:
-        serialized_message (Any): JSON-serialized EmailMessage.
+        message (Any): Instance of EmailMessage (if function is called
+            explicitly) or JSON-serialized EmailMessage.
     """
     try:
-        message = EmailMessage(**serialized_message)
+        if not isinstance(message, EmailMessage):
+            message = EmailMessage(**message)
 
         send_mail(
             subject=message.subject,

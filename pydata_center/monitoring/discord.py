@@ -17,15 +17,17 @@ class DiscordMessage:
 
 
 @shared_task
-def send_async_discord_message(serialized_message):
+def send_async_discord_message(message):
     """
     Send Discord message asynchronously using provided webhook.
 
     Parameters:
-        message (Any): JSON-serialized DiscordMessage.
+        message (Any): Instance of DiscordMessage (if function is called
+            explicitly) or JSON-serialized DiscordMessage.
     """
     try:
-        message = DiscordMessage(**serialized_message)
+        if not isinstance(message, DiscordMessage):
+            message = DiscordMessage(**message)
 
         response = requests.post(
             message.webhook, json={'content': message.content}

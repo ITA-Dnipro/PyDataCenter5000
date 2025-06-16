@@ -38,11 +38,11 @@ def main():
             agent.maybe_add_to_queue(data)
 
     def execute_command():
+        logging.info('Waiting for commands')
+
         command_history = None
 
         while True:
-            logging.info('Waiting for commands')
-
             if len(agent.queue) > 0:
                 command_history = agent.queue.pop()
 

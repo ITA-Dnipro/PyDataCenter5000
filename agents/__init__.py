@@ -29,3 +29,10 @@ if cfg:
         'whitelist_commands',
         cast=configtools.parse_csv_list,
     )
+
+    agent.ServerAgent.critical_processes = configtools.get_config_option(
+        cfg,
+        'servers',
+        'critical_processes',
+        cast=configtools.parse_csv_list,
+    )

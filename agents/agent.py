@@ -81,22 +81,26 @@ class ServerAgent(object):
     Base class for all agents. Handles operations common for all
     servers, such as getting server metadata and writing it to logfile.
     """
+
     __metaclass__ = abc.ABCMeta
 
     controller_url = None
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
+    critical_processes = None
 
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
         log_path=None,
+
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -106,11 +110,15 @@ class ServerAgent(object):
         if protocol is not None:
             self.protocol = protocol
 
-        if self.whitelist_commands is None:
-            self.whitelist_commands = []
-
+        self.whitelist_commands = self.whitelist_commands or []
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
+
+        # Extend the list of global critical processes with those that
+        # are server-specific.
+        self.critical_processes = self.critical_processes or []
+        if critical_processes is not None:
+            self.critical_processes.extend(critical_processes)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -147,7 +155,7 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls()
+        agent = cls(log_path=log_path)
 
         agent._parse_config_file(filename)
 
@@ -206,9 +214,8 @@ class ServerAgent(object):
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
-        filename = (
-            filename or pkg_resources.
-            resource_filename(self.__class__.__module__, 'config.ini')
+        filename = filename or pkg_resources.resource_filename(
+            self.__class__.__module__, 'config.ini'
         )
 
         config = ConfigParser.ConfigParser()
@@ -244,6 +251,22 @@ class ServerAgent(object):
                 cast=parse_csv_list,
             )
 
+            # Append server-specific critical_processes
+            critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
+            )
+            # Extend, avoiding duplicates
+            if critical_processes:
+                self.critical_processes.extend(
+                    proc for proc in critical_processes
+                    if proc not in self.critical_processes
+                )
+
             self.interface = get_config_option(
                 config,
                 'server',
@@ -256,14 +279,16 @@ class ServerAgent(object):
                 config,
                 'controller',
                 'whitelist_commands',
-                [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:
-                self.whitelist_commands.extend(whitelist_commands)
+                self.whitelist_commands.extend(
+                    cmd for cmd in whitelist_commands
+                    if cmd not in self.whitelist_commands
+                )
 
     def collect_server_metadata(self):
         """
@@ -465,10 +490,8 @@ class ServerAgent(object):
             return status
         except TypeError as e:
             maybe_log_message(
-                (
-                    'JSON serialization of status failed '
-                    'due to error: %s' % str(e)
-                ),
+                ('JSON serialization of status failed '
+                 'due to error: %s' % str(e)),
                 self.logger,
                 fallback_logger=self.fallback_logger,
             )

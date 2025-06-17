@@ -10,11 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import json
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+from kombu.serialization import register
+
+from pydata_center.utils import DataclassJSONEncoder
 
 # Load environment variables from .env file
 load_dotenv()
@@ -55,6 +60,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'drf_spectacular',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'monitoring',
 ]
 
@@ -81,6 +87,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -213,10 +220,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-]
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -261,6 +264,7 @@ else:
             },
         },
         'loggers': {
+            'root': {'handlers': ['console'], 'level': 'DEBUG'},
             'django': {
                 'handlers': ['file', 'console'],
                 'level': 'INFO',
@@ -268,3 +272,40 @@ else:
             },
         },
     }
+
+SIMPLE_JWT = {
+  'ACCESS_TOKEN_LIFETIME': timedelta(minutes=40),
+  'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+  'ROTATE_REFRESH_TOKENS': False,
+  'BLACKLIST_AFTER_ROTATION': True,
+  'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+ALERT_RATE_LIMIT_SECONDS = 300
+
+register(
+    'dataclass_json',
+    lambda o: json.dumps(o, cls=DataclassJSONEncoder).encode(),
+    lambda s: json.loads(s),
+    content_type='application/x-dataclass-json',
+    content_encoding='utf-8'
+)
+
+CELERY_TASK_SERIALIZER = 'dataclass_json'
+CELERY_RESULT_SERIALIZER = 'dataclass_json'
+CELERY_ACCEPT_CONTENT = ['dataclass_json']
+
+CELERY_BEAT_SCHEDULE = {
+    'evaluate-agent-alerts-every-30-seconds': {
+        'task': 'monitoring.tasks.evaluate_agent_alerts',
+        'schedule': 30.0,
+    },
+}
+
+DEFAULT_ALERT_DESTINATIONS = ['discord']
+ALERT_FAIL_SILENTLY = True
+
+ALERT_EMAIL_RECIPIENTS = []
+DEFAULT_FROM_EMAIL = ALERT_EMAIL_SENDER = ''
+
+ALERT_DISCORD_WEBHOOK = os.environ.get('DISCORD_ALERT_WEBHOOK')

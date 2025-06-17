@@ -104,7 +104,16 @@ document.getElementById('filterForm').addEventListener('submit', function(e) {
       }
 
       const metricKeys = ['cpu', 'ram', 'disk', 'load_avg'];
-      chart.data.labels = data.map(item => new Date(item.timestamp).toLocaleString());
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+
+      chart.data.labels = data.map(item => formatter.format(new Date(item.timestamp)));
 
       metricKeys.forEach((key, i) => {
         chart.data.datasets[i].data = data.map(item => item[key]);

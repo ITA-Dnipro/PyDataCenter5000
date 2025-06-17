@@ -129,12 +129,17 @@ class AgentSupervisor(object):
                         )
                     except Exception as e:
                         maybe_log_message(
-                            'Task %d failed due to error: %s' % (idx, str(e)),
+                            'Task %d failed on retry %d due to error: %s' % (
+                                idx, retry, str(e)
+                            ),
                             logger=self.logger,
                         )
                     else:
                         maybe_log_message(
-                            'Task %d finished successfully' % idx,
+                            (
+                                'Task %d finished successfully after %d '
+                                'retry(-ies)' % (idx, retry)
+                            ),
                             logger=self.logger,
                             level=logging.INFO,
                         )
@@ -145,7 +150,10 @@ class AgentSupervisor(object):
                         self.sleep(interval)
                 else:
                     maybe_log_message(
-                        'Task %d could not complete' % idx,
+                        (
+                            'Task %d could not complete after %d retry(-ies)'
+                            % (idx, max_retries)
+                        ),
                         logger=self.logger,
                         level=logging.WARNING,
                     )

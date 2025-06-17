@@ -545,8 +545,8 @@ class TestEvaluateAgentAlerts:
             (
                 'slack',
                 'monitoring.webhook.send_async_webhook_message.apply_async',
-            ),
-        ],
+            )
+        ]
     )
     def test_alert_triggered(self, destination, mocked, caplog):
         with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:

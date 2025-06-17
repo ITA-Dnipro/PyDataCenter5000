@@ -27,8 +27,7 @@ class DiscordMessage(WebhookMessage):
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def send_async_webhook_message(self, message):
     """
-    Send webhook message asynchronously with
-    retry support.
+    Send webhook message asynchronously with retry support.
     """
     try:
         response = requests.post(
@@ -50,20 +49,19 @@ def send_async_webhook_message(self, message):
             )
 
     except requests.RequestException as e:
-        logger.warning(
-            f'[RETRY] Transient error sending to {message.webhook}: {e}'
-        )
-        raise self.retry(exc=e)
-
-    except Exception as e:
-        logger.error(
-            f'Sending webhook message failed due to error: {sys.exc_info()[0]}'
-        )
         webhook_hash = hashlib.sha256(
             message.webhook.encode()
         ).hexdigest()[:8]
 
-        logger.error(f'Webhook hash: {webhook_hash}')
+        safe_error_msg = (
+            f'Sending message to webhook failed due to '
+            f'error: {sys.exc_info()[0]}. Webhook hash: {webhook_hash}'
+        )
 
-        if not message.fail_silently:
-            raise type(e)('Sending Webhook message failed. ')
+        logger.error(safe_error_msg)
+
+        if self.request.retries >= self.max_retries:
+            if not message.fail_silently:
+                raise type(e)(safe_error_msg)
+        else:
+            raise self.retry(exc=type(e)(safe_error_msg))

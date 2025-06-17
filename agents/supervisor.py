@@ -5,21 +5,7 @@ import threading
 import coro
 
 from .utils.logtools import maybe_log_message
-
-
-def jitter(base, cap):
-    """
-    Generator for decorralated jitter backoff.
-
-    Parameters:
-        base (int | float): Minimum delay (in seconds).
-        cap (int | float): Maximum delay (in seconds).
-    """
-    interval = base
-
-    while True:
-        interval = min(cap, random.uniform(base, interval * 3))
-        yield interval
+from .utils.retry import jitter
 
 
 class AgentSupervisor(object):

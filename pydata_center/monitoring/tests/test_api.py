@@ -536,16 +536,16 @@ class TestEvaluateAgentAlerts:
         [
             (
                 'email',
-                'monitoring.email.send_async_email_message.apply_async',
+                'monitoring.email.send_async_email_message.apply_async'
             ),
             (
                 'discord',
-                'monitoring.discord.send_async_discord_message.apply_async',
+                'monitoring.discord.send_async_discord_message.apply_async'
             ),
             (
                 'slack',
-                'monitoring.webhook.send_async_webhook_message.apply_async',
-            )
+                'monitoring.webhook.send_async_webhook_message.apply_async'
+            ),
         ]
     )
     def test_alert_triggered(self, destination, mocked, caplog):

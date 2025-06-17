@@ -80,7 +80,7 @@ def main():
     supervisor.schedule(fetch_command, max_delay=5, credentials=credentials)
     supervisor.schedule(execute_command, max_retries=2, max_delay=5, timeout=2)
 
-    supervisor.schedule_exit(interval=1)
+    supervisor.schedule_exit(min_delay=0.1, max_delay=1)
 
     supervisor.start()
 

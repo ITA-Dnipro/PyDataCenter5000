@@ -532,12 +532,22 @@ class TestEvaluateAgentAlerts:
         )
 
     @pytest.mark.parametrize(
-    ["destination", "mocked"],
-    [
-        ("discord", "monitoring.discord.send_async_discord_message.apply_async"),
-        ("slack", "monitoring.webhook.send_async_webhook_message.apply_async"),
-    ]
-)   
+        ['destination', 'mocked'],
+        [
+            (   
+                'email', 
+                'monitoring.email.send_async_email_message.apply_async'
+            ),
+            (   
+                'discord', 
+                'monitoring.discord.send_async_discord_message.apply_async'
+            ),
+            (   
+                'slack', 
+                'monitoring.webhook.send_async_webhook_message.apply_async'
+            ),
+        ]
+    )
     def test_alert_triggered(self, destination, mocked, caplog):
         with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
             evaluate_agent_alerts(destinations=[destination], batch=False)

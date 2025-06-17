@@ -13,6 +13,7 @@ import attr
 import ConfigParser
 import pkg_resources
 import psutil
+import Queue
 import urllib2
 from dateutil import parser
 from urlparse import urljoin
@@ -97,6 +98,7 @@ class ServerAgent(object):
         protocol=None,
         whitelist_commands=None,
         log_path=None,
+        command_queue_size=0,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -119,7 +121,7 @@ class ServerAgent(object):
 
         # self._queue will store a time-stamped event queue with
         # pending commands
-        self._queue = None
+        self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
         # Initialize logging from logging config file
         log_path = (
@@ -200,14 +202,6 @@ class ServerAgent(object):
             raise ValueError('Unknown protocol value %s' % value)
 
         self._protocol = value
-
-    @property
-    def queue(self):
-        """Ensure lazy setup of coro event queue"""
-        if self._queue is None:
-            self._queue = __import__('coro').event_queue()
-
-        return self._queue
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
@@ -680,7 +674,7 @@ class ServerAgent(object):
                 exc_info=True,
             )
 
-    def maybe_add_to_queue(self, data):
+    def maybe_add_command_to_queue(self, data, block=False, timeout=None):
         """
         Add command to queue if it passes field validation and if
         whitelisted by the server.
@@ -696,4 +690,13 @@ class ServerAgent(object):
             return
 
         if command_history.command in self.whitelist_commands:
-            self.queue.insert(time.time() * 1000, command_history)
+            try:
+                self.queue.put(command_history, block=block, timeout=timeout)
+            except Queue.Full:
+                maybe_log_message('Queue is full - could not append command')
+
+    def get_command_from_queue(self, block=False, timeout=None):
+        try:
+            return self.queue.get(block=block, timeout=timeout)
+        except Queue.Empty:
+            maybe_log_message('Queue is empty - could not retrieve command')

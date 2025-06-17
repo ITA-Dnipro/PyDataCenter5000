@@ -35,7 +35,7 @@ def main():
         if data:
             logging.info('Data received - maybe adding command to queue')
 
-            agent.maybe_add_to_queue(data)
+            agent.maybe_add_command_to_queue(data)
 
     def execute_command():
         logging.info('Waiting for commands')
@@ -43,9 +43,9 @@ def main():
         command_history = None
 
         while True:
-            if len(agent.queue) > 0:
-                command_history = agent.queue.pop()
+            command_history = agent.get_command_from_queue()
 
+            if command_history:
                 logging.warning(
                     'Command %s received' % command_history.command
                 )
@@ -53,30 +53,29 @@ def main():
 
             supervisor.sleep(0.1)
 
-        if command_history:
-            try:
-                proc = subprocess.Popen(
-                    command_history.command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
+        try:
+            proc = subprocess.Popen(
+                command_history.command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
-                stdout, stderr = proc.communicate()
-                output = stdout.decode('utf-8') + stderr.decode('utf-8')
+            stdout, stderr = proc.communicate()
+            output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
-                logging.info(
-                    'Command %s finished with status %s' % (
-                        command_history.command, proc.returncode
-                    )
+            logging.info(
+                'Command %s finished with status %s' % (
+                    command_history.command, proc.returncode
                 )
-                logging.info('Command output: %s' % output)
-            except Exception as e:
-                logging.error(
-                    'Failed to execute command '
-                    '%s due to error: %s' % (command_history.command, str(e)),
-                    exc_info=True,
-                )
+            )
+            logging.info('Command output: %s' % output)
+        except Exception as e:
+            logging.error(
+                'Failed to execute command '
+                '%s due to error: %s' % (command_history.command, str(e)),
+                exc_info=True,
+            )
 
     supervisor.schedule(fetch_command, interval=5, credentials=credentials)
     supervisor.schedule(execute_command, max_retries=2, interval=5, timeout=2)

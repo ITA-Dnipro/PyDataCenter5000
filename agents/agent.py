@@ -693,10 +693,16 @@ class ServerAgent(object):
             try:
                 self.queue.put(command_history, block=block, timeout=timeout)
             except Queue.Full:
-                maybe_log_message('Queue is full - could not append command')
+                maybe_log_message(
+                    'Queue is full - could not append command',
+                    logger=self.logger,
+                )
 
     def get_command_from_queue(self, block=False, timeout=None):
         try:
             return self.queue.get(block=block, timeout=timeout)
         except Queue.Empty:
-            maybe_log_message('Queue is empty - could not retrieve command')
+            maybe_log_message(
+                'Queue is empty - could not retrieve command',
+                logger=self.logger,
+            )

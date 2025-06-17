@@ -785,7 +785,6 @@ class ServerAgent(object):
         Generate a report containing server resource usage.
         """
         return {
-            'hostname': self.hostname,
             'cpu': self.get_cpu_usage(),
             'ram': self.get_ram_usage(),
             'disk': self.get_disk_usage(),
@@ -814,12 +813,12 @@ class ServerAgent(object):
             return
         base_api_url = urljoin(self.controller_url, self.api_prefix)
         metrics_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
 
         payload = self.generate_report()
-
         try:
             result = self.post_data(
-                metrics_api_url,
+                url,
                 payload,
                 api_key,
                 max_retries,

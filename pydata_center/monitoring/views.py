@@ -275,7 +275,8 @@ def dashboard_view(request):
 
 @api_view(['POST'])
 def create_agent_metric(request):
-    hostname = request.data.get('hostname')
+    hostname = request.query_params.get('hostname')
+
     if not hostname:
         return Response({'error': 'Hostname is required'}, status=400)
 

@@ -709,7 +709,13 @@ class TestCreateAgentMetrics(APITestCase):
 
     def test_create_metric_successfully(self):
         payload = self.generate_report()
-        response = self.client.post(self.url, payload, format='json')
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['status'], 'metric recorded')
         self.assertEqual(AgentMetric.objects.count(), 1)
@@ -723,14 +729,23 @@ class TestCreateAgentMetrics(APITestCase):
 
     def test_create_metric_with_unknown_hostname(self):
         payload = self.generate_report()
-        payload['hostname'] = 'nonexistent-host'
-        response = self.client.post(self.url, payload, format='json')
+        response = self.client.post(
+            f'{self.url}?hostname=nonexistent-host',
+            payload,
+            format='json'
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn('error', response.data)
 
     def test_create_metric_invalid_data(self):
         payload = self.generate_report()
         payload['cpu'] = 'not-a-number'
-        response = self.client.post(self.url, payload, format='json')
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('cpu', response.data)

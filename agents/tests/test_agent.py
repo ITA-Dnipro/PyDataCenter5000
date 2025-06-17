@@ -751,12 +751,10 @@ def test_generate_report():
 
     try:
         report = agent.generate_report()
-        print(report)
         assert report['cpu'] == 10.1
         assert report['ram'] == 20.2
         assert report['disk'] == 30.3
         assert report['load_avg'] == 40.4
-        assert report['hostname'] == agent.hostname
     finally:
         cpu_patch.stop()
         ram_patch.stop()
@@ -777,6 +775,7 @@ def test_send_metrics_to_controller_post_success_returns_true():
     agent = MockAgent()
     agent.controller_url = 'http://controller/'
     agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
 
     fake_payload = {'data': 'value'}
 
@@ -792,7 +791,10 @@ def test_send_metrics_to_controller_post_success_returns_true():
         ) as mock_post:
             result = agent.send_metrics_to_controller(api_key='key123')
 
-            expected_url = 'http://controller/api/agent/metrics/'
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
             mock_post.assert_called_once_with(
                 expected_url,
                 fake_payload,
@@ -809,6 +811,7 @@ def test_send_metrics_to_controller_post_failure_returns_none():
     agent = MockAgent()
     agent.controller_url = 'http://controller/'
     agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
 
     fake_payload = {'data': 'value'}
 
@@ -821,8 +824,20 @@ def test_send_metrics_to_controller_post_failure_returns_none():
             agent,
             'post_data',
             return_value=False
-        ):
+        ) as mock_post:
             result = agent.send_metrics_to_controller()
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                None,
+                3,
+                5,
+                5
+            )
             assert result is None
 
 
@@ -830,6 +845,7 @@ def test_send_metrics_to_controller_post_raises_returns_none():
     agent = MockAgent()
     agent.controller_url = 'http://controller/'
     agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
 
     fake_payload = {'data': 'value'}
 
@@ -845,6 +861,18 @@ def test_send_metrics_to_controller_post_raises_returns_none():
             agent,
             'post_data',
             side_effect=raise_exc
-        ):
+        ) as mock_post:
             result = agent.send_metrics_to_controller()
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                None,
+                3,
+                5,
+                5
+            )
             assert result is None

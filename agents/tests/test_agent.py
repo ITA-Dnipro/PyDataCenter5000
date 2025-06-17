@@ -39,6 +39,7 @@ class MockAgent(ServerAgent):
         server_name='mock',
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
@@ -51,6 +52,7 @@ class MockAgent(ServerAgent):
             server_name,
             port,
             processes,
+            critical_processes,
             interface,
             protocol,
             whitelist_commands,
@@ -146,17 +148,20 @@ def test_type_checks_on_init():
         MockAgent(processes=0)
 
 
-def test_type_checks_on_config_parse():
-    """
-    Test that type checks fail initialization with bad config file
-    parameters.
-    """
+def test_critical_processes_parsing():
+    """Test that critical_processes are correctly parsed from config."""
     with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write('[server]\nname=mock\nport=invalid\nprocesses=proc1')
+        tmp.write(
+            '[server]\n'
+            'name=mock\n'
+            'port=123\n'
+            'processes=proc1\n'
+            'critical_processes=sshd, nginx, postgres\n'
+        )
         tmp.flush()
 
-        with pytest.raises(TypeError):
-            MockAgent.from_config_file(tmp.name)
+        agent = MockAgent.from_config_file(tmp.name)
+        assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
 
 
 def test_status_to_json_type_error():

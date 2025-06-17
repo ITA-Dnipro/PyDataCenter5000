@@ -1,13 +1,17 @@
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 import requests
+from dateutil.parser import isoparse
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
+from monitoring.email import send_async_email
 from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts
 from rest_framework import status
@@ -412,6 +416,35 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
 
+@pytest.mark.parametrize('func,msg', [
+    (send_async_discord_message, {'content': 'mock-content'}),
+    (
+        send_async_discord_message,
+        {'content': 'mock-content', 'webhook': 'mock-webhook', 'bad': 'arg'}
+    ),
+    (send_async_email, {'body': 'mock-body'}),
+    (
+        send_async_email,
+        {
+            'subject': 'mock-subject',
+            'body': 'mock-body',
+            'recipients': ['mock-rec'],
+            'bad': 'arg',
+        }
+    ),
+])
+def test_send_async_bad_serialized_message(caplog, func, msg):
+    """
+    Test handling and logging of invalid serialized message passed to
+    send_async_discord_message or send_async_email.
+    """
+    with caplog.at_level('ERROR'):
+        result = func(msg)
+
+    assert result is None
+    assert 'Error due to missing or invalid arguments' in caplog.text
+
+
 @pytest.mark.parametrize('status_code', [200, 204])
 def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
     """Test handling and logging of succesfull Discord POST request."""
@@ -749,3 +782,208 @@ class TestCreateAgentMetrics(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('cpu', response.data)
+
+
+class MetricsHistoryViewTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.url = reverse('monitoring:metrics_history')
+        cls.username = 'testuser'
+        cls.password = 'testpass'
+        cls.user = User.objects.create_user(
+            username=cls.username,
+            password=cls.password
+        )
+
+        cls.fixed_now = (
+            timezone.now()
+            .replace(microsecond=0)
+            .astimezone(timezone.utc)
+        )
+
+        cls.server = ServerStatus.objects.create(
+            hostname='server1',
+            ip='127.0.0.1',
+            uptime=1000,
+            timestamp=cls.fixed_now,
+            os='Ubuntu',
+            healthy=True,
+            server_name='MainServer'
+        )
+
+        metric_early = AgentMetric.objects.create(
+            server_status=cls.server,
+            cpu=10.5, ram=20.0, disk=50.0, load_avg=0.5
+        )
+        metric_mid = AgentMetric.objects.create(
+            server_status=cls.server,
+            cpu=30.2, ram=40.0, disk=60.0, load_avg=0.9
+        )
+        metric_latest = AgentMetric.objects.create(
+            server_status=cls.server,
+            cpu=50.1, ram=80.0, disk=90.0, load_avg=1.3
+        )
+
+        metric_early.timestamp = cls.fixed_now - timedelta(minutes=10)
+        metric_early.save(update_fields=['timestamp'])
+
+        metric_mid.timestamp = cls.fixed_now - timedelta(minutes=5)
+        metric_mid.save(update_fields=['timestamp'])
+
+        metric_latest.timestamp = cls.fixed_now
+        metric_latest.save(update_fields=['timestamp'])
+
+        cls.metric_early = metric_early
+        cls.metric_mid = metric_mid
+        cls.metric_latest = metric_latest
+
+    def setUp(self):
+        self.client.login(
+            username=self.username,
+            password=self.password
+        )
+        self.fixed_now = self.__class__.fixed_now
+
+    def test_get_all_metrics(self):
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK, got {response.status_code}'
+        )
+        self.assertEqual(
+            len(response.data),
+            3,
+            f'Expected 3 metrics, got {len(response.data)}'
+        )
+
+    def test_filter_by_hostname(self):
+        response = self.client.get(self.url, {'hostname': 'server1'})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK, got {response.status_code}'
+        )
+        self.assertTrue(
+            all(
+                item['server_status__hostname'] == 'server1'
+                for item in response.data
+            ),
+            f"Not all items have hostname 'server1': {response.data}"
+        )
+
+    def test_filter_by_start_time(self):
+        start_time = (
+            self.fixed_now - timedelta(minutes=7)
+        ).isoformat()
+        response = self.client.get(self.url, {'start': start_time})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK, got {response.status_code}'
+        )
+        expected_timestamps = {
+            self.metric_mid.timestamp,
+            self.metric_latest.timestamp
+        }
+        returned_timestamps = {item['timestamp'] for item in response.data}
+        self.assertSetEqual(
+            returned_timestamps,
+            expected_timestamps,
+            f'Expected timestamps {expected_timestamps}, '
+            f'got {returned_timestamps}'
+        )
+
+    def test_filter_by_end_time(self):
+        end_time = (
+            self.fixed_now - timedelta(minutes=6)
+        ).isoformat()
+        response = self.client.get(self.url, {'end': end_time})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK, got {response.status_code}'
+        )
+        self.assertEqual(
+            len(response.data),
+            1,
+            f'Expected 1 metric, got {len(response.data)}'
+        )
+        self.assertEqual(
+            response.data[0]['timestamp'],
+            self.metric_early.timestamp,
+            f'Expected timestamp {self.metric_early.timestamp.isoformat()}, '
+            f"got {response.data[0]['timestamp']}"
+        )
+
+    def test_filter_by_start_and_end_time(self):
+        start_time = (
+            self.fixed_now - timedelta(minutes=7)
+        ).isoformat()
+        end_time = (
+            self.fixed_now - timedelta(minutes=3)
+        ).isoformat()
+        response = self.client.get(
+            self.url,
+            {'start': start_time, 'end': end_time}
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK, got {response.status_code}'
+        )
+        self.assertEqual(
+            len(response.data),
+            1,
+            f'Expected 1 metric between start and end, got '
+            f'{len(response.data)}'
+        )
+        expected_ts = self.metric_mid.timestamp
+        self.assertEqual(
+            response.data[0]['timestamp'],
+            expected_ts,
+            f'Expected timestamp {expected_ts}, '
+            f"got {response.data[0]['timestamp']}"
+        )
+
+    def test_invalid_time_format(self):
+        response = self.client.get(self.url, {'start': 'invalid-date'})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            'Expected 400 Bad Request for invalid date, '
+            f'got {response.status_code}'
+        )
+        self.assertIn(
+            'start', response.data, "Expected 'start' key in error response"
+        )
+
+    def test_unauthenticated_access_denied(self):
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+            'Expected 403 FORBIDDEN for unauthenticated access '
+            f'got {response.status_code}'
+        )
+
+    def test_no_metrics_in_range(self):
+        start = (self.fixed_now + timedelta(minutes=1)).isoformat()
+        response = self.client.get(self.url, {'start': start})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            'Expected 200 OK for no metrics in range, '
+            f'got {response.status_code}'
+        )
+        self.assertEqual(len(response.data), 0)
+
+    def test_naive_start_datetime_is_made_aware(self):
+        naive_start = datetime(2025, 6, 1, 10, 0, 0).isoformat()
+        response = self.client.get(self.url, {'start': naive_start})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f'Expected 200 OK for naive datetime, got {response.status_code}'
+        )

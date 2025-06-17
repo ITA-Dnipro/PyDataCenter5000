@@ -1,9 +1,25 @@
 import logging
+import random
 import threading
 
 import coro
 
 from .utils.logtools import maybe_log_message
+
+
+def jitter(base, cap):
+    """
+    Generator for decorralated jitter backoff.
+
+    Parameters:
+        base (int | float): Minimum delay (in seconds).
+        cap (int | float): Maximum delay (in seconds).
+    """
+    interval = base
+
+    while True:
+        interval = min(cap, random.uniform(base, interval * 3))
+        yield interval
 
 
 class AgentSupervisor(object):
@@ -89,7 +105,8 @@ class AgentSupervisor(object):
         self,
         task,
         max_retries=3,
-        interval=5,
+        min_delay=2,
+        max_delay=10,
         timeout=None,
         weak=False,
         *args,
@@ -116,6 +133,8 @@ class AgentSupervisor(object):
         idx = self.last_coro + 1
 
         def run_task():
+            backoff = jitter(min_delay, max_delay)
+
             try:
                 for retry in range(1, max_retries + 1):
                     try:
@@ -147,7 +166,15 @@ class AgentSupervisor(object):
                         return
 
                     if retry != max_retries:
-                        self.sleep(interval)
+                        delay = next(backoff)
+
+                        maybe_log_message(
+                            'Coroutine %d sleeping for %d s' % (idx, delay),
+                            logger=self.logger,
+                            level=logging.DEBUG,
+                        )
+
+                        self.sleep(delay)
                 else:
                     maybe_log_message(
                         (

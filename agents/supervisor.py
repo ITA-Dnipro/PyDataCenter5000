@@ -1,4 +1,5 @@
 import logging
+import threading
 
 import coro
 
@@ -29,7 +30,8 @@ class AgentSupervisor(object):
     def __init__(self, agent):
         self.agent = agent
 
-        self.coros = {}  # Store coroutine IDs and references
+        self._coros = {}  # Store coroutine IDs and references
+        self._lock = threading.Lock()
 
     @property
     def logger(self):
@@ -37,13 +39,9 @@ class AgentSupervisor(object):
             '-'.join([self.agent.server_name, 'supervisor'])
         )
 
-    @property
-    def last_coro(self):
-        return max(self.coros.keys()) if self.coros else 0
-
     def start(self, timeout=30):
         """Starts the event loop. Blocks until excplicitly stopped."""
-        if not self.coros:
+        if not self._coros:
             maybe_log_message(
                 'Coroutine queue is empty',
                 logger=self.logger,
@@ -65,6 +63,27 @@ class AgentSupervisor(object):
             return
 
         coro.sleep_relative(interval)
+
+    def put_coro(self, idx, coroutine):
+        with self._lock:
+            self._coros[idx] = coroutine
+
+    def get_coro(self, idx):
+        with self._lock:
+            if idx not in self._coros:
+                maybe_log_message(
+                    'Coroutine %d not in tasks' % idx,
+                    logger=self.logger,
+                    level=logging.WARNING,
+                )
+                return
+
+            return self._coros[idx]
+
+    @property
+    def last_coro(self):
+        with self._lock:
+            return max(self._coros.keys()) if self._coros else 0
 
     def schedule(
         self,
@@ -138,7 +157,7 @@ class AgentSupervisor(object):
 
         coroutine = coro.spawn(run_task)
         if not weak:
-            self.coros[idx] = coroutine
+            self.put_coro(idx, coroutine)
 
         return idx
 
@@ -150,15 +169,8 @@ class AgentSupervisor(object):
         Parameters:
             idx (int): Index of coroutine to unschedule.
         """
-        if idx not in self.coros:
-            maybe_log_message(
-                'Coroutine %d not in tasks' % idx,
-                logger=self.logger,
-                level=logging.WARNING,
-            )
-            return
-
-        self.coros.pop(idx)
+        with self._lock:
+            self._coros.pop(idx, None)
 
     def schedule_exit(self, interval=30):
         """
@@ -171,9 +183,12 @@ class AgentSupervisor(object):
                 condition checks. Default is 30.
         """
         def exit():
-            while self.coros:
+            while True:
+                with self._lock:
+                    if not self._coros:
+                        break
+
                 self.sleep(interval)
-            else:
-                coro.set_exit()
+            coro.set_exit()
 
         return self.schedule(exit, max_retries=1, interval=interval, weak=True)

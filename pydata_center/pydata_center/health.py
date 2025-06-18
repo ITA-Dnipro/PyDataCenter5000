@@ -3,6 +3,7 @@ import logging
 from django.db import connections
 from django.db.utils import OperationalError
 from django.utils.timezone import now
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -10,6 +11,24 @@ from rest_framework.response import Response
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+        tags=['Health'],
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(
+                description='Database and application are available.'
+            ),
+            status.HTTP_503_SERVICE_UNAVAILABLE: OpenApiResponse(
+                description='Database connection failed.'
+            ),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
+                description='Unexpected health check error.'
+            ),
+        },
+        description=(
+            'Health check endpoint that verifies '
+            'application and database availability.'
+        ),
+)
 @api_view(['GET'])
 def health_check(request):
     """

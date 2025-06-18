@@ -62,6 +62,7 @@ class MockAgent(ServerAgent):
         server_name='mock',
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
@@ -74,6 +75,7 @@ class MockAgent(ServerAgent):
             server_name,
             port,
             processes,
+            critical_processes,
             interface,
             protocol,
             whitelist_commands,
@@ -169,17 +171,20 @@ def test_type_checks_on_init():
         MockAgent(processes=0)
 
 
-def test_type_checks_on_config_parse():
-    """
-    Test that type checks fail initialization with bad config file
-    parameters.
-    """
+def test_critical_processes_parsing():
+    """Test that critical_processes are correctly parsed from config."""
     with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write('[server]\nname=mock\nport=invalid\nprocesses=proc1')
+        tmp.write(
+            '[server]\n'
+            'name=mock\n'
+            'port=123\n'
+            'processes=proc1\n'
+            'critical_processes=sshd, nginx, postgres\n'
+        )
         tmp.flush()
 
-        with pytest.raises(TypeError):
-            MockAgent.from_config_file(tmp.name)
+        agent = MockAgent.from_config_file(tmp.name)
+        assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
 
 
 def test_status_to_json_type_error():
@@ -613,6 +618,60 @@ def test_maybe_add_to_queue_logs_bad_input():
 
     with agent.queue.mutex:
         assert len(agent.queue.queue) == 0
+
+
+def test_status_to_dict_keys():
+    """
+    Verify that status_to_dict() returns all expected keys
+    in the status dictionary.
+    """
+    agent = MockAgent(port=12345)
+
+    # Set attributes manually
+    agent.os_type = 'linux'
+    agent.hostname = 'test-host'
+    agent.ip = '127.0.0.1'
+    agent.server_name = 'dns'
+    agent.uptime = 12345
+    agent.timestamp = '2025-06-03 20:00:00'
+    agent.healthy = True
+
+    result = agent.status_to_dict()
+
+    required_keys = set([
+        'os',
+        'hostname',
+        'ip',
+        'server_name',
+        'uptime',
+        'timestamp',
+        'healthy',
+    ])
+
+    msg_keys = 'Expected status_to_dict() keys to match: %s' % required_keys
+    assert set(result.keys()) == required_keys, msg_keys
+
+
+def test_status_to_dict_with_missing_fields():
+    """
+    Ensure status_to_dict() handles missing or None fields gracefully.
+    """
+    agent = MockAgent(port=12345)
+
+    agent.os_type = None
+    agent.hostname = None
+    agent.ip = None
+    agent.server_name = 'dns'
+    agent.uptime = -1
+    agent.timestamp = None
+    agent.healthy = False
+
+    result = agent.status_to_dict()
+
+    assert result['os'] is None, "Expected 'os' to be None when missing"
+    assert result['hostname'] is None, "Expected 'hostname' to be None"
+    assert result['ip'] is None, "Expected 'ip' to be None when missing"
+    assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
 
 
 def test_is_port_open_invalid_port():

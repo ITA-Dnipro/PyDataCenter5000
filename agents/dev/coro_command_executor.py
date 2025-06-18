@@ -8,6 +8,7 @@ import subprocess
 import dotenv
 
 from agents import SMTPAgent
+from agents.exceptions import BadSubprocessReturnCode
 from agents.supervisor import AgentSupervisor
 from agents.utils import make_callback
 
@@ -65,16 +66,16 @@ def main():
             stdout, stderr = proc.communicate()
             output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
-            logging.info(
-                'Command %s finished with status %s' % (
-                    command_history.command, proc.returncode
+            if proc.returncode != 0:
+                raise BadSubprocessReturnCode(
+                    'Command failed with return code %d' % proc.returncode
                 )
-            )
+
+            logging.info('Command %s succeeded' % command_history.command)
             logging.info('Command output: %s' % output)
-        except Exception as e:
+        except OSError as e:
             logging.error(
-                'Failed to execute command '
-                '%s due to error: %s' % (command_history.command, str(e)),
+                'Subprocess failed due to error: %s' % str(e),
                 exc_info=True,
             )
 

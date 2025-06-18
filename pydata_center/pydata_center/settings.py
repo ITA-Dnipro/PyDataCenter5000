@@ -10,12 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import json
 import os
 import sys
 from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+from kombu.serialization import register
+
+from pydata_center.utils import DataclassJSONEncoder
 
 # Load environment variables from .env file
 load_dotenv()
@@ -279,8 +283,20 @@ SIMPLE_JWT = {
 
 ALERT_RATE_LIMIT_SECONDS = 300
 
+register(
+    'dataclass_json',
+    lambda o: json.dumps(o, cls=DataclassJSONEncoder).encode(),
+    lambda s: json.loads(s),
+    content_type='application/x-dataclass-json',
+    content_encoding='utf-8'
+)
+
+CELERY_TASK_SERIALIZER = 'dataclass_json'
+CELERY_RESULT_SERIALIZER = 'dataclass_json'
+CELERY_ACCEPT_CONTENT = ['dataclass_json']
+
 CELERY_BEAT_SCHEDULE = {
-    'evaluate-agent-alerts-every-5-minutes': {
+    'evaluate-agent-alerts-every-30-seconds': {
         'task': 'monitoring.tasks.evaluate_agent_alerts',
         'schedule': 30.0,
     },

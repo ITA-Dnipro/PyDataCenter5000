@@ -80,11 +80,12 @@ class AgentSupervisor(object):
     def get_coro(self, idx, log=True):
         with self._lock:
             if idx not in self._coros:
-                maybe_log_message(
-                    'Coroutine %d not in tasks' % idx,
-                    logger=self.logger,
-                    level=logging.WARNING,
-                )
+                if log:
+                    maybe_log_message(
+                        'Coroutine %d not in tasks' % idx,
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
                 return
 
             return self._coros[idx]
@@ -242,7 +243,7 @@ class AgentSupervisor(object):
             backoff = jitter(min_delay, max_delay)
 
             while True:
-                if self.has_coros(count_exit_coro=False):
+                if not self.has_coros(count_exit_coro=False):
                     break
 
                 delay = next(backoff)

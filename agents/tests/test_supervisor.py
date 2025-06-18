@@ -114,16 +114,16 @@ def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""
     ntasks = 2
 
-    flags = {}
+    idxs, flags = [], {}
 
-    def mock_task(num, *args, **kwargs):
-        flags['task %d ran' % num] = True
+    def mock_task(*args, **kwargs):
+        flags['task ran'] = True
 
     for n in range(ntasks):
-        flags['task %d ran' % (n + 1)] = False
+        flags['task ran'] = False
 
         # Schedule mock_task ntask times
-        mock_supervisor.schedule(mock_task, max_retries=1, num=n + 1)
+        idxs.append(mock_supervisor.schedule(mock_task, max_retries=1))
 
     mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
@@ -136,8 +136,8 @@ def test_task_execution(mock_supervisor):
         f.seek(0)
         contents = f.read()
 
-    for n in range(ntasks):
-        msg = 'Task %d finished successfully after 1 retry(-ies)' % (n + 1)
+    for idx in idxs:
+        msg = 'Task %d finished successfully after 1 retry(-ies)' % idx
 
         assert msg in contents, (
             'Expected log message %s not found. Log contents:\n %s' % (
@@ -159,7 +159,7 @@ def test_task_timeout(mock_supervisor):
         max_retries=1,
         timeout=0.1,
     )
-    mock_supervisor.schedule_exit(interval=0.1)
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
     with pytest.raises(SystemExit):
         mock_supervisor.start()

@@ -8,6 +8,16 @@ from mock import MagicMock
 from agents.utils.logtools import LOG_CONFIG_PATH
 
 
+def _setup_fallback_file_logger(name, file, level=logging.INFO):
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    handler = logging.FileHandler(file)
+    logger.addHandler(handler)
+
+    return logger
+
+
 @pytest.yield_fixture
 def mock_supervisor():
     from agents.supervisor import AgentSupervisor
@@ -19,17 +29,25 @@ def mock_supervisor():
 
     tmp = tempfile.NamedTemporaryFile(delete=False)
 
-    logging.config.fileConfig(
-        LOG_CONFIG_PATH,
-        defaults={
-            'agent_name': agent.server_name, 'log_path': tmp.name
-        },
-    )
+    try:
+        logging.config.fileConfig(
+            LOG_CONFIG_PATH,
+            defaults={
+                'agent_name': agent.server_name, 'log_path': tmp.name
+            },
+        )
+    except Exception:
+        logger = _setup_fallback_file_logger(
+            name='-'.join([agent.server_name, 'supervisor']),
+            file=tmp.name,
+        )
+        supervisor.logger = logger
 
     setattr(supervisor, 'logfile', tmp)
 
     yield supervisor
 
+    tmp.close()
     os.remove(tmp.name)
 
 

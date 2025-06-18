@@ -88,7 +88,7 @@ def get_config_option(
                     logger,
                     fallback_logger=fallback_logger,
                 )
-                return option_value
+        return option_value
 
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
@@ -99,7 +99,7 @@ def get_config_option(
                 level=logging.WARNING,
             )
 
-    return option_value or default
+        return default
 
 
 def is_valid_ip(output):

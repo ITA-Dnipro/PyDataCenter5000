@@ -85,22 +85,22 @@ class DNSAgent(ServerAgent):
         if not self.is_ssh_service_active():
             inactive_services.append('ssh')
 
-        if not inactive_services:
-            maybe_log_message(
-                'All services are heathy and running',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
-            return True
-        else:
+        if inactive_services:
             for service in inactive_services:
                 restart_service(self.logger, self.fallback_logger, service)
 
             maybe_log_message(
-                'Finished attempts to restsrt services',
+                'Finished attempts to restart services',
                 self.logger,
                 fallback_logger=self.fallback_logger,
                 level=logging.INFO
                 )
             return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True

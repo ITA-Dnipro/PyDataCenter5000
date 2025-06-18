@@ -69,6 +69,12 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).maybe_restart_service()
 
 
+def mock_popen_with_output(stdout, stderr=''):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = (stdout, stderr)
+    return process_mock
+
+
 def test_command_history_valid_data():
     """Test that command history is properly instantiated."""
     data = {
@@ -652,12 +658,11 @@ def test_status_to_dict_with_missing_fields():
 
 def test_is_process_running_when_any_process_running():
     agent = MockAgent(processes=['nginx', 'named'])
+
     output = 'COMMAND\nnginx\nssh\nnamed\n'
 
     with mock.patch('subprocess.Popen') as mock_popen:
-        process_mock = mock.Mock()
-        process_mock.communicate.return_value = [output]
-        mock_popen.return_value = process_mock
+        mock_popen.return_value = mock_popen_with_output(output)
 
         result = agent._is_process_running()
 
@@ -672,9 +677,7 @@ def test_is_process_running_didnt_find_any_process():
     output = 'COMMAND\napache\npostgres\n'
 
     with mock.patch('subprocess.Popen') as mock_popen:
-        process_mock = mock.Mock()
-        process_mock.communicate.return_value = [output]
-        mock_popen.return_value = process_mock
+        mock_popen.return_value = mock_popen_with_output(output)
 
         result = agent._is_process_running()
 
@@ -682,6 +685,18 @@ def test_is_process_running_didnt_find_any_process():
             'Expected _is_process_running to return False when '
             'none of the required processes are found.'
             )
+
+
+def test_is_process_running_matches_first_process_only():
+    agent = MockAgent(processes=['named', 'nonexistent'])
+    output = 'COMMAND\nnamed\nanother\n'
+
+    with mock.patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output)
+
+        result = agent._is_process_running()
+
+        assert result is True
 
 
 def test_is_process_running_with_error():
@@ -710,9 +725,7 @@ def test_is_ssh_service_active_returns_true_when_active():
     output = 'active\n'
 
     with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
-        process_mock = mock.Mock()
-        process_mock.communicate.return_value = (output, '')
-        mock_popen.return_value = process_mock
+        mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
 
@@ -727,9 +740,7 @@ def test_is_ssh_service_active_returns_false_when_inactive():
     output = 'inactive\n'
 
     with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
-        process_mock = mock.Mock()
-        process_mock.communicate.return_value = (output, '')
-        mock_popen.return_value = process_mock
+        mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
 
@@ -744,9 +755,7 @@ def test_is_ssh_service_active_returns_false_when_output_empty():
     output = ''
 
     with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
-        process_mock = mock.Mock()
-        process_mock.communicate.return_value = (output, '')
-        mock_popen.return_value = process_mock
+        mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
 
@@ -767,9 +776,9 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
             result = agent.is_ssh_service_active()
 
             assert result is False, 'Expected return False, when OSError'
-            mock_log.assert_called_once()
-            args, kwargs = mock_log.call_args
-            assert 'SSH service check failed: boom' in args[0]
-            assert args[1] == agent.logger
-            assert kwargs['fallback_logger'] == agent.fallback_logger
-            assert kwargs['exc_info'] is True
+            mock_log.assert_called_once_with(
+                'SSH service check failed: boom',
+                agent.logger,
+                fallback_logger=agent.fallback_logger,
+                exc_info=True
+                )

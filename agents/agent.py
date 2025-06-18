@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import platform
+import re
 import socket
 import subprocess
 import time
@@ -403,14 +404,13 @@ class ServerAgent(object):
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
 
-            output_lines = output.lower().splitlines()
+            normalized_lines = output.lower().splitlines()
 
-            for proc in self.processes:
-                is_running = any(proc in line for line in output_lines)
-                if is_running:
-                    return True
-
-            return False
+            return any(
+                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
+                for proc in self.processes
+                for line in normalized_lines
+                )
 
         except OSError as e:
             maybe_log_message(
@@ -436,10 +436,7 @@ class ServerAgent(object):
 
             stdout = stdout.strip().lower()
 
-            if stdout == 'active':
-                return True
-
-            return False
+            return stdout == 'active'
 
         except OSError as e:
             maybe_log_message(

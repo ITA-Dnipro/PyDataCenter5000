@@ -1,5 +1,6 @@
 import logging
 import re
+import socket
 import subprocess
 import time
 
@@ -36,7 +37,11 @@ def restart_service(logger, fallback_logger, service, attempts=3):
             delay = 2**i
 
             maybe_log_message(
-                'Restarting %s (delay before restart: %s).' % (service, delay),
+                'Attempt %s: Restarting %s (delay before restart: %s).' % (
+                    i,
+                    service,
+                    delay
+                ),
                 logger,
                 fallback_logger=fallback_logger
                 )
@@ -79,9 +84,8 @@ def restart_service(logger, fallback_logger, service, attempts=3):
 
 
 def is_valid_ip(output):
-    """
-    Validate if the output is a correctly formatted IPv4 address.
-    Returns:
-        bool: True if the output is a valid IP address, False otherwise.
-    """
-    return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None
+    try:
+        socket.inet_aton(output.strip())
+        return True
+    except socket.error:
+        return False

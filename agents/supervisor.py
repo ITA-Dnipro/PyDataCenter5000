@@ -1,5 +1,6 @@
 import logging
 import threading
+import uuid
 
 import coro
 
@@ -17,7 +18,6 @@ class AgentSupervisor(object):
             references. ID 0 is reserved for exit coroutine.
 
     Methods:
-        last_coro(): Get ID of the last scheduled coroutine.
         start(): Start the event loop and block until explicitly stopped.
         sleep(interval): Yield to event loop and sleep for a duration of
             the interval.
@@ -81,11 +81,6 @@ class AgentSupervisor(object):
 
             return self._coros[idx]
 
-    @property
-    def last_coro(self):
-        with self._lock:
-            return max(self._coros.keys()) if self._coros else 0
-
     def schedule(
         self,
         task,
@@ -115,7 +110,7 @@ class AgentSupervisor(object):
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
         """
-        idx = self.last_coro + 1
+        idx = uuid.uuid4().int
 
         def run_task():
             backoff = jitter(min_delay, max_delay)

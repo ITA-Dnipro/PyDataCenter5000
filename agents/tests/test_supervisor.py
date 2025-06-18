@@ -127,6 +127,39 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
 
 
 @pytest.mark.coro
+def test_double_unschedule_coro(mock_supervisor):
+    """
+    Test proper handling and logging of trying to unschedule the same
+    coro twice.
+    """
+    def mock_task(*args, **kwargs):
+        pass
+
+    idx = mock_supervisor.schedule(mock_task)
+    assert mock_supervisor.get_coro(idx) is not None
+
+    mock_supervisor.unschedule(idx)
+    assert mock_supervisor.get_coro(idx, log=False) is None
+
+    mock_supervisor.unschedule(idx)
+    assert mock_supervisor.get_coro(idx, log=True) is None, (
+        'Unexpected coroutine found in the scheduler'
+    )
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine %d not in tasks' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+@pytest.mark.coro
 @pytest.mark.integration
 def test_task_execution(mock_supervisor):
     """Test coroutine execution in the event loop."""

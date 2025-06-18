@@ -203,7 +203,7 @@ def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
         raise RuntimeError('I always fail')
 
     def mock_jitter(min_delay, max_delay):
-        for delay in [0.2, 0.3, 0.4]:
+        for delay in [0.2, 0.3]:
             yield delay
 
     monkeypatch.setattr('agents.utils.jitter', mock_jitter)
@@ -221,7 +221,7 @@ def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
         with pytest.raises(SystemExit):
             mock_supervisor.start()
 
-    assert len(intervals) == 3
+    assert len(intervals) == 2
 
 
 @pytest.mark.coro

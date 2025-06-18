@@ -72,7 +72,7 @@ def main():
                 )
 
             logging.info('Command %s succeeded' % command_history.command)
-            logging.info('Command output: %s' % output)
+            logging.info('Command output: %s...[truncated]' % output[:300])
         except OSError as e:
             logging.error(
                 'Subprocess failed due to error: %s' % str(e),

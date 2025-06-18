@@ -196,7 +196,7 @@ def test_status_to_json_type_error():
     )
 
 
-def test_post_data_success(monkeypatch):
+def test_post_data_success_logs_message(monkeypatch):
     agent = MockAgent(port=12345)
 
     class MockResponse:
@@ -320,7 +320,7 @@ def test_post_data_error():
         assert msg in contents
 
 
-def test_post_data_to_controller_success(monkeypatch):
+def test_post_data_to_controller_success_logs_message(monkeypatch):
     """
     Test that successful POST request to controller is properly handled
     and logged.

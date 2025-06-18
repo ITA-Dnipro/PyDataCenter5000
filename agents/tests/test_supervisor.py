@@ -89,7 +89,7 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
     def mock_task(*args, **kwargs):
         pass
 
-    assert mock_supervisor.get(-1) is None, (
+    assert mock_supervisor.get_coro(-1) is None, (
         'Unexpected coroutine found in the scheduler'
     )
 
@@ -123,11 +123,9 @@ def test_task_execution(mock_supervisor):
         flags['task %d ran' % (n + 1)] = False
 
         # Schedule mock_task ntask times
-        mock_supervisor.schedule(
-            mock_task, max_retries=1, interval=1, num=n + 1
-        )
+        mock_supervisor.schedule(mock_task, max_retries=1, num=n + 1)
 
-    mock_supervisor.schedule_exit(interval=0.1)
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
     with pytest.raises(SystemExit):
         mock_supervisor.start()
@@ -139,7 +137,7 @@ def test_task_execution(mock_supervisor):
         contents = f.read()
 
     for n in range(ntasks):
-        msg = 'Task %d finished' % (n + 1)
+        msg = 'Task %d finished successfully after 1 retry(-ies)' % (n + 1)
 
         assert msg in contents, (
             'Expected log message %s not found. Log contents:\n %s' % (
@@ -159,7 +157,6 @@ def test_task_timeout(mock_supervisor):
     idx = mock_supervisor.schedule(
         mock_task,
         max_retries=1,
-        interval=0.1,
         timeout=0.1,
     )
     mock_supervisor.schedule_exit(interval=0.1)
@@ -167,7 +164,7 @@ def test_task_timeout(mock_supervisor):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    assert not mock_supervisor.coros, (
+    assert not mock_supervisor.has_coros(), (
         'Unexpected supervisor status: coro queue is not empty'
     )
 
@@ -191,13 +188,13 @@ def test_task_error(mock_supervisor):
     def mock_task(*args, **kwargs):
         raise RuntimeError('Task failed for some reason')
 
-    idx = mock_supervisor.schedule(mock_task, max_retries=1, interval=0.1)
-    mock_supervisor.schedule_exit(interval=0.1)
+    idx = mock_supervisor.schedule(mock_task, max_retries=1)
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    assert not mock_supervisor.coros, (
+    assert not mock_supervisor.has_coros(), (
         'Unexpected supervisor status: coro queue is not empty'
     )
 
@@ -205,7 +202,10 @@ def test_task_error(mock_supervisor):
         f.seek(0)
         contents = f.read()
 
-    msg = 'Task %d failed due to error: Task failed for some reason' % idx
+    msg = (
+        'Task %d failed on retry 1 due to error: Task failed for some reason'
+        % idx
+    )
 
     assert msg in contents, (
         'Expected log message %s not found. Log contents:\n %s' % (

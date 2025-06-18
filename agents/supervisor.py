@@ -65,11 +65,19 @@ class AgentSupervisor(object):
 
         coro.sleep_relative(interval)
 
+    def has_coros(self, count_exit_coro=False):
+        if count_exit_coro:
+            with self._lock:
+                return bool(self._coros)
+
+        with self._lock:
+            return any(idx != 0 for idx in self._coros)
+
     def put_coro(self, idx, coroutine):
         with self._lock:
             self._coros[idx] = coroutine
 
-    def get_coro(self, idx):
+    def get_coro(self, idx, log=True):
         with self._lock:
             if idx not in self._coros:
                 maybe_log_message(
@@ -87,6 +95,7 @@ class AgentSupervisor(object):
         max_retries=3,
         min_delay=2,
         max_delay=10,
+        on_retry=None,
         timeout=None,
         on_timeout=None,
         weak=False,
@@ -165,6 +174,15 @@ class AgentSupervisor(object):
                         )
 
                         self.sleep(delay)
+                    else:
+                        if on_retry:
+                            maybe_log_message(
+                                'Task %d executing retry callback' % idx,
+                                logger=self.logger,
+                                level=logging.INFO,
+                            )
+
+                            on_retry(idx, task)
                 else:
                     maybe_log_message(
                         (
@@ -202,18 +220,30 @@ class AgentSupervisor(object):
         Schedule a periodic check for whether all of the tracked tasks
         have finished. Once the task queue is empty, the event loop will
         be stopped via SystemExit.
+        Note that only one exit coroutine can be scheduled at a time. It
+        is tracked by its reserved index 0.
 
         Parameters:
             interval (int, optional): Time (in seconds) between stopping
                 condition checks. Default is 30.
         """
+        if self.get_coro(0, log=False):
+            maybe_log_message(
+                (
+                    'Exit coroutine is already in task - '
+                    'only one at a time is permitted'
+                ),
+                logger=self.logger,
+                level=logging.WARNING,
+            )
+            return
+
         def exit():
             backoff = jitter(min_delay, max_delay)
 
             while True:
-                with self._lock:
-                    if not self._coros:
-                        break
+                if self.has_coros(count_exit_coro=False):
+                    break
 
                 delay = next(backoff)
 
@@ -233,4 +263,5 @@ class AgentSupervisor(object):
 
             coro.set_exit()
 
-        coro.spawn(exit)
+        coroutine = coro.spawn(exit)
+        self.put_coro(0, coroutine)

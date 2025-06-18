@@ -2,8 +2,8 @@ import logging
 import os
 import tempfile
 
+import mock
 import pytest
-from mock import MagicMock
 
 from agents.utils.logtools import LOG_CONFIG_PATH
 
@@ -22,7 +22,7 @@ def _setup_fallback_file_logger(name, file, level=logging.INFO):
 def mock_supervisor():
     from agents.supervisor import AgentSupervisor
 
-    agent = MagicMock()
+    agent = mock.MagicMock()
     agent.server_name = 'mock-server'
 
     supervisor = AgentSupervisor(agent)
@@ -194,6 +194,34 @@ def test_task_execution_logged(mock_supervisor):
                 msg, contents
             )
         )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
+def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
+    def mock_fail_task(*args, **kwargs):
+        raise RuntimeError('I always fail')
+
+    def mock_jitter(min_delay, max_delay):
+        for delay in [0.2, 0.3, 0.4]:
+            yield delay
+
+    monkeypatch.setattr('utils.jitter', mock_jitter)
+
+    mock_supervisor.schedule(mock_fail_task, max_retries=3)
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
+
+    intervals = []
+
+    with mock.patch.object(
+        mock_supervisor,
+        'sleep',
+        side_effect=lambda interval: intervals.append(interval),
+    ):
+        with pytest.raises(SystemExit):
+            mock_supervisor.start()
+
+    assert len(intervals) == 3
 
 
 @pytest.mark.coro

@@ -8,7 +8,7 @@ import subprocess
 import dotenv
 
 from agents import SMTPAgent
-from agents.supervisor import AgentSupervisor
+from agents.supervisor import AgentSupervisor, make_callback
 
 
 def main():
@@ -77,8 +77,24 @@ def main():
                 exc_info=True,
             )
 
+    def on_timeout(idx, retry, credentials):
+        agent.post_data(
+            url='server/status/',
+            payload=agent.status_to_dict(),
+            to_controller=True,
+            Authorization='Basic %s' % credentials,
+        )
+
+    on_timeout_callback = make_callback(on_timeout, credentials=credentials)
+
     supervisor.schedule(fetch_command, max_delay=5, credentials=credentials)
-    supervisor.schedule(execute_command, max_retries=2, max_delay=5, timeout=2)
+    supervisor.schedule(
+        execute_command,
+        max_retries=2,
+        max_delay=5,
+        timeout=2,
+        on_timeout=on_timeout_callback,
+    )
 
     supervisor.schedule_exit(min_delay=0.1, max_delay=1)
 

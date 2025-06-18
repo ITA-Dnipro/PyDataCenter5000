@@ -490,7 +490,7 @@ class ServerAgent(object):
         max_retries=3,
         delay=5,
         timeout=5,
-        to_controller=False,
+        to_controller=True,
         **kwargs
     ):
         """

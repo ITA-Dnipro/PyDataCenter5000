@@ -8,7 +8,8 @@ import subprocess
 import dotenv
 
 from agents import SMTPAgent
-from agents.supervisor import AgentSupervisor, make_callback
+from agents.supervisor import AgentSupervisor
+from agents.utils import make_callback
 
 
 def main():

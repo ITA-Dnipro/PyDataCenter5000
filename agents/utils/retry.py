@@ -1,3 +1,4 @@
+import functools
 import random
 
 
@@ -14,3 +15,7 @@ def jitter(base, cap):
     while True:
         interval = min(cap, random.uniform(base, interval * 3))
         yield interval
+
+
+def make_callback(callback, *args, **kwargs):
+    return functools.partial(callback, *args, **kwargs)

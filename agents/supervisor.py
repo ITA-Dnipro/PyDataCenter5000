@@ -1,16 +1,11 @@
-import functools
 import logging
 import threading
 import uuid
 
 import coro
 
+from .utils import jitter
 from .utils.logtools import maybe_log_message
-from .utils.retry import jitter
-
-
-def make_callback(callback, *args, **kwargs):
-    return functools.partial(callback, *args, **kwargs)
 
 
 class AgentSupervisor(object):
@@ -134,6 +129,12 @@ class AgentSupervisor(object):
                         )
 
                         if on_timeout:
+                            maybe_log_message(
+                                'Task %d executing timeout callback' % idx,
+                                logger=self.logger,
+                                level=logging.INFO,
+                            )
+
                             on_timeout(idx, retry)
                     except Exception as e:
                         maybe_log_message(

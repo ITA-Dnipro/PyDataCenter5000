@@ -52,12 +52,12 @@ def mock_supervisor():
 
 
 @pytest.mark.coro
-def test_schedule_unschedule_coro(mock_supervisor):
+def test_schedule_unschedule_coro_logged(mock_supervisor):
     """Test task scheduling and unscheduling with supervisor."""
-    def mock_task(*args, **kwargs):
+    def mock_schedule_task(*args, **kwargs):
         pass
 
-    idx = mock_supervisor.schedule(mock_task)
+    idx = mock_supervisor.schedule(mock_schedule_task)
     assert mock_supervisor.get_coro(idx) is not None
 
     mock_supervisor.unschedule(idx)
@@ -77,12 +77,12 @@ def test_schedule_unschedule_coro(mock_supervisor):
 
 
 @pytest.mark.coro
-def test_schedule_weak_coro(mock_supervisor):
+def test_schedule_weak_coro_logged(mock_supervisor):
     """Test proper scheduling of a 'weak' coro."""
-    def mock_task(*args, **kwargs):
+    def mock_weak_task(*args, **kwargs):
         pass
 
-    idx = mock_supervisor.schedule(mock_task, weak=True)
+    idx = mock_supervisor.schedule(mock_weak_task, weak=True)
     assert mock_supervisor.get_coro(idx, log=True) is None
 
     with open(mock_supervisor.logfile.name, 'r') as f:
@@ -99,14 +99,11 @@ def test_schedule_weak_coro(mock_supervisor):
 
 
 @pytest.mark.coro
-def test_unschedule_nonexistent_coro(mock_supervisor):
+def test_unschedule_nonexistent_coro_logged(mock_supervisor):
     """
     Test proper handling and logging of trying to unschedule nonexistent
     coro.
     """
-    def mock_task(*args, **kwargs):
-        pass
-
     assert mock_supervisor.get_coro(-1) is None, (
         'Unexpected coroutine found in the scheduler'
     )
@@ -127,15 +124,15 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
 
 
 @pytest.mark.coro
-def test_double_unschedule_coro(mock_supervisor):
+def test_double_unschedule_coro_logged(mock_supervisor):
     """
     Test proper handling and logging of trying to unschedule the same
     coro twice.
     """
-    def mock_task(*args, **kwargs):
+    def mock_unschedule_task(*args, **kwargs):
         pass
 
-    idx = mock_supervisor.schedule(mock_task)
+    idx = mock_supervisor.schedule(mock_unschedule_task)
     assert mock_supervisor.get_coro(idx) is not None
 
     mock_supervisor.unschedule(idx)
@@ -161,20 +158,22 @@ def test_double_unschedule_coro(mock_supervisor):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_execution(mock_supervisor):
+def test_task_execution_logged(mock_supervisor):
     """Test coroutine execution in the event loop."""
     ntasks = 2
 
     idxs, flags = [], {}
 
-    def mock_task(*args, **kwargs):
+    def mock_execution_task(*args, **kwargs):
         flags['task ran'] = True
 
     for n in range(ntasks):
         flags['task ran'] = False
 
         # Schedule mock_task ntask times
-        idxs.append(mock_supervisor.schedule(mock_task, max_retries=1))
+        idxs.append(
+            mock_supervisor.schedule(mock_execution_task, max_retries=1)
+        )
 
     mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
@@ -199,14 +198,14 @@ def test_task_execution(mock_supervisor):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_timeout(mock_supervisor):
+def test_task_timeout_logged(mock_supervisor):
     """Test proper handling and logging of task timeout."""
-    def mock_task(*args, **kwargs):
+    def mock_timeout_task(*args, **kwargs):
         import coro
         coro.sleep_relative(10)
 
     idx = mock_supervisor.schedule(
-        mock_task,
+        mock_timeout_task,
         max_retries=1,
         timeout=0.1,
     )
@@ -234,12 +233,12 @@ def test_task_timeout(mock_supervisor):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_error(mock_supervisor):
+def test_task_error_logged(mock_supervisor):
     """Test proper handling and logging of task error."""
-    def mock_task(*args, **kwargs):
+    def mock_error_task(*args, **kwargs):
         raise RuntimeError('Task failed for some reason')
 
-    idx = mock_supervisor.schedule(mock_task, max_retries=1)
+    idx = mock_supervisor.schedule(mock_error_task, max_retries=1)
     mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
     with pytest.raises(SystemExit):

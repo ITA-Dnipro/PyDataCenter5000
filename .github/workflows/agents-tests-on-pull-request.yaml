@@ -33,7 +33,7 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m pytest agents --cov=agents --cov-report=xml--cov-config=agents/.coveragerc
+              python -m pytest agents --cov=agents --cov-report=xml --cov-config=agents/.coveragerc
             "
 
       - name: Agents Unit Tests (Python 2.7 - Official Docker Image)

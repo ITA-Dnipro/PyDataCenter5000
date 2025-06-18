@@ -284,7 +284,11 @@ def test_post_data_max_retries_fail(monkeypatch):
 
     with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):
         agent.post_data(
-            'http://mock/api', {'fail': True}, max_retries=3, delay=0
+            'http://mock/api',
+            {'fail': True},
+            max_retries=3,
+            delay=0,
+            fail_silently=False,
         )
 
     with open(agent.logfile.name) as f:
@@ -302,7 +306,12 @@ def test_post_data_error():
 
     for error, msg in errors:
         with mock.patch('urllib2.urlopen', side_effect=error):
-            agent.post_data('http://mock/api', {'fail': True}, max_retries=1)
+            agent.post_data(
+                'http://mock/api',
+                {'fail': True},
+                max_retries=1,
+                fail_silently=True,
+            )
 
         with open(agent.logfile.name) as f:
             f.seek(0)

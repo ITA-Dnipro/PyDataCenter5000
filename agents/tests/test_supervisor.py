@@ -40,10 +40,22 @@ def test_schedule_unschedule_coro(mock_supervisor):
         pass
 
     idx = mock_supervisor.schedule(mock_task)
-    assert idx in mock_supervisor.coros
+    assert mock_supervisor.get_coro(idx) is not None
 
     mock_supervisor.unschedule(idx)
-    assert idx not in mock_supervisor.coros
+    assert mock_supervisor.get_coro(idx, log=True) is None
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine %d not in tasks' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
 @pytest.mark.coro
@@ -53,7 +65,19 @@ def test_schedule_weak_coro(mock_supervisor):
         pass
 
     idx = mock_supervisor.schedule(mock_task, weak=True)
-    assert idx not in mock_supervisor.coros
+    assert mock_supervisor.get_coro(idx, log=True) is None
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine %d not in tasks' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
 
 
 @pytest.mark.coro
@@ -65,17 +89,17 @@ def test_unschedule_nonexistent_coro(mock_supervisor):
     def mock_task(*args, **kwargs):
         pass
 
-    assert 0 not in mock_supervisor.coros, (
+    assert mock_supervisor.get(-1) is None, (
         'Unexpected coroutine found in the scheduler'
     )
 
-    mock_supervisor.unschedule(0)
+    mock_supervisor.unschedule(-1)
 
     with open(mock_supervisor.logfile.name, 'r') as f:
         f.seek(0)
         contents = f.read()
 
-    msg = 'Coroutine 0 not in tasks'
+    msg = 'Coroutine -1 not in tasks'
 
     assert msg in contents, (
         'Expected log message %s not found. Log contents:\n %s' % (

@@ -216,7 +216,7 @@ class AgentSupervisor(object):
         with self._lock:
             self._coros.pop(idx, None)
 
-    def schedule_exit(self, min_delay=2, max_delay=30):
+    def schedule_exit(self, min_delay=2, max_delay=30, should_exit=None):
         """
         Schedule a periodic check for whether all of the tracked tasks
         have finished. Once the task queue is empty, the event loop will
@@ -239,11 +239,15 @@ class AgentSupervisor(object):
             )
             return
 
+        if not should_exit:
+            def should_exit():
+                return not self.has_coros(count_exit_coro=False)
+
         def exit():
             backoff = jitter(min_delay, max_delay)
 
             while True:
-                if not self.has_coros(count_exit_coro=False):
+                if should_exit():
                     break
 
                 delay = next(backoff)

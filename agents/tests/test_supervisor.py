@@ -10,12 +10,12 @@ from agents.utils.logtools import LOG_CONFIG_PATH
 
 @pytest.yield_fixture
 def mock_supervisor():
+    from agents.supervisor import AgentSupervisor
+
     agent = MagicMock()
     agent.server_name = 'mock-server'
 
-    supervisor = __import__(
-        'agents.supervisor', fromlist=['AgentSupervisor']
-    ).AgentSupervisor(agent)
+    supervisor = AgentSupervisor(agent)
 
     tmp = tempfile.NamedTemporaryFile(delete=False)
 
@@ -129,7 +129,8 @@ def test_task_execution(mock_supervisor):
 def test_task_timeout(mock_supervisor):
     """Test proper handling and logging of task timeout."""
     def mock_task(*args, **kwargs):
-        __import__('coro').sleep_relative(10)
+        import coro
+        coro.sleep_relative(10)
 
     idx = mock_supervisor.schedule(
         mock_task,

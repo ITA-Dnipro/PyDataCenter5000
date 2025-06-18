@@ -41,7 +41,7 @@ class AgentSupervisor(object):
         )
 
     def start(self, timeout=30):
-        """Starts the event loop. Blocks until excplicitly stopped."""
+        """Starts the event loop. Blocks until explicitly stopped."""
         if not self._coros:
             maybe_log_message(
                 'Coroutine queue is empty',

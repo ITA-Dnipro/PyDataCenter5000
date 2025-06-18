@@ -115,7 +115,7 @@ class AgentSupervisor(object):
             timeout (int, optional): Timeout for task run. Task is
                 considered timed out if it didn't execute in the
                 allocated time. Default is None.
-            weak (bool, optional): 'Weak' rask will not be tracked by the
+            weak (bool, optional): 'Weak' task will not be tracked by the
                 supervisor, i.e., the event loop can be stopped regardless
                 of whether the task has finished. Default is False.
             *args: Positional arguments passed to task's callable.

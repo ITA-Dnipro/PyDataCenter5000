@@ -486,11 +486,12 @@ class ServerAgent(object):
         self,
         url,
         payload,
+        to_controller=True,
         api_key=None,
         max_retries=3,
         delay=5,
         timeout=5,
-        to_controller=True,
+        fail_silently=True,
         **kwargs
     ):
         """
@@ -594,9 +595,10 @@ class ServerAgent(object):
                         level=logging.CRITICAL,
                     )
 
-                    raise RuntimeError(
-                        'POST failed after %d attempts' % max_retries
-                    )
+                    if not fail_silently:
+                        raise RuntimeError(
+                            'POST failed after %d attempts' % max_retries
+                        )
 
     def fetch_command_from_controller(
         self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs

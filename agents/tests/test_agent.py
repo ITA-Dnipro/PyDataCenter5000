@@ -295,19 +295,20 @@ def test_post_data_max_retries_fail(monkeypatch):
     assert 'Permanent error' in contents
 
 
-@mock.patch(
-    'urllib2.orlopen', side_effect=socket.timeout('POST request timed out')
-)
-def post_data_timeout(mock_urlopen):
+def test_post_data_error():
     agent = MockAgent(port=12345)
 
-    agent.post_data('http://mock/api', {'fail': True}, max_retries=1)
+    errors = [HTTP_ERROR_OUTPUT, URL_ERROR_OUTPUT, TIMEOUT_ERROR_OUTPUT]
 
-    with open(agent.logfile.name) as f:
-        f.seek(0)
-        contents = f.read()
+    for error, msg in errors:
+        with mock.patch('urllib2.urlopen', side_effect=error):
+            agent.post_data('http://mock/api', {'fail': True}, max_retries=1)
 
-    assert 'Attempt 1 failed: POST request timed out' in contents
+        with open(agent.logfile.name) as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents
 
 
 def test_post_data_to_controller_success(monkeypatch):

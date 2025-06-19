@@ -7,8 +7,8 @@ import pytest
 
 @pytest.yield_fixture(scope='session')
 def setup_temp_file_logging():
-    config_file = tempfile.NamedTemporaryFile('w', delete=False)
-    log_file = tempfile.NamedTemporaryFile('w', delete=False)
+    config_file = tempfile.NamedTemporaryFile(delete=False)
+    log_file = tempfile.NamedTemporaryFile(delete=False)
 
     config_file.write("""
 [loggers]

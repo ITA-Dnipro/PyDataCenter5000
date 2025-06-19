@@ -10,12 +10,24 @@ def setup_roles():
     call_command('init_roles')
 
 
-@pytest.mark.django_db
-def test_operator_can_submit_command():
+@pytest.fixture
+def operator_user():
     user = User.objects.create_user(username='operator', password='pass')
-    operator_group, _ = Group.objects.get_or_create(name='Operator')
+    operator_group = Group.objects.get(name='Operator')
     user.groups.add(operator_group)
+    return user
 
+
+@pytest.fixture
+def admin_user():
+    user = User.objects.create_user(username='admin', password='pass')
+    admin_group = Group.objects.get(name='Admin')
+    user.groups.add(admin_group)
+    return user
+
+
+@pytest.mark.django_db
+def test_operator_can_submit_command(operator_user):
     command = CommandHistory.objects.create(
         hostname='agent001',
         command='ls -la',
@@ -23,24 +35,22 @@ def test_operator_can_submit_command():
     )
 
     client = APIClient()
-    client.force_authenticate(user=user)
+    client.force_authenticate(user=operator_user)
 
     response = client.patch(
-        '/api/v1/command/result/', data={'id': command.id, 'status': 'done'},
+        '/api/v1/command/result/',
+        data={'id': command.id, 'status': 'done'},
         format='json'
     )
 
     assert response.status_code == 200
     command.refresh_from_db()
+    assert command.status == 'done'
     assert response.data['status'] == 'done'
 
 
 @pytest.mark.django_db
-def test_admin_can_submit_command():
-    user = User.objects.create_user(username='admin', password='pass')
-    admin_group, _ = Group.objects.get_or_create(name='Admin')
-    user.groups.add(admin_group)
-
+def test_admin_can_submit_command(admin_user):
     command = CommandHistory.objects.create(
         hostname='agent001',
         command='uptime',
@@ -48,12 +58,15 @@ def test_admin_can_submit_command():
     )
 
     client = APIClient()
-    client.force_authenticate(user=user)
+    client.force_authenticate(user=admin_user)
 
     response = client.patch(
-        '/api/v1/command/result/', data={'id': command.id, 'status': 'done'},
+        '/api/v1/command/result/',
+        data={'id': command.id, 'status': 'done'},
         format='json'
     )
+
     assert response.status_code == 200
     command.refresh_from_db()
+    assert command.status == 'done'
     assert response.data['status'] == 'done'

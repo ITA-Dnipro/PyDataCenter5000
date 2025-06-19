@@ -7,6 +7,7 @@ import platform
 import socket
 import subprocess
 import time
+import threading
 from collections import Sequence
 
 import attr
@@ -15,11 +16,13 @@ import pkg_resources
 import psutil
 import Queue
 import urllib2
+from BaseHTTPServer import HTTPServer
 from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
+from .utils.health_http import HealthHandler
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -141,6 +144,16 @@ class ServerAgent(object):
                 'log_path': log_path
             },
         )
+
+        try:
+            self.start_health_server()
+        except Exception as e:
+            maybe_log_message(
+                'Health server initialization failed: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -746,3 +759,26 @@ class ServerAgent(object):
 
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
+
+    def start_health_server(self):
+        def run():
+            try:
+                server = HTTPServer(('', 8081), HealthHandler)
+                server.server_name = self.server_name
+                server.uptime = lambda: get_linux_uptime()
+                server.service_healthy = self.service_healthy
+                self.logger.info(
+                    "Health server running at /health on port %s", self.port
+                )
+                server.serve_forever()
+            except Exception as e:
+                maybe_log_message(
+                    'Failed to start health server: %s' % str(e),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+    
+        thread = threading.Thread(target=run)
+        thread.setDaemon(True)
+        thread.start()

@@ -5,6 +5,7 @@ import tempfile
 import mock
 import pytest
 
+from agents.utils import make_callback
 from agents.utils.logtools import LOG_CONFIG_PATH
 
 
@@ -198,7 +199,11 @@ def test_task_execution_logged(mock_supervisor):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
+def test_jitter_backoff_delays(mock_supervisor, monkeypatch):
+    """
+    Test that uncorrelated jitter backoff delays are consumed as expected
+    by the supervisor.
+    """
     def mock_fail_task(*args, **kwargs):
         raise RuntimeError('I always fail')
 
@@ -259,6 +264,50 @@ def test_task_timeout_logged(mock_supervisor):
         'Expected log message %s not found. Log contents:\n %s' % (
             msg, contents
         )
+    )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
+def test_with_timeout_callback_logged(mock_supervisor, monkeypatch):
+    """
+    """
+    def mock_timeout_task(*args, **kwargs):
+        import coro
+        coro.sleep_relative(10)
+
+    flag = {'on_timeout_calls': 0}
+
+    def mock_on_timeout(idx, retry):
+        flag['on_timeout_calls'] += 1
+
+    mock_on_timeout_callback = make_callback(mock_on_timeout)
+
+    idx = mock_supervisor.schedule(
+        mock_timeout_task,
+        max_retries=1,
+        timeout=0.1,
+        on_timeout=mock_on_timeout_callback,
+    )
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Task %d executing timeout callback' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+    assert flag['on_timeout_calls'] == 1, (
+        'Unexpected value %d of on_timeout_calls' % flag['on_timeout_calls']
     )
 
 

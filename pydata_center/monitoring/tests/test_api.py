@@ -3,8 +3,9 @@ from unittest.mock import patch
 
 import pytest
 import requests
+from django.core.management import call_command
 from dateutil.parser import isoparse
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -16,6 +17,12 @@ from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
+
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_roles(django_db_setup, django_db_blocker):
+    with django_db_blocker.unblock():
+        call_command('init_roles')
 
 
 class ServerStatusAPITest(TestCase):
@@ -176,7 +183,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         cls.user.groups.add(operator_group)
 
     def setUp(self):
-        self.client.login(username=self.username, password=self.password)
+        self.client.force_authenticate(user=self.user)
 
     def _get_valid_status_data(self):
         return {

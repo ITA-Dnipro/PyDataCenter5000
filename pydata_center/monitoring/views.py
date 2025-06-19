@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
@@ -7,6 +8,7 @@ from django.utils.timezone import is_naive, make_aware, now, utc
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
+from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
@@ -40,6 +42,7 @@ logger = logging.getLogger(__name__)
         description='Receive and log server status data sent via POST request.'
 )
 @api_view(['POST'])
+@permission_required('monitoring.add_serverstatus', raise_exception=True)
 def receive_status(request):
     """
     Receive and log server status data sent via POST request.
@@ -125,7 +128,7 @@ def receive_status(request):
 class CommandHistoryViewSet(viewsets.ModelViewSet):
     queryset = CommandHistory.objects.all()
     serializer_class = CommandHistorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOrOperatorForWrite]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['hostname', 'status']
@@ -271,6 +274,7 @@ def submit_command_result(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@permission_required('monitoring.view_serverstatus', raise_exception=True)
 def dashboard_view(request):
     """
     Render the monitoring dashboard page.

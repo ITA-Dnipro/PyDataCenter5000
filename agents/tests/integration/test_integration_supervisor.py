@@ -54,7 +54,11 @@ def mock_supervisor():
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_start_event_loop_with_no_tasks_logged(mock_supervisor):
+def test_integration_start_event_loop_with_no_tasks_logged(mock_supervisor):
+    """
+    Test that starting the event queue with only the exit coro scheduled
+    is handled and logged properly.
+    """
     mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 
     with pytest.raises(SystemExit):

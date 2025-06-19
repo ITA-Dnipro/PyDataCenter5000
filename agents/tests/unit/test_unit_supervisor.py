@@ -52,6 +52,27 @@ def mock_supervisor():
 
 
 @pytest.mark.coro
+def test_unit_start_event_loop_with_no_tasks_logged(
+    mock_supervisor, monkeypatch
+):
+    monkeypatch.setattr('coro.event_loop', lambda: None)
+
+    mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine queue is empty'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+@pytest.mark.coro
 def test_schedule_unschedule_coro_logged(mock_supervisor):
     """Test task scheduling and unscheduling with supervisor."""
     def mock_schedule_task(*args, **kwargs):

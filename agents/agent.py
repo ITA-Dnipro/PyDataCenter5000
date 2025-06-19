@@ -55,10 +55,6 @@ def get_linux_uptime():
         return float(f.readline().split()[0])
 
 
-def get_server_cpu_count(interval=None, percpu=False):
-    return psutil.cpu_percent(interval=interval, percpu=percpu)
-
-
 @attr.s
 class CommandHistory(object):
     """Helper class used to validate command fields."""

@@ -158,6 +158,39 @@ def test_double_unschedule_coro_logged(mock_supervisor):
 
 
 @pytest.mark.coro
+def test_exit_task_scheduled(mock_supervisor):
+    mock_supervisor.schedule_exit()
+
+    assert mock_supervisor.has_coros(count_exit_coro=True), (
+        'Failed to schedule exit task'
+    )
+
+
+@pytest.mark.coro
+def test_exit_task_scheduled_twice_logged(mock_supervisor):
+    mock_supervisor.schedule_exit()
+    mock_supervisor.schedule_exit()
+
+    assert mock_supervisor.has_coros(count_exit_coro=True), (
+        'Failed to schedule exit task'
+    )
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = (
+        'Exit coroutine is already in task - only one at a time is permitted'
+    )
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+@pytest.mark.coro
 @pytest.mark.integration
 def test_task_execution_logged(mock_supervisor):
     """Test coroutine execution in the event loop."""
@@ -269,9 +302,8 @@ def test_task_timeout_logged(mock_supervisor):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_with_timeout_callback_logged(mock_supervisor, monkeypatch):
-    """
-    """
+def test_task_with_timeout_callback_logged(mock_supervisor, monkeypatch):
+    """Test that timeout callback is properly called and logged."""
     def mock_timeout_task(*args, **kwargs):
         import coro
         coro.sleep_relative(10)
@@ -313,9 +345,8 @@ def test_with_timeout_callback_logged(mock_supervisor, monkeypatch):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_with_retry_callback_logged(mock_supervisor, monkeypatch):
-    """
-    """
+def test_task_with_retry_callback_logged(mock_supervisor, monkeypatch):
+    """Test that retry callback is properly called and logged."""
     def mock_failed_task(*args, **kwargs):
         raise RuntimeError('I always fail')
 

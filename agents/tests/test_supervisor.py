@@ -223,6 +223,9 @@ def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
 
     assert len(intervals) == 2
 
+    for interval, target in zip(intervals, [0.2, 0.3]):
+        assert abs(interval - target) < 1e-6
+
 
 @pytest.mark.coro
 @pytest.mark.integration

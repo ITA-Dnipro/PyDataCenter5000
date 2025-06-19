@@ -1,51 +1,11 @@
 import logging
-import logging.config
-import os
-import tempfile
-
-import pytest
 
 from agents.utils import get_fallback_logger, maybe_log_message
 
 
-@pytest.yield_fixture(scope='session')
-def config_logging():
-    config = """
-[loggers]
-keys=fallback
-
-[handlers]
-keys=fallback
-
-[formatters]
-keys=minimal
-
-[logger_fallback]
-level=ERROR
-handlers=fallback
-qualname=fallback
-propagate=0
-
-[handler_fallback]
-class=StreamHandler
-formatter=minimal
-args=(sys.stdout,)
-
-[formatter_minimal]
-format=%(levelname)s : %(message)s
-style=%
-class=logging.Formatter
+def test_get_fallback_logger_returns_logger(temp_file_logging):
     """
-    tmp = tempfile.NamedTemporaryFile(delete=False, mode='w')
-    tmp.write(config)
-    tmp.close()
-
-    logging.config.fileConfig(tmp.name)
-
-    yield
-
-    os.remove(tmp.name)
-
-
-def test_get_fallback_logger_returns_logger():
+    Test that get_fallback_logger returns an instance of logger if
+    configured.
+    """
     assert isinstance(get_fallback_logger(), logging.Logger)

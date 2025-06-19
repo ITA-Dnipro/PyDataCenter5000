@@ -4,6 +4,7 @@ from datetime import timedelta
 from functools import singledispatchmethod
 from typing import Union
 
+import requests
 from celery import shared_task
 from django.conf import settings
 from django.core.cache import cache
@@ -11,6 +12,7 @@ from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -172,3 +174,72 @@ def evaluate_agent_alerts(
             cache.set(
                 cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
             )
+
+
+def save_agent_ping_status(agent_ip, status_data):
+    """
+    Save agent ping status to database and log status change.
+    """
+    from monitoring.models import AgentPingStatus
+
+    last_status = (
+        AgentPingStatus.objects
+        .filter(ip=agent_ip)
+        .order_by('-timestamp')
+        .first()
+    )
+    new_status = status_data.get('status', 'unreachable')
+    agent_name = status_data.get('agent', 'unknown')
+    uptime = status_data.get('uptime', -1)
+
+    if last_status and last_status.status != new_status:
+        logger.warning(
+            f'Agent {agent_ip} status changed from'
+            f' {last_status.status} to {new_status}'
+        )
+
+    AgentPingStatus.objects.create(
+        agent_name=agent_name,
+        ip=agent_ip,
+        timestamp=timezone.now(),
+        uptime=uptime,
+        status=new_status
+    )
+
+
+@shared_task
+def check_agent_health(agent_ip, port=8081):
+    """
+    Task to check agent health via health endpoint.
+
+    Parameters:
+        agent_ip (str): agent's IP address
+        port (int): agent's server port
+    """
+    try:
+        url = f'http://{agent_ip}:{port}/health'
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        save_agent_ping_status(agent_ip, data)
+
+        logger.info(f'Agent health check: {data}')
+        return data
+
+    except RequestException as e:
+        logger.error(f'Error while pinging agent {agent_ip}: {str(e)}')
+        save_agent_ping_status(
+            agent_ip,
+            {'status': 'unreachable', 'agent': 'unknown', 'uptime': -1}
+        )
+        raise
+
+    except Exception as e:
+        logger.error(
+            f'Unexpected error while pinging agent {agent_ip}: {str(e)}'
+        )
+        save_agent_ping_status(
+            agent_ip, {'status': 'error', 'agent': 'unknown', 'uptime': -1}
+        )
+        return {'status': 'error', 'unexpected_error': str(e)}

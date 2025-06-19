@@ -159,3 +159,28 @@ class TriggeredAlert(models.Model):
             f'{self.rule} triggered at {self.triggered_at} '
             f'with message {self.message}'
         )
+
+
+class AgentPingStatus(models.Model):
+    """Agent ping status result from http request."""
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+
+    STATUS_CHOICES = [
+        ('ok', 'OK'),
+        ('unreachable', 'Unreachable'),
+        ('error', 'Error'),
+    ]
+    agent_name = models.CharField(max_length=100)
+    ip = models.GenericIPAddressField()
+    timestamp = models.DateTimeField()
+    uptime = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+
+    def __str__(self):
+        return f'{self.agent_name} - {self.timestamp} - {self.status}'

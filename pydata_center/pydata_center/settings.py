@@ -16,6 +16,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 from kombu.serialization import register
 
@@ -46,6 +47,7 @@ ALLOWED_HOSTS = (
     if os.getenv('DJANGO_ALLOWED_HOSTS')
     else []
 )
+AGENT_IP = os.getenv('AGENT_IP', '127.0.0.1')
 
 API_PREFIX = os.getenv('API_PREFIX', 'api/v1')
 
@@ -300,6 +302,11 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'monitoring.tasks.evaluate_agent_alerts',
         'schedule': 30.0,
     },
+    'check-agents-health': {
+        'task': 'monitoring.tasks.check_agent_health',
+        'schedule': crontab(minute='*/5'),
+        'args': [AGENT_IP],
+    }
 }
 
 DEFAULT_ALERT_DESTINATIONS = ['discord']

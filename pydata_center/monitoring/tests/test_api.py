@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 import pytest
 import requests
-from django.core.management import call_command
 from dateutil.parser import isoparse
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
+from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse

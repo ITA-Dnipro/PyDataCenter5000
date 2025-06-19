@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import Group, User
 from django.urls import reverse
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def authenticated_client(db):
     """
-    Create a user, add it to Operator group 
+    Create a user, add it to Operator group
     and return an authenticated API client.
     """
     user = User.objects.create_user(username='test_user')

@@ -422,7 +422,7 @@ def test_task_error_logged(mock_supervisor):
 @pytest.mark.coro
 @pytest.mark.integration
 def test_exit_task_should_exit_logged(mock_supervisor):
-    """Test proper handling and logging of task error."""
+    """Test that custom should_exit callable works as expected."""
     flags = {'should_exit': False}
 
     def mock_dummy_task(*args, **kwargs):

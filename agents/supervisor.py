@@ -14,18 +14,15 @@ class AgentSupervisor(object):
 
     Attributes:
         agent (ServerAgent): Agent instance under supervision.
-        coros (dict): Dictionary mapping coroutine IDs to coroutine
-            references. ID 0 is reserved for exit coroutine.
 
     Methods:
         start(): Start the event loop and block until explicitly stopped.
         sleep(interval): Yield to event loop and sleep for a duration of
             the interval.
-        schedule(task, max_retries, interval, idx, ...): Schedule a
-            periodic coroutine task.
+        schedule(task, ...): Schedule a periodic coroutine task.
         unschedule(idx): Unschedule a coroutine by ID.
-        schedule_exit(interval, prestop, ...): Schedule a periodic
-            coroutine to monitor for exit.
+        schedule_exit(...): Schedule a periodic coroutine to monitor for
+            exit.
     """
 
     def __init__(self, agent):
@@ -66,6 +63,16 @@ class AgentSupervisor(object):
         coro.sleep_relative(interval)
 
     def has_coros(self, count_exit_coro=False):
+        """
+        Check if task dict is empty.
+
+        Parameters:
+            count_exit_coro (bool, optional): Whether to count the exit
+                task. Default is False.
+
+        Returns:
+            bool: Whether task dict is not empty.
+        """
         if count_exit_coro:
             with self._lock:
                 return bool(self._coros)
@@ -74,10 +81,27 @@ class AgentSupervisor(object):
             return any(idx != 0 for idx in self._coros)
 
     def put_coro(self, idx, coroutine):
+        """
+        Add coroutine to the task dict.
+
+        Parameters:
+            idx (int): Coroutine index.
+            coroutine (coro): Coroutine instance.
+        """
         with self._lock:
             self._coros[idx] = coroutine
 
     def get_coro(self, idx, log=True):
+        """
+        Get coroutine from the task dict by index.
+
+        Parameters:
+            log (bool, optional): Whether to log warning if coroutine
+                not found. Default is True.
+
+        Returns:
+            coro: Coroutine instance.
+        """
         with self._lock:
             if idx not in self._coros:
                 if log:
@@ -107,19 +131,26 @@ class AgentSupervisor(object):
         Schedule a periodic coroutine task.
 
         Parameters:
-            task (Callable): Function-like to execute periodically.
+            task (Callable): Callable to execute periodically.
             max_retries (int, optional): Maximum number of retries on
                 failure. Default is 3.
-            interval (int, optional): Time (in seconds) between retries.
-                Default is 5.
-            timeout (int, optional): Timeout for task run. Task is
-                considered timed out if it didn't execute in the
-                allocated time. Default is None.
+            min_delay (int, optional): Minimum delay between retries
+                (in seconds). Default is 2.
+            max_delay (int, optional): Maximum delay between retries
+                (in seconds). Default is 10.
+            on_retry (Callable, optional): Callback function executed
+                before the next retry. Default is None.
+            timeout (int, optional): Task timeout. Default is None.
+            on_timeout (Callable, optional): Callback function executed
+                on task timeout. Default is None.
             weak (bool, optional): 'Weak' task will not be tracked by the
                 supervisor, i.e., the event loop can be stopped regardless
                 of whether the task has finished. Default is False.
             *args: Positional arguments passed to task's callable.
             **kwargs: Keyword arguments passed to task's callable.
+
+        Returns:
+            int: Task ID.
         """
         idx = uuid.uuid4().int
 
@@ -221,12 +252,18 @@ class AgentSupervisor(object):
         Schedule a periodic check for whether all of the tracked tasks
         have finished. Once the task queue is empty, the event loop will
         be stopped via SystemExit.
-        Note that only one exit coroutine can be scheduled at a time. It
-        is tracked by its reserved index 0.
+        Note that only one exit coroutine can be scheduled at a time. Exit
+        coroutine is always assigned index 0.
 
         Parameters:
-            interval (int, optional): Time (in seconds) between stopping
-                condition checks. Default is 30.
+            min_delay (int, optional): Minimum delay (in seconds).
+                Default is 2.
+            max_delay (int, optional): Maximum delay (in seconds).
+                Default is 30.
+            should_exit (Callable, optional): Custom callable to determine
+                whether the event loop should exit. If not provided, the
+                event loop will exit once all other coroutines have been
+                unscheduled.
         """
         if self.get_coro(0, log=False):
             maybe_log_message(

@@ -54,6 +54,27 @@ def mock_supervisor():
 
 @pytest.mark.coro
 @pytest.mark.integration
+def test_start_event_loop_with_no_tasks_logged(mock_supervisor):
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Coroutine queue is empty'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
 def test_task_execution_logged(mock_supervisor):
     """Test coroutine execution in the event loop."""
     ntasks = 2

@@ -1,6 +1,12 @@
 import pytest
 from django.contrib.auth.models import Group, User
 from rest_framework.test import APIClient
+from django.core.management import call_command
+
+
+@pytest.fixture(autouse=True)
+def init_roles():
+    call_command('init_roles')
 
 
 @pytest.fixture
@@ -24,10 +30,6 @@ class TestRBACPermissions:
         self.url = '/api/v1/server/status/'
 
     def test_viewer_role_is_forbidden_to_post_status_data(self, viewer_client):
-        """
-        Viewer users should not be able to submit server status.
-        Expected: 403 Forbidden.
-        """
         payload = {
             'hostname': 'agent001',
             'ip': '192.168.1.1',

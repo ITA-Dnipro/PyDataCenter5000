@@ -1,9 +1,10 @@
 import logging
+from datetime import timezone
 
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import is_naive, make_aware, now, utc
+from django.utils.timezone import is_naive, make_aware, now
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
@@ -348,9 +349,9 @@ def metrics_history_view(request):
         raise ValidationError({'end': 'Invalid datetime format.'})
 
     if start and is_naive(start):
-        start = make_aware(start, timezone=utc)
+        start = make_aware(start, timezone=timezone.utc)
     if end and is_naive(end):
-        end = make_aware(end, timezone=utc)
+        end = make_aware(end, timezone=timezone.utc)
 
     filters = Q()
     if hostname:

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -709,7 +710,7 @@ class MetricsHistoryViewTests(APITestCase):
         cls.fixed_now = (
             timezone.now()
             .replace(microsecond=0)
-            .astimezone(timezone.utc)
+            .astimezone(dt_timezone.utc)
         )
 
         cls.server = ServerStatus.objects.create(

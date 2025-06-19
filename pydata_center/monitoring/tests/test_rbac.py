@@ -1,11 +1,11 @@
 import pytest
 from django.contrib.auth.models import Group, User
-from rest_framework.test import APIClient
 from django.core.management import call_command
+from rest_framework.test import APIClient
 
 
 @pytest.fixture(autouse=True)
-def init_roles():
+def init_roles(db):
     call_command('init_roles')
 
 
@@ -23,7 +23,7 @@ def viewer_client(viewer_user):
     client.force_authenticate(user=viewer_user)
     return client
 
-
+@pytest.mark.django_db
 class TestRBACPermissions:
 
     def setup_method(self):

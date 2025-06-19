@@ -59,7 +59,7 @@ class=logging.Formatter
         config_file.name, defaults={'filename': log_file.name}
     )
 
-    yield log_file
+    yield
 
     os.remove(config_file.name)
     os.remove(log_file.name)

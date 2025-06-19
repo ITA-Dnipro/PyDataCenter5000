@@ -11,8 +11,6 @@ def mock_supervisor(setup_temp_file_logging):
 
     supervisor = AgentSupervisor(agent)
 
-    setattr(supervisor, 'logfile', setup_temp_file_logging)
-
     return supervisor
 
 
@@ -24,7 +22,7 @@ def test_unit_start_event_loop_with_no_tasks_logged(
 
     mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -41,7 +39,7 @@ def test_unit_start_event_loop_with_no_tasks_logged(
 def test_sleep_negative_interval_logged(mock_supervisor):
     mock_supervisor.sleep(-1)
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -66,7 +64,7 @@ def test_schedule_unschedule_coro_logged(mock_supervisor):
     mock_supervisor.unschedule(idx)
     assert mock_supervisor.get_coro(idx, log=True) is None
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -88,7 +86,7 @@ def test_schedule_weak_coro_logged(mock_supervisor):
     idx = mock_supervisor.schedule(mock_weak_task, weak=True)
     assert mock_supervisor.get_coro(idx, log=True) is None
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -113,7 +111,7 @@ def test_unschedule_nonexistent_coro_logged(mock_supervisor):
 
     mock_supervisor.unschedule(-1)
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -146,7 +144,7 @@ def test_double_unschedule_coro_logged(mock_supervisor):
         'Unexpected coroutine found in the scheduler'
     )
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -177,7 +175,7 @@ def test_exit_task_scheduled_twice_logged(mock_supervisor):
         'Failed to schedule exit task'
     )
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 

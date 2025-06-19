@@ -10,6 +10,12 @@ def jitter(base, cap):
         base (int | float): Minimum delay (in seconds).
         cap (int | float): Maximum delay (in seconds).
     """
+    if base == cap:
+        yield base
+
+    if base > cap:
+        raise ValueError('Minimum delay cannot be larger than maximum delay')
+
     interval = base
 
     while True:

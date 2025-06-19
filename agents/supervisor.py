@@ -155,9 +155,9 @@ class AgentSupervisor(object):
         idx = uuid.uuid4().int
 
         def run_task():
-            backoff = jitter(min_delay, max_delay)
-
             try:
+                backoff = jitter(min_delay, max_delay)
+
                 for retry in range(1, max_retries + 1):
                     try:
                         if timeout:

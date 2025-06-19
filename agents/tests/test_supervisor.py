@@ -417,3 +417,33 @@ def test_task_error_logged(mock_supervisor):
             msg, contents
         )
     )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
+def test_exit_task_should_exit_logged(mock_supervisor):
+    """Test proper handling and logging of task error."""
+    flags = {'should_exit': False}
+
+    def mock_dummy_task(*args, **kwargs):
+        flags['should_exit'] = True
+
+    mock_supervisor.schedule(mock_dummy_task, min_delay=0.1, max_delay=0.5)
+    mock_supervisor.schedule_exit(
+        min_delay=0.1, max_delay=0.5, should_exit=lambda: flags['should_exit']
+    )
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Event loop exiting...'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )

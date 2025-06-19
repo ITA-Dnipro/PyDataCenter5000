@@ -6,7 +6,7 @@ from logging.handlers import MemoryHandler
 import pytest
 from mock import patch
 
-from agents.web.web import WebAgent
+from agents import WebAgent
 
 
 @pytest.yield_fixture

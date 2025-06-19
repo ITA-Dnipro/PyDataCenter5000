@@ -1,4 +1,3 @@
-import logging
 import os
 import socket
 import tempfile
@@ -6,8 +5,8 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
+from agents import SMTPAgent
 from agents.agent import ServerAgent
-from agents.smtp.smtp import SMTPAgent
 
 
 @pytest.yield_fixture

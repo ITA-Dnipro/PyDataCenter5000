@@ -3,7 +3,7 @@ import pytest
 
 
 @pytest.fixture
-def mock_supervisor(temp_file_logging):
+def mock_supervisor(setup_temp_file_logging):
     from agents.supervisor import AgentSupervisor
 
     agent = mock.MagicMock()
@@ -11,7 +11,7 @@ def mock_supervisor(temp_file_logging):
 
     supervisor = AgentSupervisor(agent)
 
-    setattr(supervisor, 'logfile', temp_file_logging)
+    setattr(supervisor, 'logfile', setup_temp_file_logging)
 
     return supervisor
 

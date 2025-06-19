@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.yield_fixture(scope='session')
-def temp_file_logging():
+def setup_temp_file_logging():
     config_file = tempfile.NamedTemporaryFile('w', delete=False)
     log_file = tempfile.NamedTemporaryFile('w', delete=False)
 
@@ -59,7 +59,7 @@ class=logging.Formatter
         config_file.name, defaults={'filename': log_file.name}
     )
 
-    yield
+    yield log_file
 
     os.remove(config_file.name)
     os.remove(log_file.name)

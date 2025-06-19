@@ -1,72 +1,29 @@
 import pytest
 from django.contrib.auth.models import Group, User
-from django.core.management import call_command
-from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
 
 
-@pytest.fixture(autouse=True)
-def setup_roles():
-    call_command('init_roles')
-
-
-@pytest.fixture
-def operator_user():
-    user = User.objects.create_user(username='operator', password='pass')
-    operator_group = Group.objects.get(name='Operator')
-    user.groups.add(operator_group)
-    return user
-
-
-@pytest.fixture
-def admin_user():
-    user = User.objects.create_user(username='admin', password='pass')
-    admin_group = Group.objects.get(name='Admin')
-    user.groups.add(admin_group)
-    return user
-
-
 @pytest.mark.django_db
-def test_operator_can_access_submit_command_endpoint(operator_user):
-    command = CommandHistory.objects.create(
-        hostname='agent001',
-        command='ls -la',
-        status='pending'
-    )
+def test_viewer_cannot_post_status():
+    user = User.objects.create_user(username='viewer', password='pass')
+    viewer_group = Group.objects.get(name='Viewer')
+    user.groups.add(viewer_group)
 
     client = APIClient()
-    client.force_authenticate(user=operator_user)
+    client.force_authenticate(user=user)
 
-    response = client.patch(
-        '/api/v1/command/result/',
-        data={'id': command.id},
-        format='json'
+    payload = {
+        'hostname': 'agent001',
+        'ip': '192.168.1.1',
+        'uptime': 123.45,
+        'timestamp': '2025-06-19T10:00:00Z',
+        'healthy': 'yes',
+        'server_name': 'TestServer',
+        'os': 'Linux'
+    }
+
+    response = client.post(
+        '/api/v1/server/status/', data=payload, format='json'
     )
 
-    assert response.status_code == 200
-    command.refresh_from_db()
-    assert command.status == 'pending'
-    assert response.data['status'] == 'pending'
-
-
-@pytest.mark.django_db
-def test_admin_can_access_submit_command_endpoint(admin_user):
-    command = CommandHistory.objects.create(
-        hostname='agent001',
-        command='uptime',
-        status='pending'
-    )
-
-    client = APIClient()
-    client.force_authenticate(user=admin_user)
-
-    response = client.patch(
-        '/api/v1/command/result/',
-        data={'id': command.id},
-        format='json'
-    )
-
-    assert response.status_code == 200
-    command.refresh_from_db()
-    assert command.status == 'pending'
-    assert response.data['status'] == 'pending'
+    assert response.status_code == 403

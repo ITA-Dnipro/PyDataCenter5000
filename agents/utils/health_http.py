@@ -1,6 +1,7 @@
-from BaseHTTPServer import BaseHTTPRequestHandler
 import datetime
 import json
+
+from BaseHTTPServer import BaseHTTPRequestHandler
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -34,4 +35,3 @@ class HealthHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-

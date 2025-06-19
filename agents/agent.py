@@ -6,8 +6,8 @@ import logging.config
 import platform
 import socket
 import subprocess
-import time
 import threading
+import time
 from collections import Sequence
 
 import attr
@@ -21,8 +21,8 @@ from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
-from .utils.logtools import maybe_log_message
 from .utils.health_http import HealthHandler
+from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -153,7 +153,6 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
-
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -768,7 +767,7 @@ class ServerAgent(object):
                 server.uptime = lambda: get_linux_uptime()
                 server.service_healthy = self.service_healthy
                 self.logger.info(
-                    "Health server running at /health on port %s", self.port
+                    'Health server running at /health on port %s', self.port
                 )
                 server.serve_forever()
             except Exception as e:
@@ -778,7 +777,7 @@ class ServerAgent(object):
                     fallback_logger=self.fallback_logger,
                     exc_info=True,
                 )
-    
+
         thread = threading.Thread(target=run)
         thread.setDaemon(True)
         thread.start()

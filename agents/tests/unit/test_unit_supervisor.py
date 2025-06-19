@@ -1,17 +1,4 @@
-import mock
 import pytest
-
-
-@pytest.fixture
-def mock_supervisor(setup_temp_file_logging):
-    from agents.supervisor import AgentSupervisor
-
-    agent = mock.MagicMock()
-    agent.server_name = 'mock-server'
-
-    supervisor = AgentSupervisor(agent)
-
-    return supervisor
 
 
 @pytest.mark.coro

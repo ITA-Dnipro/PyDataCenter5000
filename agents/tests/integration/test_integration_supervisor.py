@@ -6,50 +6,6 @@ import mock
 import pytest
 
 from agents.utils import make_callback
-from agents.utils.logtools import LOG_CONFIG_PATH
-
-
-def _setup_fallback_file_logger(name, file, level=logging.INFO):
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-
-    handler = logging.FileHandler(file)
-    logger.addHandler(handler)
-
-    return logger
-
-
-@pytest.yield_fixture
-def mock_supervisor():
-    from agents.supervisor import AgentSupervisor
-
-    agent = mock.MagicMock()
-    agent.server_name = 'mock-server'
-
-    supervisor = AgentSupervisor(agent)
-
-    tmp = tempfile.NamedTemporaryFile(delete=False)
-
-    try:
-        logging.config.fileConfig(
-            LOG_CONFIG_PATH,
-            defaults={
-                'agent_name': agent.server_name, 'log_path': tmp.name
-            },
-        )
-    except Exception:
-        logger = _setup_fallback_file_logger(
-            name='-'.join([agent.server_name, 'supervisor']),
-            file=tmp.name,
-        )
-        supervisor.logger = logger
-
-    setattr(supervisor, 'logfile', tmp)
-
-    yield supervisor
-
-    tmp.close()
-    os.remove(tmp.name)
 
 
 @pytest.mark.coro
@@ -64,7 +20,7 @@ def test_integration_start_event_loop_with_no_tasks_logged(mock_supervisor):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -103,7 +59,7 @@ def test_task_execution_logged(mock_supervisor):
 
     assert all(flags.values()), 'Not all scheduled tasks have run'
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -174,7 +130,7 @@ def test_task_timeout_logged(mock_supervisor):
         'Unexpected supervisor status: coro queue is not empty'
     )
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -213,7 +169,7 @@ def test_task_with_timeout_callback_logged(mock_supervisor, monkeypatch):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -256,7 +212,7 @@ def test_task_with_retry_callback_logged(mock_supervisor, monkeypatch):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -290,7 +246,7 @@ def test_task_error_logged(mock_supervisor):
         'Unexpected supervisor status: coro queue is not empty'
     )
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 
@@ -323,7 +279,7 @@ def test_exit_task_should_exit_logged(mock_supervisor):
     with pytest.raises(SystemExit):
         mock_supervisor.start()
 
-    with open(mock_supervisor.logfile.name, 'r') as f:
+    with open(mock_supervisor.logger.handlers[0].baseFilename, 'r') as f:
         f.seek(0)
         contents = f.read()
 

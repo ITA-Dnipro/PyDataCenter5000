@@ -4,8 +4,7 @@ import uuid
 
 import coro
 
-from .utils import jitter
-from .utils.logtools import maybe_log_message
+from .utils import jitter, maybe_log_message
 
 
 class AgentSupervisor(object):

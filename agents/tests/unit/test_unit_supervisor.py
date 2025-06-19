@@ -18,7 +18,7 @@ def _setup_fallback_file_logger(name, file, level=logging.INFO):
     return logger
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_supervisor():
     from agents.supervisor import AgentSupervisor
 

@@ -313,6 +313,50 @@ def test_with_timeout_callback_logged(mock_supervisor, monkeypatch):
 
 @pytest.mark.coro
 @pytest.mark.integration
+def test_with_retry_callback_logged(mock_supervisor, monkeypatch):
+    """
+    """
+    def mock_failed_task(*args, **kwargs):
+        raise RuntimeError('I always fail')
+
+    flag = {'on_retry_calls': 0}
+
+    def mock_on_retry(idx, retry):
+        flag['on_retry_calls'] += 1
+
+    mock_on_retry_callback = make_callback(mock_on_retry)
+
+    idx = mock_supervisor.schedule(
+        mock_failed_task,
+        max_retries=2,
+        min_delay=0.1,
+        max_delay=0.5,
+        on_retry=mock_on_retry_callback,
+    )
+    mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
+
+    with pytest.raises(SystemExit):
+        mock_supervisor.start()
+
+    with open(mock_supervisor.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Task %d executing retry callback' % idx
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+    assert flag['on_retry_calls'] == 1, (
+        'Unexpected value %d of on_retry_calls' % flag['on_retry_calls']
+    )
+
+
+@pytest.mark.coro
+@pytest.mark.integration
 def test_task_error_logged(mock_supervisor):
     """Test proper handling and logging of task error."""
     def mock_error_task(*args, **kwargs):

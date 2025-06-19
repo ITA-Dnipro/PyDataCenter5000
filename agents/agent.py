@@ -490,22 +490,7 @@ class ServerAgent(object):
         Collect server's metric such as CPU usage, RAM usage, disc usage
         etc.
         """
-        self.cpu_count = -1
-
-        if not cpu_count_interval:
-            get_server_cpu_count(interval=0)
-
-        try:
-            self.cpu_count = get_server_cpu_count(interval=cpu_count_interval)
-        except psutil.AccessDenied as e:
-            maybe_log_message(
-                'Getting CPU count failed due to error: %s' % str(e),
-                logger=self.logger,
-            )
-        except (TypeError, ValueError) as e:
-            maybe_log_message(
-                'Bad input values. Got error: %s' % str(e), logger=self.logger
-            )
+        pass
 
     def post_data(
         self,

@@ -17,14 +17,18 @@ class DiscordMessage:
 
 
 @shared_task
-def send_async_discord_message(message: DiscordMessage):
+def send_async_discord_message(message):
     """
     Send Discord message asynchronously using provided webhook.
 
     Parameters:
-        message (DiscordMessage): DiscordMessage dataclass instance.
+        message (Any): Instance of DiscordMessage (if function is called
+            explicitly) or JSON-serialized DiscordMessage.
     """
     try:
+        if not isinstance(message, DiscordMessage):
+            message = DiscordMessage(**message)
+
         response = requests.post(
             message.webhook, json={'content': message.content}
         )
@@ -40,6 +44,8 @@ def send_async_discord_message(message: DiscordMessage):
                 f'POST request sent succesfully. Discord reposnse: '
                 f'{response.status_code} {response.text}'
             )
+    except TypeError as e:
+        logger.error(f'Error due to missing or invalid arguments: {e}')
     except (
         requests.exceptions.ConnectionError,
         requests.exceptions.InvalidURL,

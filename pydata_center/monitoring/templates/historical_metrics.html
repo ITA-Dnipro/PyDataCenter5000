@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}System Dashboard{% endblock %}
+
+{% block head_extra %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{% static 'monitoring/css/historical_metrics.css' %}">
+{% endblock %}
+
+{% block content %}
+<h1>Historical Metrics Dashboard</h1>
+
+<form id="filterForm">
+  <label for="hostnameSelect">Hostname:</label>
+  <select id="hostnameSelect" name="hostname" required>
+    <option value="" disabled selected>Select a hostname</option>
+    {% for hostname in hostnames %}
+      <option value="{{ hostname }}">{{ hostname }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="startDate">Start Date:</label>
+  <input type="datetime-local" id="startDate" name="start">
+
+  <label for="endDate">End Date:</label>
+  <input type="datetime-local" id="endDate" name="end">
+
+  <button type="submit">Apply Filter</button>
+</form>
+<div id="loading" style="display: none;">Loading data...</div>
+
+<canvas id="metricsChart"></canvas>
+
+<script src="{% static 'js/historical_metrics.js' %}"></script>
+{% endblock %}

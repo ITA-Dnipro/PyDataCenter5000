@@ -88,12 +88,14 @@ class ServerAgent(object):
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
+    critical_processes = None
 
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
@@ -114,13 +116,18 @@ class ServerAgent(object):
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
+        # Extend the list of global critical processes with those that
+        # are server-specific.
+        self.critical_processes = self.critical_processes or []
+        if critical_processes is not None:
+            self.critical_processes.extend(critical_processes)
+
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # self._queue will store a time-stamped event queue with
-        # pending commands
+        # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
         # Initialize logging from logging config file
@@ -239,6 +246,22 @@ class ServerAgent(object):
                 cast=parse_csv_list,
             )
 
+            # Append server-specific critical_processes
+            critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                logger=self.logger,
+                cast=parse_csv_list,
+            )
+
+            # Extend avoiding duplicates
+            if critical_processes:
+                self.critical_processes.extend(
+                    proc for proc in critical_processes
+                    if proc not in self.critical_processes
+                )
+
             self.interface = get_config_option(
                 config, 'server', 'interface', logger=self.logger
             )
@@ -247,13 +270,15 @@ class ServerAgent(object):
                 config,
                 'controller',
                 'whitelist_commands',
-                [],
                 logger=self.logger,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:
-                self.whitelist_commands.extend(whitelist_commands)
+                self.whitelist_commands.extend(
+                    cmd for cmd in whitelist_commands
+                    if cmd not in self.whitelist_commands
+                )
 
     def collect_server_metadata(self):
         """

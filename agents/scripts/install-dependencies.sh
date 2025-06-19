@@ -174,6 +174,16 @@ if ! python -c "import dateutil"; then
     install_python_package_from_src dateutil
 fi
 
+if ! python -c "import coverage"; then
+    get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
+    install_python_package_from_src coverage
+fi
+
+if ! python -c "import pytest_cov"; then
+    get_package_src_from_tar pytest-cov "https://files.pythonhosted.org/packages/source/p/pytest-cov/pytest-cov-2.2.0.tar.gz"
+    install_python_package_from_src pytest-cov
+fi
+
 if [ "$INSTALL_CORO" = "true" ]; then
     if ! python -c "import cython"; then
         get_package_src_from_tar cython "https://files.pythonhosted.org/packages/b1/51/bd5ef7dff3ae02a2c6047aa18d3d06df2fb8a40b00e938e7ea2f75544cac/Cython-0.24.tar.gz"

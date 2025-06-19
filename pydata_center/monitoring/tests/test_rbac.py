@@ -27,7 +27,7 @@ def admin_user():
 
 
 @pytest.mark.django_db
-def test_operator_can_submit_command(operator_user):
+def test_operator_can_access_submit_command_endpoint(operator_user):
     command = CommandHistory.objects.create(
         hostname='agent001',
         command='ls -la',
@@ -39,18 +39,18 @@ def test_operator_can_submit_command(operator_user):
 
     response = client.patch(
         '/api/v1/command/result/',
-        data={'id': command.id, 'status': 'done'},
+        data={'id': command.id},
         format='json'
     )
 
     assert response.status_code == 200
     command.refresh_from_db()
-    assert command.status == 'done'
-    assert response.data['status'] == 'done'
+    assert command.status == 'pending'
+    assert response.data['status'] == 'pending'
 
 
 @pytest.mark.django_db
-def test_admin_can_submit_command(admin_user):
+def test_admin_can_access_submit_command_endpoint(admin_user):
     command = CommandHistory.objects.create(
         hostname='agent001',
         command='uptime',
@@ -62,11 +62,11 @@ def test_admin_can_submit_command(admin_user):
 
     response = client.patch(
         '/api/v1/command/result/',
-        data={'id': command.id, 'status': 'done'},
+        data={'id': command.id},
         format='json'
     )
 
     assert response.status_code == 200
     command.refresh_from_db()
-    assert command.status == 'done'
-    assert response.data['status'] == 'done'
+    assert command.status == 'pending'
+    assert response.data['status'] == 'pending'

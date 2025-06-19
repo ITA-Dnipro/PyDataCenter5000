@@ -8,7 +8,7 @@ import pytest
 from agents.utils import get_fallback_logger, maybe_log_message
 
 
-@pytest.fixture(scope='session')
+@pytest.yield_fixture(scope='session')
 def config_logging():
     config = """
 [loggers]

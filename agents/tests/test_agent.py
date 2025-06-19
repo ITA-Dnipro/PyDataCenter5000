@@ -5,6 +5,7 @@ import tempfile
 import types
 
 import mock
+import psutil
 import pytest
 import urllib2
 
@@ -665,9 +666,13 @@ def test_get_cpu_usage_exception():
     Test that get_cpu_usage handles the mock Exception.
     """
     agent = MockAgent()
-    with mock.patch('psutil.cpu_percent', side_effect=Exception('CPU error')):
-        result = agent.get_cpu_usage()
-        assert result == -1.0
+    for exc in [
+        psutil.Error('CPU psutil error'),
+        ValueError('CPU value error')
+    ]:
+        with mock.patch('psutil.cpu_percent', side_effect=exc):
+            result = agent.get_cpu_usage()
+            assert result == -1.0
 
 
 def test_get_ram_usage():
@@ -688,7 +693,7 @@ def test_get_ram_usage_exception():
     agent = MockAgent()
     with mock.patch(
         'psutil.virtual_memory',
-        side_effect=Exception('RAM error')
+        side_effect=psutil.Error('RAM error')
     ):
         result = agent.get_ram_usage()
         assert result == -1.0
@@ -710,7 +715,8 @@ def test_get_disk_usage_exception():
     Test that get_disk_usage returns the mocked disk usage percentage.
     """
     agent = MockAgent()
-    with mock.patch('psutil.disk_usage', side_effect=Exception('Disk error')):
+    exc = psutil.Error('Disk psutil error')
+    with mock.patch('psutil.disk_usage', side_effect=exc):
         result = agent.get_disk_usage()
         assert result == -1.0
 
@@ -730,8 +736,9 @@ def test_get_load_average_unsupported():
     raises an exception.
     """
     agent = MockAgent()
-    with mock.patch('os.getloadavg', side_effect=OSError()):
-        assert agent.get_load_average() == -1.0
+    for exc in [OSError('no loadavg'), AttributeError('not available')]:
+        with mock.patch('os.getloadavg', side_effect=exc):
+            assert agent.get_load_average() == -1.0
 
 
 def test_generate_report():

@@ -753,7 +753,7 @@ class ServerAgent(object):
         """
         try:
             return psutil.cpu_percent(interval=interval)
-        except Exception as e:
+        except (psutil.Error, ValueError) as e:
             maybe_log_message(
                 'Error getting CPU usage: %s' % str(e),
                 logger=self.logger,
@@ -768,7 +768,7 @@ class ServerAgent(object):
         try:
             mem = psutil.virtual_memory()
             return mem.percent
-        except Exception as e:
+        except psutil.Error as e:
             maybe_log_message(
                 'Error getting RAM usage: %s' % str(e),
                 logger=self.logger,
@@ -782,7 +782,7 @@ class ServerAgent(object):
         """
         try:
             return os.getloadavg()[0]
-        except Exception as e:
+        except (OSError, AttributeError) as e:
             maybe_log_message(
                 'Error getting load average: %s' % str(e),
                 logger=self.logger,
@@ -797,7 +797,7 @@ class ServerAgent(object):
         try:
             usage = psutil.disk_usage('/')
             return usage.percent
-        except Exception as e:
+        except psutil.Error as e:
             maybe_log_message(
                 'Error getting disk usage: %s' % str(e),
                 logger=self.logger,

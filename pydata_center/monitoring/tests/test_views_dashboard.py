@@ -24,7 +24,7 @@ class TestDashboardView:
     def url(self):
         return reverse('monitoring:dashboard')
 
-    def test_dashboard_smoke_test(self, client, url):
+    def test_dashboard_smoke_test(self, authenticated_client, url):
         """
         Tests that the dashboard page loads correctly, uses the right template,
         and contains key static text when no agents exist.
@@ -49,7 +49,7 @@ class TestDashboardView:
     )
     def test_dashboard_online_offline_status(
             self,
-            client,
+            authenticated_client,
             url,
             timestamp_delta,
             expected_offline_status,
@@ -78,7 +78,7 @@ class TestDashboardView:
         else:
             assert 'class="offline"' not in content
 
-    def test_dashboard_displays_multiple_agents(self, client, url):
+    def test_dashboard_displays_multiple_agents(self, authenticated_client, url):
         """
         Tests that the dashboard correctly lists multiple agents with
         different statuses.

@@ -206,7 +206,7 @@ def test_jitter_backoff_logged(mock_supervisor, monkeypatch):
         for delay in [0.2, 0.3]:
             yield delay
 
-    monkeypatch.setattr('supervisor.jitter', mock_jitter)
+    monkeypatch.setattr('agents.supervisor.jitter', mock_jitter)
 
     mock_supervisor.schedule(mock_fail_task, max_retries=3)
     mock_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)

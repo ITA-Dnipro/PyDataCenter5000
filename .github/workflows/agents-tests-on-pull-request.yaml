@@ -21,42 +21,38 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [2.6, 2.7]
+
     steps:
       - uses: actions/checkout@v3
 
-      - name: Agents Unit Tests (Python 2.6 - Custom Docker Image)
+      - name: Agents Unit Tests (Python 2.6 - Custom Docker Image with coverage)
         if: matrix.python-version == '2.6'
         run: |
           docker run --rm \
-          -v "$PWD":/pydata \
-          ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
-          bash -c "cd /pydata && python -m pytest agents"
-
-      - name: Cache Pip Environment
-        if: matrix.python-version == '2.7'
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+            -v "$PWD":/pydata \
+            ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
+            bash -c "
+              cd /pydata && \
+              python -m pytest agents --cov=agents --cov-report=xml --cov-config=agents/.coveragerc
+            "
 
       - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
         if: matrix.python-version == '2.7'
         run: |
           docker run --rm \
-          -v "$PWD":/pydata \
-          python:2.7 \
-          bash -c "
-            cd /pydata && \
-            pip install -r agents/requirements.txt && \
-            pip install pytest pytest-cov==2.4.0 && \
-            python -m pytest agents --cov=agents --cov-config=.coveragerc --cov-report=xml:/pydata/agents/coverage.xml
-          "
+            -v "$PWD":/pydata \
+            python:2.7 \
+            bash -c "
+              cd /pydata && \
+              pip install -r agents/requirements.txt && \
+              pip install pytest && \
+              python -m pytest agents
+            "
 
       - name: Upload Coverage Report to Codecov
-        if: matrix.python-version == '2.7'
+        if: matrix.python-version == '2.6'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
+          verbose: true

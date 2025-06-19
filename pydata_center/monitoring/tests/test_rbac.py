@@ -23,6 +23,7 @@ def viewer_client(viewer_user):
     client.force_authenticate(user=viewer_user)
     return client
 
+
 @pytest.mark.django_db
 class TestRBACPermissions:
 

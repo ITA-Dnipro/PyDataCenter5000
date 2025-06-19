@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import Group, User
 from django.urls import reverse
 from django.utils.timezone import now
 from monitoring.models import ServerStatus
@@ -78,7 +78,9 @@ class TestDashboardView:
         else:
             assert 'class="offline"' not in content
 
-    def test_dashboard_displays_multiple_agents(self, authenticated_client, url):
+    def test_dashboard_displays_multiple_agents(
+            self, authenticated_client, url
+    ):
         """
         Tests that the dashboard correctly lists multiple agents with
         different statuses.

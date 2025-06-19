@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 import requests
 from dateutil.parser import isoparse
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.core.cache import cache
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -26,6 +26,9 @@ class ServerStatusAPITest(TestCase):
             username='testuser',
             password='testpass'
         )
+        # add user to Operator group
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
         cls.url = '/api/v1/server/status/'
 
     def setUp(self):
@@ -167,6 +170,10 @@ class ReceiveStatusEndpointTests(APITestCase):
         cls.user = User.objects.create_user(
             username=cls.username, password=cls.password
         )
+
+        # add user to group Operator
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
 
     def setUp(self):
         self.client.login(username=self.username, password=self.password)

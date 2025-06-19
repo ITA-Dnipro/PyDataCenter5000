@@ -21,4 +21,10 @@ Vagrant.configure("2") do |config|
 
   # Set up Python environment and FastAPI server
   config.vm.provision "shell", path: File.join(File.dirname(__FILE__), "provision", "setup_fastapi.sh")
+
+  # Status check!
+  config.vm.provision "shell", inline: <<-SHELL
+    sudo systemctl status nginx
+    sudo systemctl status fastapi
+  SHELL
 end

@@ -55,7 +55,7 @@ def mock_supervisor():
 def test_unit_start_event_loop_with_no_tasks_logged(
     mock_supervisor, monkeypatch
 ):
-    monkeypatch.setattr('coro.event_loop', lambda: None)
+    monkeypatch.setattr('coro.event_loop', lambda timeout: None)
 
     mock_supervisor.start()
 

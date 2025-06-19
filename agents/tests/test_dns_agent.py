@@ -1,4 +1,5 @@
 # Command to run on VM: python -m pytest agents/tests/test_dns_agent.py
+import logging
 import os
 import tempfile
 
@@ -120,3 +121,108 @@ def test_is_dns_running_raises_oserror(dns_agent):
 
     assert 'DNS check failed' in log_content, msg_log_dns_failed
     assert 'Mocked OSError' in log_content, msg_log_oserror
+
+
+def test_maybe_restart_service_when_all_services_active(dns_agent):
+    """
+    Should return True and log healthy status if all services are running.
+    """
+    dns_agent.is_dns_running = MagicMock(return_value=True)
+    dns_agent.is_ssh_service_active = MagicMock(return_value=True)
+
+    with patch('agents.dns.dns.maybe_log_message') as mock_log:
+        with patch('agents.dns.dns.restart_service') as mock_restart:
+
+            result = dns_agent.maybe_restart_service()
+
+            assert result is True
+            assert not mock_restart.called, (
+                'restart_service should not be called '
+                'when services are running.'
+            )
+
+            mock_log.assert_called_with(
+                'All services are heathy and running',
+                dns_agent.logger,
+                fallback_logger=dns_agent.fallback_logger,
+                level=logging.INFO
+            )
+
+
+def test_maybe_restart_service_when_dns_inactive(dns_agent):
+    """
+    Should restart only 'named' service if DNS is not running.
+    """
+    dns_agent.is_dns_running = MagicMock(return_value=False)
+    dns_agent.is_ssh_service_active = MagicMock(return_value=True)
+
+    with patch('agents.dns.dns.maybe_log_message') as mock_log:
+        with patch('agents.dns.dns.restart_service') as mock_restart:
+
+            result = dns_agent.maybe_restart_service()
+
+            assert result is False
+            mock_restart.assert_called_once_with(
+                dns_agent.logger, dns_agent.fallback_logger, 'named'
+            )
+
+            mock_log.assert_any_call(
+                'Finished attempts to restart services',
+                dns_agent.logger,
+                fallback_logger=dns_agent.fallback_logger,
+                level=logging.INFO
+            )
+
+
+def test_maybe_restart_service_when_ssh_inactive(dns_agent):
+    """
+    Should restart only 'ssh' service if SSH is not active.
+    """
+    dns_agent.is_dns_running = MagicMock(return_value=True)
+    dns_agent.is_ssh_service_active = MagicMock(return_value=False)
+
+    with patch('agents.dns.dns.maybe_log_message') as mock_log:
+        with patch('agents.dns.dns.restart_service') as mock_restart:
+
+            result = dns_agent.maybe_restart_service()
+
+            assert result is False
+            mock_restart.assert_called_once_with(
+                dns_agent.logger, dns_agent.fallback_logger, 'ssh'
+            )
+
+            mock_log.assert_any_call(
+                'Finished attempts to restart services',
+                dns_agent.logger,
+                fallback_logger=dns_agent.fallback_logger,
+                level=logging.INFO
+            )
+
+
+def test_maybe_restart_service_when_both_services_inactive(dns_agent):
+    """
+    Should restart both 'named' and 'ssh' services.
+    """
+    dns_agent.is_dns_running = MagicMock(return_value=False)
+    dns_agent.is_ssh_service_active = MagicMock(return_value=False)
+
+    with patch('agents.dns.dns.maybe_log_message') as mock_log:
+        with patch('agents.dns.dns.restart_service') as mock_restart:
+
+            result = dns_agent.maybe_restart_service()
+
+            assert result is False
+            assert mock_restart.call_count == 2
+            mock_restart.assert_any_call(
+                dns_agent.logger, dns_agent.fallback_logger, 'named'
+            )
+            mock_restart.assert_any_call(
+                dns_agent.logger, dns_agent.fallback_logger, 'ssh'
+            )
+
+            mock_log.assert_any_call(
+                'Finished attempts to restart services',
+                dns_agent.logger,
+                fallback_logger=dns_agent.fallback_logger,
+                level=logging.INFO
+            )

@@ -2,7 +2,7 @@ import mock
 import pytest
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mock_supervisor(temp_file_logging):
     from agents.supervisor import AgentSupervisor
 

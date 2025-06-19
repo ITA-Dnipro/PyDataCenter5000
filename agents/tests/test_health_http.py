@@ -1,10 +1,11 @@
-import unittest
 import datetime
 import json
-import StringIO
+import unittest
 
+import StringIO
 from BaseHTTPServer import HTTPServer
-from utils.health_http import HealthHandler
+
+from agents.utils.health_http import HealthHandler
 
 
 class DummyServer(object):
@@ -23,7 +24,7 @@ class TestHealthHandler(unittest.TestCase):
                 self.server = DummyServer()
                 self.wfile = self._wfile = StringIO.StringIO()
                 self.headers = {}
-            
+
             def send_response(self, code):
                 self._code = code
 
@@ -42,10 +43,10 @@ class TestHealthHandler(unittest.TestCase):
         output = handler._wfile.getvalue()
         data = json.loads(output)
 
-        self.assertEqual(handler._code, 200, "HTTP code is not 200 OK")
+        self.assertEqual(handler._code, 200, 'HTTP code is not 200 OK')
         self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
-        self.assertEqual(data['agent'], 'test-agent', "Agent name mismatch")
-        self.assertEqual(data['uptime'], 123, "Uptime value mismatch")
+        self.assertEqual(data['agent'], 'test-agent', 'Agent name mismatch')
+        self.assertEqual(data['uptime'], 123, 'Uptime value mismatch')
         self.assertTrue('timestamp' in data, "'timestamp' missing in response")
 
     def test_health_service_error(self):
@@ -73,7 +74,9 @@ class TestHealthHandler(unittest.TestCase):
         output = handler._wfile.getvalue()
         data = json.loads(output)
 
-        self.assertEqual(handler._code, 200, "HTTP code should be 200 even if error")
+        self.assertEqual(
+            handler._code, 200, 'HTTP code should be 200 even if error'
+        )
         self.assertEqual(data['status'], 'error', "Status should be 'error'")
 
     def test_not_found(self):
@@ -90,4 +93,6 @@ class TestHealthHandler(unittest.TestCase):
 
         handler = NotFoundHandler()
         handler.do_GET()
-        self.assertEqual(handler._code, 404, "HTTP code should be 404 for unknown path")
+        self.assertEqual(
+            handler._code, 404, 'HTTP code should be 404 for unknown path'
+        )

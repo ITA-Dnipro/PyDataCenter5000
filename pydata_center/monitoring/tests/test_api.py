@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -12,8 +12,11 @@ from django.urls import reverse
 from django.utils import timezone
 from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import send_async_email
-from monitoring.models import AgentMetric, AlertRule, ServerStatus
-from monitoring.tasks import evaluate_agent_alerts
+from monitoring.models import (AgentMetric, AgentPingStatus, AlertRule,
+                               ServerStatus)
+from monitoring.tasks import (check_agent_health, evaluate_agent_alerts,
+                              save_agent_ping_status)
+from requests.exceptions import RequestException
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
@@ -894,4 +897,149 @@ class MetricsHistoryViewTests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
             f'Expected 200 OK for naive datetime, got {response.status_code}'
+        )
+
+
+@pytest.mark.django_db
+class TestCheckAgentHealth:
+    """Test suite for a check_agent_health task."""
+    def setup_method(self):
+        self.agent_ip = '127.0.0.1'
+        self.port = 8081
+        self.url = f'http://{self.agent_ip}:{self.port}/health'
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_successful_health_check(self, mock_get, mock_save_status, caplog):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            'agent': 'test-agent',
+            'status': 'ok',
+            'uptime': 123,
+            'timestamp': '2025-06-19T09:50:00.000Z',
+        }
+        mock_get.return_value = mock_response
+
+        with caplog.at_level('INFO'):
+            result = check_agent_health(self.agent_ip, self.port)
+
+        mock_get.assert_called_once_with(
+            self.url, timeout=5
+        ), f'Expected GET to {self.url} with timeout=5'
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            mock_response.json.return_value
+        ), 'Expected save_agent_ping_status to be called with correct data'
+
+        assert 'Agent health check:' in caplog.text, (
+            'Expected health check log not found'
+        )
+        assert result == mock_response.json.return_value, (
+            'Returned result does not match expected JSON'
+        )
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_request_exception_handling(self, mock_get, mock_save_status):
+        mock_get.side_effect = requests.exceptions.RequestException(
+            'Connection error'
+        )
+
+        with pytest.raises(RequestException, match='Connection error'):
+            check_agent_health(self.agent_ip, self.port)
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            {'status': 'unreachable', 'agent': 'unknown', 'uptime': -1}
+        ), 'Expected unreachable status to be saved on RequestException'
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_exception_handling(self, mock_get, mock_save_status):
+        mock_get.side_effect = Exception('Unexpected error')
+
+        result = check_agent_health(self.agent_ip, self.port)
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            {'status': 'error', 'agent': 'unknown', 'uptime': -1}
+        ), 'Expected error status to be saved on generic Exception'
+
+        assert result['status'] == 'error', "Expected 'error' status in result"
+        assert 'unexpected_error' in result, (
+            "Expected 'unexpected_error' key in result"
+        )
+
+
+@pytest.mark.django_db
+class TestSaveAgentPingStatus:
+    """Test for save_agent_ping_status"""
+    def test_creates_new_status(self):
+        ip = '192.168.1.1'
+        data = {
+            'agent': 'agent-01',
+            'status': 'ok',
+            'uptime': 100
+        }
+
+        save_agent_ping_status(ip, data)
+
+        status = AgentPingStatus.objects.get(ip=ip)
+        assert status.agent_name == 'agent-01', (
+            f"Expected agent_name='agent-01', got {status.agent_name}"
+        )
+        assert status.status == 'ok', (
+            f"Expected status='ok', got {status.status}"
+        )
+        assert status.uptime == 100, (
+            f'Expected uptime=100, got {status.uptime}'
+        )
+
+    def test_logs_status_change(self, caplog):
+        ip = '192.168.1.2'
+        AgentPingStatus.objects.create(
+            agent_name='agent-02',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=100,
+            status='ok'
+        )
+
+        new_data = {
+            'agent': 'agent-02',
+            'status': 'unreachable',
+            'uptime': 200
+        }
+
+        with caplog.at_level('WARNING'):
+            save_agent_ping_status(ip, new_data)
+
+        assert 'status changed from ok to unreachable' in caplog.text, (
+            "Expected warning log for status change from 'ok' to "
+            "'unreachable', but not found."
+        )
+
+    def test_no_log_when_status_same(self, caplog):
+        ip = '192.168.1.3'
+        AgentPingStatus.objects.create(
+            agent_name='agent-03',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=100,
+            status='ok'
+        )
+
+        same_data = {
+            'agent': 'agent-03',
+            'status': 'ok',
+            'uptime': 200
+        }
+
+        with caplog.at_level('WARNING'):
+            save_agent_ping_status(ip, same_data)
+
+        assert 'status changed' not in caplog.text, (
+            'Expected no warning log when status has not changed.'
         )

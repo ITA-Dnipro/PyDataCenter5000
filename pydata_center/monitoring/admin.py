@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
@@ -6,8 +7,16 @@ from .models import (AgentMetric, AlertRule, CommandHistory, ServerStatus,
                      Webhook)
 
 
+class GroupBaseAdmin(admin.ModelAdmin):
+    def has_change_permission(self, request, obj=None):
+        return request.user.groups.filter(name='Admin').exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        return self.has_change_permission(request)
+    
+
 @admin.register(CommandHistory)
-class CommandHistoryAdmin(admin.ModelAdmin):
+class CommandHistoryAdmin(GroupBaseAdmin):
     list_display = ('hostname', 'status', 'timestamp')
     list_filter = ('status', 'hostname')
     search_fields = ('hostname', 'command')
@@ -15,7 +24,7 @@ class CommandHistoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(ServerStatus)
-class ServerStatusAdmin(admin.ModelAdmin):
+class ServerStatusAdmin(GroupBaseAdmin):
     list_display = ('hostname', 'server_name', 'ip', 'uptime', 'timestamp')
     list_filter = ('server_name', )
     search_fields = ('hostname', 'server_name')

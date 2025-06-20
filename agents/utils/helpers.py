@@ -89,3 +89,39 @@ def is_valid_ip(output):
         return True
     except socket.error:
         return False
+
+
+def is_process_active(logger, fallback_logger, process):
+    """
+    Check if a given systemd service is currently active.
+
+    This function runs the command `systemctl is-active <process>` and checks
+    whether the output indicates that the service is active.
+
+    Parameters:
+        process (str): Name of the systemd service to check.
+
+    Returns:
+        bool: True if the service is active, False otherwise.
+    """
+    proc = subprocess.Popen(
+        ['systemctl', 'is-active', process],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    stdout, stderr = proc.communicate()
+
+    if hasattr(stdout, 'decode'):
+        stdout = stdout.decode('utf-8')
+
+    stdout = stdout.strip().lower()
+
+    if stdout != 'activeaa':
+        maybe_log_message(
+            '%s process is not active. Status: %s' % (process, stdout),
+            logger,
+            fallback_logger=fallback_logger,
+            exc_info=True
+            )
+
+    return stdout == 'active'

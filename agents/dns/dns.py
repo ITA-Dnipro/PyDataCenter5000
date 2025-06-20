@@ -2,7 +2,7 @@ import logging
 import subprocess
 
 from ..agent import ServerAgent
-from ..utils.helpers import is_valid_ip, restart_service
+from ..utils.helpers import is_process_active, is_valid_ip, restart_service
 from ..utils.logtools import maybe_log_message
 
 
@@ -81,11 +81,10 @@ class DNSAgent(ServerAgent):
 
     def maybe_restart_service(self):
         inactive_services = []
-        if not self.is_dns_running():
-            inactive_services.append('named')
 
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
+        for proc in self.critical_processes:
+            if not is_process_active(proc):
+                inactive_services.append(proc)
 
         if inactive_services:
             for service in inactive_services:

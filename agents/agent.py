@@ -19,6 +19,7 @@ from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
+from .utils.helpers import is_process_active
 from .utils.logtools import maybe_log_message
 from .utils.networking import get_ip_from_interface, get_linux_uptime
 
@@ -394,47 +395,49 @@ class ServerAgent(object):
         finally:
             s.close()
 
-    def _is_process_running(self):
+    # def _is_process_running(self):
+    #     try:
+    #         output = subprocess.Popen(['ps', '-eo', 'comm'],
+    #                                   stdout=subprocess.PIPE).communicate()[0]
+
+    #         if hasattr(output, 'decode'):
+    #             output = output.decode('utf-8')
+
+    #         normalized_lines = output.lower().splitlines()
+
+    #         return any(
+    #             re.search(r'\b{0}\b'.format(re.escape(proc)), line)
+    #             for proc in self.processes
+    #             for line in normalized_lines
+    #             )
+
+    #     except OSError as e:
+    #         maybe_log_message(
+    #             'Process check failed: %s' % e,
+    #             self.logger,
+    #             fallback_logger=self.fallback_logger,
+    #             exc_info=True,
+    #         )
+
+    #         return False
+
+    def _are_all_processes_active(self):
+        inactive_processes = 0
+
         try:
-            output = subprocess.Popen(['ps', '-eo', 'comm'],
-                                      stdout=subprocess.PIPE).communicate()[0]
-
-            if hasattr(output, 'decode'):
-                output = output.decode('utf-8')
-
-            normalized_lines = output.lower().splitlines()
-
-            return any(
-                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
-                for proc in self.processes
-                for line in normalized_lines
-                )
-
-        except OSError as e:
-            maybe_log_message(
-                'Process check failed: %s' % e,
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
-
-            return False
-
-    def is_ssh_service_active(self):
-        try:
-            proc = subprocess.Popen(
-                ['systemctl', 'is-active', 'ssh'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            stdout, stderr = proc.communicate()
-
-            if hasattr(stdout, 'decode'):
-                stdout = stdout.decode('utf-8')
-
-            stdout = stdout.strip().lower()
-
-            return stdout == 'active'
+            for proc in self.critical_processes:
+                is_active = is_process_active(
+                    self.logger, self.fallback_logger, proc
+                    )
+                if not is_active:
+                    inactive_processes += 1
+                    # maybe_log_message(
+                    # '%s process inactive' % proc,
+                    # self.logger,
+                    # fallback_logger=self.fallback_logger,
+                    # exc_info=True
+                    # )
+            return inactive_processes == 0
 
         except OSError as e:
             maybe_log_message(
@@ -451,7 +454,7 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running() and self.is_ssh_service_active()
+        return self._are_all_processes_active()
 
     @abc.abstractmethod
     def maybe_restart_service(self):

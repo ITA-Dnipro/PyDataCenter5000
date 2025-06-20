@@ -122,90 +122,157 @@ class TestServerStatusAPI:
 
 
 class TestCommandHistoryAPI:
-    """Tests for the command history endpoints."""
+    """
+    Tests for the command history endpoints.
+    """
 
     def setup_method(self, method):
         self.command = CommandHistory.objects.create(
-            hostname='agent-setup', command='initial_command'
+            hostname='agent-setup',
+            command='initial_command',
+            notify_on_success=False
         )
         self.detail_url = reverse(
-            'monitoring:commandhistory-detail', args=[self.command.id]
+            'monitoring:commandhistory-detail',
+            args=[self.command.id]
         )
         self.submit_url = reverse('monitoring:submit_command_result')
 
-    @pytest.mark.parametrize(
-        'status, result, should_trigger',
-        [
-            ('failed', 'Error occurred', True),
-            ('done', 'Success', False),
-        ],
-    )
-    def test_command_update_alert_behavior(
-            self, authenticated_client, status, result, should_trigger
+    def test_update_to_failed_triggers_failure_alert(
+            self,
+            authenticated_client
     ):
-        """Tests alert behavior for command updates."""
-        payload = {'status': status, 'result': result}
+        """
+        Test that updating a command to 'failed' triggers a failure alert.
+        """
+        payload = {'status': 'failed', 'result': 'Update failed unexpectedly'}
 
-        if should_trigger:
-            path_to_mock = 'monitoring.views.alert_if_command_failed'
-            with patch(path_to_mock) as mock_alert:
-                response = authenticated_client.patch(
-                    self.detail_url,
-                    data=payload,
-                    format='json'
-                )
-                assert response.status_code == 200
-                mock_alert.assert_called_once_with(
-                    self.command.hostname,
-                    result
-                )
-        else:
-            path_to_mock = 'monitoring.alerts.send_discord_alert'
-            with patch(path_to_mock) as mock_send_alert:
-                response = authenticated_client.patch(
-                    self.detail_url,
-                    data=payload,
-                    format='json'
-                )
-                assert response.status_code == 200
-                mock_send_alert.assert_not_called()
+        path_to_mock = 'monitoring.views.alert_if_command_failed'
+        with patch(path_to_mock) as mock_failure_alert:
+            response = authenticated_client.patch(
+                self.detail_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_failure_alert.assert_called_once_with(
+                self.command.hostname,
+                'Update failed unexpectedly'
+            )
 
-    @pytest.mark.parametrize(
-        'status, result, should_trigger',
-        [
-            ('failed', 'Command FAILED', True),
-            ('done', 'Everything is fine', False),
-        ],
-    )
-    def test_command_submit_alert_behavior(
-            self, authenticated_client, status, result, should_trigger
+    def test_update_to_done_is_ignored_by_default(self, authenticated_client):
+        """
+        Test a successful update is ignored if notify_on_success is False.
+        """
+        payload = {'status': 'done', 'result': 'Success'}
+
+        with patch('monitoring.alerts.send_discord_alert') as mock_any_alert:
+            response = authenticated_client.patch(
+                self.detail_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_any_alert.assert_not_called()
+
+    def test_update_to_done_with_flag_triggers_success_alert(
+            self,
+            authenticated_client
     ):
-        """Tests alert behavior for command result submissions."""
-        payload = {'id': self.command.id, 'status': status, 'result': result}
+        """
+        Test a successful update triggers an alert if notify_on_success is True
+        """
+        self.command.notify_on_success = True
+        self.command.save()
+        payload = {'status': 'done', 'result': 'Critical task succeeded'}
 
-        if should_trigger:
-            path_to_mock = 'monitoring.views.alert_if_command_failed'
-            with patch(path_to_mock) as mock_alert:
-                response = authenticated_client.patch(
-                    self.submit_url,
-                    data=payload,
-                    format='json'
-                )
-                assert response.status_code == 200
-                mock_alert.assert_called_once_with(
-                    self.command.hostname,
-                    result
-                )
-        else:
-            path_to_mock = 'monitoring.alerts.send_discord_alert'
-            with patch(path_to_mock) as mock_send_alert:
-                response = authenticated_client.patch(
-                    self.submit_url,
-                    data=payload,
-                    format='json'
-                )
-                assert response.status_code == 200
-                mock_send_alert.assert_not_called()
+        with patch('monitoring.views.alert_on_success') as mock_success_alert:
+            response = authenticated_client.patch(
+                self.detail_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_success_alert.assert_called_once_with(
+                self.command.hostname,
+                'Critical task succeeded'
+            )
+
+    def test_submit_failed_result_triggers_failure_alert(
+            self,
+            authenticated_client
+    ):
+        """
+        Test that submitting a 'failed' result triggers a failure alert.
+        """
+        payload = {
+            'id': self.command.id,
+            'status': 'failed',
+            'result': 'Submission failed'
+        }
+
+        path_to_mock = 'monitoring.views.alert_if_command_failed'
+        with patch(path_to_mock) as mock_failure_alert:
+            response = authenticated_client.patch(
+                self.submit_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_failure_alert.assert_called_once_with(
+                self.command.hostname,
+                'Submission failed'
+            )
+
+    def test_submit_done_result_is_ignored_by_default(
+            self,
+            authenticated_client
+    ):
+        """
+        Test a successful submission is ignored if notify_on_success is False.
+        """
+        payload = {
+            'id': self.command.id,
+            'status': 'done',
+            'result': 'All good'
+        }
+
+        with patch('monitoring.alerts.send_discord_alert') as mock_any_alert:
+            response = authenticated_client.patch(
+                self.submit_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_any_alert.assert_not_called()
+
+    def test_submit_done_result_with_flag_triggers_success_alert(
+            self,
+            authenticated_client
+    ):
+        """
+        Test a successful submission triggers an alert
+        if notify_on_success is True.
+        """
+        self.command.notify_on_success = True
+        self.command.save()
+        payload = {
+            'id': self.command.id,
+            'status': 'done',
+            'result': 'Important task done'
+        }
+
+        with patch('monitoring.views.alert_on_success') as mock_success_alert:
+            response = authenticated_client.patch(
+                self.submit_url,
+                data=payload,
+                format='json'
+            )
+            assert response.status_code == 200
+            mock_success_alert.assert_called_once_with(
+                self.command.hostname,
+                'Important task done'
+            )
 
     def test_update_nonexistent_command_returns_404(
             self,

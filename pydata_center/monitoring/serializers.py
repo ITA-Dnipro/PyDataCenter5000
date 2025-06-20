@@ -63,7 +63,7 @@ class CommandHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = CommandHistory
         fields = '__all__'
-        read_only_fields = ('status', 'result', 'timestamp')
+        read_only_fields = ('timestamp',)
 
     def validate_command(self, value):
         if len(value.strip()) == 0:

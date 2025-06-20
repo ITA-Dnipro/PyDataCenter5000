@@ -16,7 +16,7 @@ class GroupBaseAdmin(admin.ModelAdmin):
 
 @admin.register(CommandHistory)
 class CommandHistoryAdmin(GroupBaseAdmin):
-    list_display = ('hostname', 'status', 'timestamp')
+    list_display = ('hostname', 'status', 'timestamp', 'notify_on_success')
     list_filter = ('status', 'hostname')
     search_fields = ('hostname', 'command')
     readonly_fields = ('hostname', 'command', 'result', 'status', 'timestamp')

@@ -42,3 +42,13 @@ def alert_if_command_failed(hostname: str, result: str) -> None:
             message=f'Command failed:\n```\n{cleaned_result}\n```',
             level='critical'
         )
+
+
+def alert_on_success(hostname: str, result: str) -> None:
+    """Send a success confirmation when a command executes successfully."""
+    cleaned_result = result.strip()[:300]
+    send_discord_alert(
+        hostname=hostname,
+        message=f'✅ Command succeeded:\n```\n{cleaned_result}\n```',
+        level='info'
+    )

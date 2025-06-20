@@ -22,7 +22,6 @@ class SMTPAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        log_path=None,
     ):
         super(SMTPAgent, self).__init__(
             server_name=server_name,
@@ -32,7 +31,6 @@ class SMTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def check_banner(self):
@@ -54,8 +52,8 @@ class SMTPAgent(ServerAgent):
 
         return banner.strip() if banner else ''
 
-    def service_healthy(self):
-        status = super(SMTPAgent, self).service_healthy()
+    def is_service_healthy(self):
+        status = super(SMTPAgent, self).is_service_healthy()
         return status and bool(self.check_banner())
 
     def status_to_dict(self):

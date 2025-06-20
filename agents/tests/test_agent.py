@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import socket
+import subprocess
 import tempfile
 import types
 
@@ -85,8 +86,17 @@ class MockAgent(ServerAgent):
         if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)
 
-    def service_healthy(self):
-        return super(MockAgent, self).service_healthy()
+    def is_service_healthy(self):
+        return super(MockAgent, self).is_service_healthy()
+
+    def maybe_restart_service(self):
+        return super(MockAgent, self).maybe_restart_service()
+
+
+def mock_popen_with_output(stdout, stderr=''):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = (stdout, stderr)
+    return process_mock
 
 
 def test_command_history_valid_data():
@@ -1312,3 +1322,131 @@ def test_post_data_headers_update():
         'Authorization': 'Bearer test-token'
     }
     assert captured_request['headers'] == expected_headers
+
+
+def test_is_process_running_when_any_process_running():
+    agent = MockAgent(processes=['nginx', 'named'])
+
+    output = 'COMMAND\nnginx\nssh\nnamed\n'
+
+    with mock.patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output)
+
+        result = agent._is_process_running()
+
+        assert result is True, (
+            'Expected _is_process_running to return True when at '
+            'least one process from the list is running.'
+        )
+
+
+def test_is_process_running_didnt_find_any_process():
+    agent = MockAgent(processes=['nginx', 'ssh'])
+    output = 'COMMAND\napache\npostgres\n'
+
+    with mock.patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output)
+
+        result = agent._is_process_running()
+
+        assert result is False, (
+            'Expected _is_process_running to return False when '
+            'none of the required processes are found.'
+            )
+
+
+def test_is_process_running_matches_first_process_only():
+    agent = MockAgent(processes=['named', 'nonexistent'])
+    output = 'COMMAND\nnamed\nanother\n'
+
+    with mock.patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output)
+
+        result = agent._is_process_running()
+
+        assert result is True
+
+
+def test_is_process_running_with_error():
+    agent = MockAgent(processes=['nginx'])
+
+    with mock.patch('subprocess.Popen', side_effect=OSError('boom')):
+        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+
+            result = agent._is_process_running()
+
+            assert result is False, (
+                'Expected _is_process_running to return False '
+                'when OSError is raised.'
+            )
+
+            mock_log.assert_called_once_with(
+                'Process check failed: boom',
+                agent.logger,
+                fallback_logger=agent.fallback_logger,
+                exc_info=True
+            )
+
+
+def test_is_ssh_service_active_returns_true_when_active():
+    agent = MockAgent()
+    output = 'active\n'
+
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output, '')
+
+        result = agent.is_ssh_service_active()
+
+        assert result is True, (
+            'Expected is_ssh_service_active return True when '
+            'ssh active'
+        )
+
+
+def test_is_ssh_service_active_returns_false_when_inactive():
+    agent = MockAgent()
+    output = 'inactive\n'
+
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output, '')
+
+        result = agent.is_ssh_service_active()
+
+        assert result is False, (
+            'Expected is_ssh_service_active return False when '
+            'ssh inactive'
+        )
+
+
+def test_is_ssh_service_active_returns_false_when_output_empty():
+    agent = MockAgent()
+    output = ''
+
+    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+        mock_popen.return_value = mock_popen_with_output(output, '')
+
+        result = agent.is_ssh_service_active()
+
+        assert result is False, (
+            'Expected is_ssh_service_active return False when '
+            'output is empty'
+        )
+
+
+def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
+    agent = MockAgent()
+
+    with mock.patch(
+        'agents.agent.subprocess.Popen',
+        side_effect=OSError('boom')
+    ):
+        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+            result = agent.is_ssh_service_active()
+
+            assert result is False, 'Expected return False, when OSError'
+            mock_log.assert_called_once_with(
+                'SSH service check failed: boom',
+                agent.logger,
+                fallback_logger=agent.fallback_logger,
+                exc_info=True
+                )

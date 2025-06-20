@@ -32,11 +32,11 @@ class WebAgent(ServerAgent):
             log_path=log_path,
         )
 
-    def service_healthy(
+    def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
         # TODO: extend health check.
-        status = super(WebAgent, self).service_healthy()
+        status = super(WebAgent, self).is_service_healthy()
         return status and self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )

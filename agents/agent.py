@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import platform
+import re
 import socket
 import subprocess
 import time
@@ -428,12 +429,14 @@ class ServerAgent(object):
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
 
-            output = output.lower()
+            normalized_lines = output.lower().splitlines()
 
             return any(
-                any(proc in p for p in output.split())
+                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
                 for proc in self.processes
-            )
+                for line in normalized_lines
+                )
+
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -444,13 +447,42 @@ class ServerAgent(object):
 
             return False
 
+    def is_ssh_service_active(self):
+        try:
+            proc = subprocess.Popen(
+                ['systemctl', 'is-active', 'ssh'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = proc.communicate()
+
+            if hasattr(stdout, 'decode'):
+                stdout = stdout.decode('utf-8')
+
+            stdout = stdout.strip().lower()
+
+            return stdout == 'active'
+
+        except OSError as e:
+            maybe_log_message(
+                'SSH service check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True
+                )
+            return False
+
     @abc.abstractmethod
-    def service_healthy(self):
+    def is_service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running()
+        return self._is_process_running() and self.is_ssh_service_active()
+
+    @abc.abstractmethod
+    def maybe_restart_service(self):
+        pass
 
     def status_to_dict(self):
         return {
@@ -460,7 +492,7 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(),
+            'healthy': self.is_service_healthy(),
         }
 
     def status_to_json(self, log=False):

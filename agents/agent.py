@@ -778,6 +778,6 @@ class ServerAgent(object):
                     exc_info=True,
                 )
 
-        thread = threading.Thread(target=run)
+        thread = threading.Thread(target=run, name='HealthServerThread')
         thread.setDaemon(True)
         thread.start()

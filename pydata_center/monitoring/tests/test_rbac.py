@@ -181,7 +181,7 @@ def test_non_admin_user_has_no_change_or_delete_permission():
     )
 
 
-@pytest.mark.django.db
+@pytest.mark.django_db
 def test_permission_denies_unauthenticated_user():
     factory = APIRequestFactory()
     request = factory.post('/api/v1/server/status/')

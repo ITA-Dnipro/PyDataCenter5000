@@ -74,7 +74,7 @@ def dummy_supervisor(setup_temp_file_logging, monkeypatch):
     supervisor = AgentSupervisor(agent)
 
     @property
-    def mock_logger():
+    def mock_logger(self):
         return logging.getLogger('mock-logger')
 
     monkeypatch.setattr(supervisor, 'logger', mock_logger)

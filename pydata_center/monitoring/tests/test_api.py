@@ -548,9 +548,6 @@ class TestEvaluateAgentAlerts:
             ),
         ]
     )
-    @override_settings(
-        ALERT_SLACK_WEBHOOK='https://hooks.slack.com/services/test/test/test'
-    )
     def test_alert_triggered(self, destination, mocked, caplog):
         with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
             evaluate_agent_alerts(destinations=[destination], batch=False)
@@ -563,13 +560,8 @@ class TestEvaluateAgentAlerts:
         (
             'discord',
             'monitoring.discord.send_async_discord_message.apply_async',
-            'slack',
-            'monitoring.webhook.send_async_webhook_message.apply_async',
         )
     ])
-    @override_settings(
-        ALERT_SLACK_WEBHOOK='https://hooks.slack.com/services/test/test/test'
-    )
     def test_no_alerts_triggered(self, destination, mocked, caplog):
         self.rule.threshold = 60
         self.rule.save()
@@ -600,9 +592,6 @@ class TestEvaluateAgentAlerts:
             'monitoring.webhook.send_async_webhook_message.apply_async'
         )
     ])
-    @override_settings(
-        ALERT_SLACK_WEBHOOK='https://hooks.slack.com/services/test/test/test'
-    )
     def test_alert_triggered_with_less_than_operator(
         self, destination, mocked, caplog
     ):

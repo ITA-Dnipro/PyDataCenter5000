@@ -27,8 +27,9 @@ def viewer_client(viewer_user):
 @pytest.mark.django_db
 class TestRBACPermissions:
 
-    def setup_method(self):
-        self.url = '/api/v1/server/status/'
+    @classmethod
+    def setup_class(cls):
+        cls.url = '/api/v1/server/status/'
 
     def test_viewer_role_is_forbidden_to_post_status_data(self, viewer_client):
         payload = {
@@ -42,4 +43,16 @@ class TestRBACPermissions:
         }
 
         response = viewer_client.post(self.url, data=payload, format='json')
+        assert response.status_code == 403
+
+    def test_viewer_role_can_get_status_list(self, viewer_client):
+        response = viewer_client.get(self.url)
+        assert response.status_code == 200
+
+    def test_viewer_role_cannot_patch_status(self, viewer_client):
+        response = viewer_client.patch(self.url + '1/', data={'uptime': 999})
+        assert response.status_code == 403
+
+    def test_viewer_role_cannot_delete_status(self, viewer_client):
+        response = viewer_client.delete(self.url + '1/')
         assert response.status_code == 403

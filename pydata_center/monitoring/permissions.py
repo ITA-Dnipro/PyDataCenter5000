@@ -11,6 +11,7 @@ class IsAdminOrOperatorForWrite(BasePermission):
         if request.method in SAFE_METHODS:
             return True  # Viewer, Admin, Operator - GET access
 
-        return request.user.is_authenticated and request.user.groups.filter(
-            name__in=['Admin', 'Operator']
-        ).exists()
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.groups.filter(
+            name__in=['Admin', 'Operator']).exists()

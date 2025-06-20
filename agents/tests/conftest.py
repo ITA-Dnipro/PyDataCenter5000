@@ -1,5 +1,6 @@
-import logging
+import logging.config
 import os
+import sys
 import tempfile
 
 import mock
@@ -8,66 +9,59 @@ import pytest
 
 @pytest.yield_fixture
 def setup_temp_file_logging():
-    config_file = tempfile.NamedTemporaryFile(delete=False)
-    log_file = tempfile.NamedTemporaryFile(delete=False)
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+    tmp.close()
 
-    config_file.write("""
-[loggers]
-keys=root,fallback,supervisor
+    config = {
+        'version': 1,
+        # 'disable_existing_loggers': True,
+        'formatters': {
+            'minimal': {
+                'format': '%(levelname)s : %(message)s',
+            },
+        },
+        'handlers': {
+            'fallback': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'minimal',
+                'level': 'ERROR',
+                'stream': 'ext://sys.stderr',
+            },
+            'file': {
+                'class': 'logging.FileHandler',
+                'formatter': 'minimal',
+                'level': 'INFO',
+                'filename': tmp.name,
+                'mode': 'w',
+            },
+        },
+        'loggers': {
+            'fallback': {
+                'handlers': ['fallback'],
+                'level': 'ERROR',
+                'propagate': False,
+            },
+            'mock-server-supervisor': {
+                'handlers': ['file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+        },
+        'root': {
+            'handlers': [],
+            'level': 'NOTSET',
+        },
+    }
 
-[handlers]
-keys=fallback,file
-
-[formatters]
-keys=minimal
-
-[logger_root]
-level=NOTSET
-handlers=
-
-[logger_fallback]
-level=ERROR
-handlers=fallback
-qualname=fallback
-propagate=0
-
-[logger_supervisor]
-level=INFO
-handlers=file
-qualname=mock-server-supervisor
-propagate=0
-
-[handler_fallback]
-class=StreamHandler
-formatter=minimal
-args=(sys.stdout,)
-
-[handler_file]
-class=FileHandler
-formatter=minimal
-args=('%(filename)s', 'w')
-
-[formatter_minimal]
-format=%(levelname)s : %(message)s
-style=%
-class=logging.Formatter
-    """)
-
-    config_file.close()
-    log_file.close()
-
-    logging.config.fileConfig(
-        config_file.name, defaults={'filename': log_file.name}
-    )
+    logging.config.dictConfig(config)
 
     yield
 
-    os.remove(config_file.name)
-    os.remove(log_file.name)
+    os.remove(tmp.name)
 
 
 @pytest.fixture
-def mock_supervisor(setup_temp_file_logging):
+def dummy_supervisor(setup_temp_file_logging):
     from agents.supervisor import AgentSupervisor
 
     agent = mock.MagicMock()

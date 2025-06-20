@@ -417,9 +417,9 @@ class ReceiveStatusEndpointTests(APITestCase):
 
 
 @pytest.mark.parametrize('func,msg', [
-    (send_async_discord_message, {'content': 'mock-content'}),
+    (send_async_webhook_message, {'content': 'mock-content'}),
     (
-        send_async_discord_message,
+        send_async_webhook_message,
         {'content': 'mock-content', 'webhook': 'mock-webhook', 'bad': 'arg'}
     ),
     (send_async_email, {'body': 'mock-body'}),

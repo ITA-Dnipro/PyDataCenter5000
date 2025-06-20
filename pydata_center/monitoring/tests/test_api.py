@@ -10,7 +10,6 @@ from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
-from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import send_async_email
 from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts

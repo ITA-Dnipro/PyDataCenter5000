@@ -21,7 +21,6 @@ class WebAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        log_path=None,
         server_host=None,
     ):
         port = int(self._get_env_or_param(port, 'PORT'))
@@ -34,13 +33,12 @@ class WebAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
         self.server_host = self._get_env_or_param(server_host, 'SERVER_HOST')
         self.health_url = self._build_url('health')
 
-    def service_healthy(
+    def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
         """
@@ -93,7 +91,7 @@ class WebAgent(ServerAgent):
                 )
                 return False
 
-            status = super(WebAgent, self).service_healthy()
+            status = super(WebAgent, self).is_service_healthy()
             return status and self.is_port_open(
                 timeout=timeout, payload=payload, packet_size=packet_size
             )

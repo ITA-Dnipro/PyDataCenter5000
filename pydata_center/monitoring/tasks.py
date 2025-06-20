@@ -8,10 +8,9 @@ from celery import shared_task
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
-from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
-from monitoring.webhook import (SlackMessage, WebhookMessage,
+from monitoring.webhook import (DiscordMessage, SlackMessage, WebhookMessage,
                                 send_async_webhook_message)
 
 logger = logging.getLogger(__name__)

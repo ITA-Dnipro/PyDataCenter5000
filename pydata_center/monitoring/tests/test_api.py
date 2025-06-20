@@ -7,9 +7,9 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts
+from monitoring.webhook import WebhookMessage, send_async_webhook_message
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
@@ -413,8 +413,8 @@ class ReceiveStatusEndpointTests(APITestCase):
 
 
 @pytest.mark.parametrize('status_code', [200, 204])
-def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
-    """Test handling and logging of succesfull Discord POST request."""
+def test_send_async_webhook_message_success(monkeypatch, caplog, status_code):
+    """Test handling and logging of succesfull webhook POST request."""
     class MockResponse:
         def __init__(self, status_code):
             self.status_code = status_code
@@ -424,24 +424,24 @@ def test_send_async_discord_message_success(monkeypatch, caplog, status_code):
             pass
 
     monkeypatch.setattr(
-        'requests.post', lambda url, json: MockResponse(status_code)
+        'requests.post', lambda url, json, timeout: MockResponse(status_code)
     )
 
-    msg = DiscordMessage(
-        'Mock message', webhook='https://discord.com/api/webhooks/mock'
+    msg = WebhookMessage(
+        'Mock message', webhook='https://mock.com/api/webhooks/mock'
     )
 
     with caplog.at_level('INFO'):
-        send_async_discord_message(msg)
+        send_async_webhook_message(msg)
 
     assert (
-        f'POST request sent succesfully. Discord reposnse: {status_code} OK'
+        f'POST request sent successfully. Webhook response: {status_code} OK'
         in caplog.text
     )
 
 
 @pytest.mark.parametrize('fail_silently', [True, False])
-def test_send_async_discord_message_http_error(
+def test_send_async_webhook_message_http_error(
     monkeypatch, caplog, fail_silently
 ):
     """Test handling and logging of HTTP error."""
@@ -453,27 +453,26 @@ def test_send_async_discord_message_http_error(
         def raise_for_status(self):
             raise requests.exceptions.HTTPError('Mock HTTP error')
 
-    monkeypatch.setattr('requests.post', lambda url, json: MockResponse())
+    monkeypatch.setattr(
+        'requests.post', lambda url, json, timeout: MockResponse()
+    )
 
-    msg = DiscordMessage(
+    msg = WebhookMessage(
         'Mock message',
-        webhook='https://discord.com/api/webhooks/mock',
+        webhook='https://mock.com/api/webhooks/mock',
         fail_silently=fail_silently,
     )
 
     with caplog.at_level('ERROR'):
         if fail_silently:
-            send_async_discord_message(msg)
+            send_async_webhook_message(msg)
         else:
-            with pytest.raises(
-                requests.exceptions.HTTPError,
-                match='Sending Discord message failed.',
-            ):
-                send_async_discord_message(msg)
+            with pytest.raises(requests.exceptions.HTTPError):
+                send_async_webhook_message(msg)
 
     assert (
         (
-            f'Sending Discord message failed due to error: '
+            f'Sending message to webhook failed due to error: '
             f'{requests.exceptions.HTTPError}'
         )
         in caplog.text
@@ -484,25 +483,25 @@ def test_send_async_discord_message_http_error(
     requests.exceptions.ConnectionError,
     requests.exceptions.InvalidURL,
 ])
-def test_send_async_discord_message_connection_or_url_error(
+def test_send_async_webhook_message_connection_or_url_error(
     monkeypatch, caplog, error_type
 ):
-    webhook = 'https://discord.com/api/webhooks/mock'
+    webhook = 'https://mock.com/api/webhooks/mock'
 
     monkeypatch.setattr(
         'requests.post',
-        lambda url, json: (
+        lambda url, json, timeout: (
             _ for _ in ()
         ).throw(error_type(f'Failed to connect to URL {webhook}')),
     )
 
-    msg = DiscordMessage('Mock message', webhook=webhook)
+    msg = WebhookMessage('Mock message', webhook=webhook)
 
     with caplog.at_level('ERROR'):
-        send_async_discord_message(msg)
+        send_async_webhook_message(msg)
 
     assert (
-        f'Sending Discord message failed due to error: {error_type}'
+        f'Sending message to webhook failed due to error: {error_type}'
         in caplog.text
     )
     assert webhook not in caplog.text
@@ -536,11 +535,11 @@ class TestEvaluateAgentAlerts:
         [
             (
                 'email',
-                'monitoring.email.send_async_email_message.apply_async'
+                'monitoring.email.send_async_email.apply_async'
             ),
             (
                 'discord',
-                'monitoring.discord.send_async_discord_message.apply_async'
+                'monitoring.webhook.send_async_webhook_message.apply_async'
             ),
             (
                 'slack',
@@ -549,7 +548,12 @@ class TestEvaluateAgentAlerts:
         ]
     )
     def test_alert_triggered(self, destination, mocked, caplog):
-        with caplog.at_level('WARNING'), patch(mocked) as mock_send_message:
+        with caplog.at_level('WARNING'), \
+            patch(mocked) as mock_send_message, \
+            patch(
+                f'pydata_center.settings.ALERT_{destination.upper()}_WEBHOOK',
+                'https://mock/webhook',
+                create=True):
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert mock_send_message.called
@@ -559,7 +563,7 @@ class TestEvaluateAgentAlerts:
         ('email', 'monitoring.email.send_async_email.apply_async'),
         (
             'discord',
-            'monitoring.discord.send_async_discord_message.apply_async',
+            'monitoring.webhook.send_async_webhook_message.apply_async',
         )
     ])
     def test_no_alerts_triggered(self, destination, mocked, caplog):
@@ -587,10 +591,12 @@ class TestEvaluateAgentAlerts:
         ('email', 'monitoring.email.send_async_email.apply_async'),
         (
             'discord',
-            'monitoring.discord.send_async_discord_message.apply_async',
+            'monitoring.webhook.send_async_webhook_message.apply_async'
+        ),
+        (
             'slack',
             'monitoring.webhook.send_async_webhook_message.apply_async'
-        )
+        ),
     ])
     def test_alert_triggered_with_less_than_operator(
         self, destination, mocked, caplog

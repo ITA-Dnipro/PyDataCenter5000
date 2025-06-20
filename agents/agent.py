@@ -13,7 +13,6 @@ from collections import Sequence
 import attr
 import ConfigParser
 import pkg_resources
-import psutil
 import Queue
 import urllib2
 from dateutil import parser
@@ -21,43 +20,13 @@ from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
+from .utils.networking import get_ip_from_interface, get_linux_uptime
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
 )
 
 PROTOCOLS = ('tcp', 'udp')
-
-
-def get_ip_from_interface(interface):
-    """
-    Attempt getting server's primary IP address associated with a given
-    interface name.
-
-    Parameters:
-        interface (str): Interface name.
-
-    Returns:
-        str: On success, IP address is returned.
-    """
-    net_if_dict = psutil.net_if_addrs()
-    if interface not in net_if_dict:
-        return
-
-    addresses = net_if_dict[interface]
-
-    for address in addresses:
-        if address.address.startswith('127.'):
-            continue
-
-        if address.family == socket.AF_INET:
-            return address.address
-
-
-def get_linux_uptime():
-    """Get uptime on Linux OS."""
-    with open('/proc/uptime', 'r') as f:
-        return float(f.readline().split()[0])
 
 
 @attr.s
@@ -107,6 +76,7 @@ class ServerAgent(object):
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
+        self.log_path = log_path
 
         if protocol is not None:
             self.protocol = protocol
@@ -114,6 +84,9 @@ class ServerAgent(object):
         self.whitelist_commands = self.whitelist_commands or []
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
+
+        # Init config atribute(to save data from config file)
+        self.config = None
 
         # Extend the list of global critical processes with those that
         # are server-specific.

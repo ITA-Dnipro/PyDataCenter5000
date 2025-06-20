@@ -17,7 +17,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                     'agent': getattr(self.server, 'server_name', 'unknown'),
                     'uptime': getattr(self.server, 'uptime', lambda: -1)(),
                     'status': 'ok' if getattr(
-                        self.server, 'service_healthy', lambda: True
+                        self.server, 'service_healthy_func', lambda: True
                         )() else 'error',
                 }
             except Exception as e:

@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
 from django.utils.timezone import now
-from monitoring.models import ServerStatus
+from monitoring.models import CommandHistory, ServerStatus
 from rest_framework.test import APIClient
 
 
@@ -20,14 +20,33 @@ def viewer_user(db):
 
 
 @pytest.fixture
+def operator_user(db):
+    user = User.objects.create_user(username='operator', password='pass')
+    group = Group.objects.get(name='Operator')
+    user.groups.add(group)
+    return user
+
+
+@pytest.fixture
 def viewer_client(viewer_user):
     client = APIClient()
     client.force_authenticate(user=viewer_user)
     return client
 
 
+@pytest.fixture
+def operator_client(operator_user):
+    client = APIClient()
+    client.force_authenticate(user=operator_user)
+    return client
+
+
 @pytest.mark.django_db
 class TestRBACPermissions:
+    """
+    Viewer should be forbidden to POST
+    server status data.
+    """
 
     @classmethod
     def setup_class(cls):
@@ -47,46 +66,76 @@ class TestRBACPermissions:
         response = viewer_client.post(self.url, data=payload, format='json')
         assert response.status_code == 403
 
-    @pytest.mark.skip(reason='GET not supported by function-based view')
-    def test_viewer_role_can_get_status_list(self, viewer_client):
-        ServerStatus.objects.create(
-            hostname='agent001',
-            ip='192.168.1.1',
-            uptime=123,
-            timestamp=now(),
-            healthy=True,
-            server_name='TestServer',
-            os='Linux'
-        )
+
+@pytest.mark.django_db
+class TestCommandHistoryRBAC:
+    """
+    Test RBAC rules for CommandHistoryViewSet
+    (Viewer and Operator).
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.url = '/api/v1/commands/'
+
+    def test_viewer_can_list_commands(self, viewer_client):
         response = viewer_client.get(self.url)
         assert response.status_code == 200
 
-    @pytest.mark.skip(reason='PATCH not supported by function-based view')
-    def test_viewer_role_cannot_patch_status(self, viewer_client):
-        status = ServerStatus.objects.create(
-            hostname='agent001',
-            ip='192.168.1.1',
-            uptime=123,
-            timestamp=now(),
-            healthy=True,
-            server_name='TestServer',
-            os='Linux'
-        )
-        url = f'{self.url}{status.id}/'
-        response = viewer_client.patch(url, data={'uptime': 999})
+    def test_viewer_cannot_create_command(self, viewer_client):
+        payload = {
+            'hostname': 'agent001',
+            'command': 'ls'
+        }
+        response = viewer_client.post(self.url, data=payload)
         assert response.status_code == 403
 
-    @pytest.mark.skip(reason='DELETE not supported by function-based view')
-    def test_viewer_role_cannot_delete_status(self, viewer_client):
-        status = ServerStatus.objects.create(
+    def test_operator_can_create_command(self, operator_client):
+        payload = {
+            'hostname': 'agent001',
+            'command': 'ls'
+        }
+        response = operator_client.post(self.url, data=payload)
+        assert response.status_code == 201
+        assert response.data['status'] == 'pending'
+
+    def test_viewer_cannot_patch_command(self, viewer_client, db):
+        command = CommandHistory.objects.create(
             hostname='agent001',
-            ip='192.168.1.1',
-            uptime=123,
-            timestamp=now(),
-            healthy=True,
-            server_name='TestServer',
-            os='Linux'
+            command='uptime',
+            status='pending'
         )
-        url = f'{self.url}{status.id}/'
+        url = f'{self.url}{command.id}/'
+        response = viewer_client.patch(url, data={'status': 'done'})
+        assert response.status_code == 403
+
+    def test_operator_can_patch_command(self, operator_client, db):
+        command = CommandHistory.objects.create(
+            hostname='agent001',
+            command='uptime',
+            status='pending'
+        )
+        url = f'{self.url}{command.id}/'
+        response = operator_client.patch(url, data={'status': 'done'})
+        assert response.status_code == 200
+        assert response.data['status'] == 'done'
+
+    def test_viewer_cannot_delete_command(self, viewer_client, db):
+        command = CommandHistory.objects.create(
+            hostname='agent001',
+            command='reboot',
+            status='done'
+        )
+        url = f'{self.url}{command.id}/'
         response = viewer_client.delete(url)
         assert response.status_code == 403
+
+    def test_operator_can_delete_command(self, operator_client, db):
+        command = CommandHistory.objects.create(
+            hostname='agent001',
+            command='reboot',
+            status='done'
+        )
+        url = f'{self.url}{command.id}/'
+        response = operator_client.delete(url)
+        assert response.status_code == 204

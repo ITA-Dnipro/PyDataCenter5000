@@ -66,7 +66,7 @@ class=logging.Formatter
 
 
 @pytest.fixture
-def mock_supervisor(setup_temp_file_logging, monkeypatch):
+def dummy_supervisor(setup_temp_file_logging, monkeypatch):
     from agents.supervisor import AgentSupervisor
 
     agent = mock.MagicMock()

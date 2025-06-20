@@ -12,7 +12,6 @@ class NTPAgent(ServerAgent):
         interface='enp0s3',
         protocol='udp',
         whitelist_commands=None,
-        log_path=None,
         command_queue_size=0,
     ):
         super(NTPAgent, self).__init__(
@@ -23,14 +22,13 @@ class NTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
             command_queue_size=command_queue_size,
         )
 
     def service_healthy(
         self, timeout=2, payload=b'\x1b' + 47 * b'\0', packet_size=48
     ):
-        status = super(NTPAgent, self).service_healthy()
+        status = super(NTPAgent, self).is_service_healthy()
         return status and self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )

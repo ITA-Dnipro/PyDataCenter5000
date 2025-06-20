@@ -9,6 +9,12 @@ from agents import SMTPAgent
 from agents.agent import ServerAgent
 
 
+class DummySMTPAgent(SMTPAgent):
+
+    def maybe_restart_service(self, *args, **kwargs):
+        return False
+
+
 @pytest.yield_fixture
 def smtp_agent():
     """
@@ -18,7 +24,8 @@ def smtp_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = SMTPAgent(server_name='smtp_agent', log_path=logfile.name)
+    agent = DummySMTPAgent()
+    agent.setup_logging(logfile.name)
 
     yield agent, logfile.name
 
@@ -27,19 +34,19 @@ def smtp_agent():
 
 
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
-@patch.object(ServerAgent, 'service_healthy', return_value=True)
+@patch.object(ServerAgent, 'is_service_healthy', return_value=True)
 def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
     """
     Test service_healthy()
     returns truthy value (banner string) when all checks pass
     """
     agent, log_path = smtp_agent
-    result = agent.service_healthy()
+    result = agent.is_service_healthy()
     assert result is True
 
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
-@patch.object(ServerAgent, 'service_healthy', return_value=True)
+@patch.object(ServerAgent, 'is_service_healthy', return_value=True)
 def test_service_healthy_fails_due_to_missing_banner(
     mock_parent_health,
     mock_banner,
@@ -50,7 +57,7 @@ def test_service_healthy_fails_due_to_missing_banner(
     returns empty string (false) if banner is missing
     """
     agent, log_path = smtp_agent
-    result = agent.service_healthy()
+    result = agent.is_service_healthy()
     assert result is False
 
 

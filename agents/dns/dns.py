@@ -1,7 +1,8 @@
+import logging
 import subprocess
 
 from ..agent import ServerAgent
-from ..utils.configtools import is_valid_ip
+from ..utils.helpers import is_valid_ip, restart_service
 from ..utils.logtools import maybe_log_message
 
 
@@ -16,7 +17,6 @@ class DNSAgent(ServerAgent):
         interface=None,
         protocol='udp',
         whitelist_commands=None,
-        log_path=None,
         command_queue_size=0,
     ):
         super(DNSAgent, self).__init__(
@@ -27,7 +27,6 @@ class DNSAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
             command_queue_size=command_queue_size,
         )
 
@@ -68,11 +67,37 @@ class DNSAgent(ServerAgent):
             )
             return False
 
-    def service_healthy(self, timeout=2, payload=None, packet_size=0):
-        process_status = super(DNSAgent, self).service_healthy()
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
+        process_status = super(DNSAgent, self).is_service_healthy()
         port = self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )
         dns_status = self.is_dns_running()
 
         return process_status and port and dns_status
+
+    def maybe_restart_service(self):
+        inactive_services = []
+        if not self.is_dns_running():
+            inactive_services.append('named')
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(service, logger=self.logger)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                level=logging.INFO,
+            )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            level=logging.INFO,
+        )
+        return True

@@ -9,6 +9,12 @@ from mock import patch
 from agents import WebAgent
 
 
+class DummyWebAgent(WebAgent):
+
+    def maybe_restart_service(self, *args, **kwargs):
+        return False
+
+
 @pytest.yield_fixture
 def web_agent():
     """Fixture to create a WebAgent instance with required environment setup"""
@@ -17,7 +23,8 @@ def web_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = WebAgent(log_path=logfile.name)
+    agent = DummyWebAgent()
+    agent.setup_logging(logfile.name)
 
     handler = MemoryHandler(capacity=10000)
     agent.logger.addHandler(handler)
@@ -70,7 +77,7 @@ def test_to_dict_timestamp_format(web_agent):
     ) is not None
 
 
-@patch('agents.web.web.WebAgent.service_healthy')
+@patch.object(WebAgent, 'is_service_healthy')
 def test_to_dict_healthy_status(mock_healthy, web_agent):
     """Test that healthy status is correctly reflected in to_dict"""
     web_agent, _ = web_agent

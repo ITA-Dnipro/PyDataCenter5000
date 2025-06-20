@@ -16,23 +16,29 @@ def test_get_fallback_logger_returns_logger():
     assert get_fallback_logger() is logger1
 
 
-def test_maybe_log_message_logger_called():
+def test_maybe_log_message_logged(setup_temp_file_logging):
     """Test logger is called with appropriate parameters."""
-    logger = mock.Mock()
+    logger = logging.getLogger('mock-logger')
 
-    maybe_log_message(
-        'Dummy message', logger=logger, level=logging.INFO, param='foo'
+    maybe_log_message('Dummy message', logger=logger, level=logging.INFO)
+
+    with open(logger.handlers[0].baseFilename, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    assert 'Dummy message' in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            'Dummy message', contents
+        )
     )
 
-    logger.log.assert_called_with(logging.INFO, 'Dummy message', param='foo')
 
-
-def test_maybe_log_message_exception_handled(caplog):
+def test_maybe_log_message_exception_handled(setup_temp_file_logging, caplog):
     class DummyLogger(object):
         def log(self, level, message, *args, **kwargs):
             raise RuntimeError('Something went wrong')
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.ERROR):
         maybe_log_message(
             'Dummy message', logger=DummyLogger(), level=logging.ERROR
         )

@@ -1,4 +1,8 @@
+import logging
+
 from ..agent import ServerAgent
+from ..utils.helpers import restart_service
+from ..utils.logtools import maybe_log_message
 
 
 class NTPAgent(ServerAgent):
@@ -12,7 +16,6 @@ class NTPAgent(ServerAgent):
         interface='enp0s3',
         protocol='udp',
         whitelist_commands=None,
-        log_path=None,
     ):
         super(NTPAgent, self).__init__(
             server_name=server_name,
@@ -22,7 +25,6 @@ class NTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def service_healthy(
@@ -32,3 +34,29 @@ class NTPAgent(ServerAgent):
         return status and self.is_port_open(
                 timeout=timeout, payload=payload, packet_size=packet_size
             )
+
+    def maybe_restart_service(self):
+        inactive_services = []
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True

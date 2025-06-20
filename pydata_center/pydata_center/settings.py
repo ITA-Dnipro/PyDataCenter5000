@@ -47,7 +47,11 @@ ALLOWED_HOSTS = (
     if os.getenv('DJANGO_ALLOWED_HOSTS')
     else []
 )
-AGENT_IP = os.getenv('AGENT_IP', '127.0.0.1')
+AGENT_IPS = (
+    os.getenv('AGENT_IPS', '').split(',')
+    if os.getenv('AGENT_IPS')
+    else []
+)
 
 API_PREFIX = os.getenv('API_PREFIX', 'api/v1')
 
@@ -302,10 +306,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'monitoring.tasks.evaluate_agent_alerts',
         'schedule': 30.0,
     },
-    'check-agents-health': {
-        'task': 'monitoring.tasks.check_agent_health',
+    'check-all-agents-health': {
+        'task': 'monitoring.tasks.check_all_agents_health',
         'schedule': crontab(minute='*/5'),
-        'args': [AGENT_IP],
+        'args': [AGENT_IPS],
     }
 }
 

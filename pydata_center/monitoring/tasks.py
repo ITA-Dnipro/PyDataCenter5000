@@ -5,7 +5,7 @@ from functools import singledispatchmethod
 from typing import Union
 
 import requests
-from celery import shared_task
+from celery import group, shared_task
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -243,3 +243,13 @@ def check_agent_health(agent_ip, port=8081):
             agent_ip, {'status': 'error', 'agent': 'unknown', 'uptime': -1}
         )
         return {'status': 'error', 'unexpected_error': str(e)}
+
+
+@shared_task
+def check_all_agents_health(agent_ips, port=8081):
+    """
+    Task to check health of multiple agents.
+    """
+    task_group = group(check_agent_health.s(ip, port) for ip in agent_ips)
+    result = task_group.apply_async()
+    return result.id

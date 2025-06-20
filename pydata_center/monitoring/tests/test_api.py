@@ -15,8 +15,8 @@ from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import send_async_email
 from monitoring.models import (AgentMetric, AgentPingStatus, AlertRule,
                                ServerStatus)
-from monitoring.tasks import (check_agent_health, evaluate_agent_alerts,
-                              save_agent_ping_status)
+from monitoring.tasks import (check_agent_health, check_all_agents_health,
+                              evaluate_agent_alerts, save_agent_ping_status)
 from requests.exceptions import RequestException
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -1044,3 +1044,43 @@ class TestSaveAgentPingStatus:
         assert 'status changed' not in caplog.text, (
             'Expected no warning log when status has not changed.'
         )
+
+
+@pytest.mark.django_db
+class TestCheckAllAgentsHealth:
+    def test_creates_group_task(self):
+        agent_ips = ['192.168.1.1', '192.168.1.2']
+
+        with patch('monitoring.tasks.group') as mock_group:
+            mock_task_group = MagicMock()
+            mock_group.return_value = mock_task_group
+            mock_task_group.apply_async.return_value.id = 'fake-task-id'
+
+            result = check_all_agents_health(agent_ips)
+
+            assert mock_group.call_count == 1, (
+                'group() was not called exactly once'
+            )
+
+            call_args = mock_group.call_args[0][0]
+            call_args_list = list(call_args)
+
+            assert len(call_args_list) == len(agent_ips), (
+                f'Expected {len(agent_ips)} subtasks, '
+                f'got {len(call_args_list)}'
+            )
+
+            for sig, ip in zip(call_args_list, agent_ips):
+                assert sig.args[0] == ip, (
+                    f"Expected IP '{ip}', got '{sig.args[0]}'"
+                )
+                assert sig.args[1] == 8081, (
+                    f'Expected port 8081, got {sig.args[1]}'
+                )
+
+            assert mock_task_group.apply_async.call_count == 1, (
+                'apply_async() was not called exactly once'
+            )
+            assert result == 'fake-task-id', (
+                f"Expected result ID to be 'fake-task-id', got '{result}'"
+            )

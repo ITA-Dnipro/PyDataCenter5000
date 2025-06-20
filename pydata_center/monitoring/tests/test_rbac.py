@@ -1,5 +1,7 @@
 import pytest
 from django.contrib.auth.models import Group, User
+from django.contrib.admin.sites import AdminSite
+from monitoring.admin import CommandHistoryAdmin
 from django.core.management import call_command
 from django.utils.timezone import now
 from monitoring.models import CommandHistory, ServerStatus
@@ -145,3 +147,33 @@ class TestCommandHistoryRBAC:
         url = f'{self.url}{command.id}/'
         response = operator_client.delete(url)
         assert response.status_code == 204
+
+
+@pytest.mark.django_db
+def test_admin_user_has_change_and_delete_permission():
+    user = User.objects.create_user(username='admin', password='pass')
+    admin_group = Group.objects.get(name='Admin')
+    user.groups.add(admin_group)
+
+    model_admin = CommandHistoryAdmin(CommandHistory, AdminSite())
+
+    assert model_admin.has_change_permission(
+        request=type('Request', (), {'user': user})()
+    )
+    assert model_admin.has_delete_permission(
+        request=type('Request', (), {'user': user})()
+    )
+
+
+@pytest.mark.django_db
+def test_non_admin_user_has_no_change_or_delete_permission():
+    user = User.objects.create_user(username='viewer', password='pass')
+
+    model_admin = CommandHistoryAdmin(CommandHistory, AdminSite())
+
+    assert not model_admin.has_change_permission(
+        request=type('Request', (), {'user': user})()
+    )
+    assert not model_admin.has_delete_permission(
+        request=type('Request', (), {'user': user})()
+    )

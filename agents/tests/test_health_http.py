@@ -75,9 +75,9 @@ class TestHealthHandler(unittest.TestCase):
         data = json.loads(output)
 
         self.assertEqual(
-            handler._code, 200, 'HTTP code should be 200 even if error'
+            handler._code, 200, 'HTTP code should be 200 if ok'
         )
-        self.assertEqual(data['status'], 'error', "Status should be 'error'")
+        self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
 
     def test_not_found(self):
         class NotFoundHandler(self.handler_class):

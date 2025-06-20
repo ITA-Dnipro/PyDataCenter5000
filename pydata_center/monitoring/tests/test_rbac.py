@@ -116,9 +116,13 @@ class TestCommandHistoryRBAC:
             status='pending'
         )
         url = f'{self.url}{command.id}/'
-        response = operator_client.patch(url, data={'status': 'done'})
+        response = operator_client.patch(
+            url, data={'status': 'done', 'result': 'OK'}
+        )
+
         assert response.status_code == 200
-        assert response.data['status'] == 'done'
+        command.refresh_from_db()
+        assert command.status == 'done'
 
     def test_viewer_cannot_delete_command(self, viewer_client, db):
         command = CommandHistory.objects.create(

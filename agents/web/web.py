@@ -14,7 +14,6 @@ class WebAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        log_path=None,
     ):
         if port is None and 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
@@ -29,7 +28,6 @@ class WebAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def is_service_healthy(

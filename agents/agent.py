@@ -150,14 +150,15 @@ class ServerAgent(object):
     def setup_logging(self, log_path=None):
         """
         Setup agent's logger based on its server_name.
+
         Parameters:
             log_path (PathLike, optional): Path to where logs will be
                 stored.
         """
         log_path = (
-                log_path or pkg_resources.resource_filename(
-                    self.__class__.__module__, 'logs/%s.log' % self.server_name
-                )
+            log_path or pkg_resources.resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
         )
 
         logging.config.fileConfig(

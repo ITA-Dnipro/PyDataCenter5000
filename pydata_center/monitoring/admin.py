@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import AgentMetric, AlertRule, CommandHistory, ServerStatus
+from .models import (AgentMetric, AgentPingStatus, AlertRule, CommandHistory,
+                     ServerStatus)
 
 
 @admin.register(CommandHistory)
@@ -83,3 +84,14 @@ class AlertRuleAdmin(admin.ModelAdmin):
         nrules = queryset.update(is_active=False)
         self.message_user(request, f'{nrules} rule(s) deactivated.')
     activate_rules.short_description = 'Deactivate selected alert rules'
+
+
+@admin.register(AgentPingStatus)
+class AgentPingStatusAdmin(admin.ModelAdmin):
+    list_display = (
+        'agent_name', 'ip', 'timestamp', 'uptime', 'status'
+    )
+    list_filter = ('status', )
+    search_fields = ('agent_name', 'ip')
+    readonly_fields = ('agent_name', 'ip', 'uptime', 'status', 'timestamp')
+    ordering = ('-timestamp', )

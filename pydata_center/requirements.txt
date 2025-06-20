@@ -36,9 +36,6 @@ pre-commit==3.5.0
 prompt-toolkit==3.0.51
 psycopg2-binary==2.9.9
 PyJWT==2.9.0
-pytest==8.3.5
-pytest-cov==4.1.0
-pytest-django==4.11.1
 python-dotenv==1.0.1
 PyYAML==6.0.2
 referencing==0.35.1
@@ -51,3 +48,7 @@ uritemplate==4.1.1
 urllib3==2.2.3
 virtualenv==20.31.2
 zipp==3.20.2
+pytest==8.3.5
+pytest-cov==4.1.0
+pytest-django==4.8.0
+discord.py==2.5.2

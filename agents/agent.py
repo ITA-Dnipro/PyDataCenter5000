@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import platform
+import re
 import socket
 import subprocess
 import time
@@ -88,16 +89,17 @@ class ServerAgent(object):
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
+    critical_processes = None
 
     def __init__(
         self,
         server_name=None,
         port=None,
         processes=None,
+        critical_processes=None,
         interface=None,
         protocol=None,
         whitelist_commands=None,
-        log_path=None,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -107,11 +109,15 @@ class ServerAgent(object):
         if protocol is not None:
             self.protocol = protocol
 
-        if self.whitelist_commands is None:
-            self.whitelist_commands = []
-
+        self.whitelist_commands = self.whitelist_commands or []
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
+
+        # Extend the list of global critical processes with those that
+        # are server-specific.
+        self.critical_processes = self.critical_processes or []
+        if critical_processes is not None:
+            self.critical_processes.extend(critical_processes)
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
@@ -120,20 +126,6 @@ class ServerAgent(object):
 
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
-
-        # Initialize logging from logging config file
-        log_path = (
-            log_path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
-        )
-
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={
-                'agent_name': self.server_name,
-                'log_path': log_path
-            },
-        )
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -148,14 +140,40 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls(log_path=log_path)
+        agent = cls()
 
         agent._parse_config_file(filename)
+        agent.setup_logging(log_path)
 
         return agent
 
+    def setup_logging(self, log_path=None):
+        """
+        Setup agent's logger based on its server_name.
+
+        Parameters:
+            log_path (PathLike, optional): Path to where logs will be
+                stored.
+        """
+        log_path = (
+            log_path or pkg_resources.resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
+
     @property
     def logger(self):
+        if not self.server_name:
+            raise ValueError('Must assign a valid server name to use logger')
+
         return logging.getLogger(self.server_name)
 
     @property
@@ -244,6 +262,22 @@ class ServerAgent(object):
                 cast=parse_csv_list,
             )
 
+            # Append server-specific critical_processes
+            critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=parse_csv_list,
+            )
+            # Extend, avoiding duplicates
+            if critical_processes:
+                self.critical_processes.extend(
+                    proc for proc in critical_processes
+                    if proc not in self.critical_processes
+                )
+
             self.interface = get_config_option(
                 config,
                 'server',
@@ -256,14 +290,16 @@ class ServerAgent(object):
                 config,
                 'controller',
                 'whitelist_commands',
-                [],
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:
-                self.whitelist_commands.extend(whitelist_commands)
+                self.whitelist_commands.extend(
+                    cmd for cmd in whitelist_commands
+                    if cmd not in self.whitelist_commands
+                )
 
     def collect_server_metadata(self):
         """
@@ -403,12 +439,14 @@ class ServerAgent(object):
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
 
-            output = output.lower()
+            normalized_lines = output.lower().splitlines()
 
             return any(
-                any(proc in p for p in output.split())
+                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
                 for proc in self.processes
-            )
+                for line in normalized_lines
+                )
+
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -419,13 +457,42 @@ class ServerAgent(object):
 
             return False
 
+    def is_ssh_service_active(self):
+        try:
+            proc = subprocess.Popen(
+                ['systemctl', 'is-active', 'ssh'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = proc.communicate()
+
+            if hasattr(stdout, 'decode'):
+                stdout = stdout.decode('utf-8')
+
+            stdout = stdout.strip().lower()
+
+            return stdout == 'active'
+
+        except OSError as e:
+            maybe_log_message(
+                'SSH service check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True
+                )
+            return False
+
     @abc.abstractmethod
-    def service_healthy(self):
+    def is_service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running()
+        return self._is_process_running() and self.is_ssh_service_active()
+
+    @abc.abstractmethod
+    def maybe_restart_service(self):
+        pass
 
     def status_to_dict(self):
         return {
@@ -435,7 +502,7 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(),
+            'healthy': self.is_service_healthy(),
         }
 
     def status_to_json(self, log=False):

@@ -1,5 +1,4 @@
 import logging
-import re
 import sys
 
 import ConfigParser
@@ -72,22 +71,23 @@ def get_config_option(
         Note that by default, section names are case-sensitive, whereas
         option-names are case-insensitive.
     """
+    option_value = None
     try:
-        value = config.get(section, option)
+        option_value = config.get(section, option)
 
         if cast:
             try:
-                value = cast(value)
+                option_value = cast(option_value)
             except (TypeError, ValueError) as e:
                 maybe_log_message(
                     (
                         'Could not cast option value '
-                        '%s due to error: %s' % (value, str(e))
+                        '%s due to error: %s' % (option_value, str(e))
                     ),
                     logger,
                     fallback_logger=fallback_logger,
                 )
-                return value
+        return option_value
 
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError) as e:
         if logger:
@@ -98,13 +98,4 @@ def get_config_option(
                 level=logging.WARNING,
             )
 
-    return value or default
-
-
-def is_valid_ip(output):
-    """
-    Validate if the output is a correctly formatted IPv4 address.
-    Returns:
-        bool: True if the output is a valid IP address, False otherwise.
-    """
-    return re.match(r'^\d{1,3}(\.\d{1,3}){3}$', output.strip()) is not None
+    return default

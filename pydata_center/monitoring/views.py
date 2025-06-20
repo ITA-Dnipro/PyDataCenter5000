@@ -1,20 +1,25 @@
 import logging
 
+from django.db.models import Q
 from django.shortcuts import render
-from django.utils.timezone import now
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_naive, make_aware, now, utc
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .alerts import (alert_if_command_failed, alert_if_unhealthy,
+                     alert_on_success)
 from .helpers import get_latest_agents
-from .models import CommandHistory, TriggeredAlert
+from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
-from .utils import extract_status_data
+from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,8 @@ def receive_status(request):
         try:
             serializer.save()
             data = extract_status_data(serializer.validated_data, request)
+            healthy = serializer.validated_data.get('healthy', False)
+            alert_if_unhealthy(data['hostname'], healthy)
             logger.info(
                 '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
                 data['hostname'], data['ip'], data['uptime']
@@ -135,6 +142,15 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+
+        result = data.get('result', '')
+        command_status = data.get('status')
+
+        alert_if_command_failed(instance.hostname, result)
+
+        if command_status == 'done' and instance.notify_on_success:
+            alert_on_success(instance.hostname, result)
+
         return Response(serializer.data)
 
     def get_queryset(self):
@@ -228,7 +244,8 @@ def submit_command_result(request):
     command_id = request.data.get('id')
     if not command_id:
         return Response(
-            {'error': 'id is required'}, status=status.HTTP_404_NOT_FOUND
+            {'error': 'id is required'},
+            status=status.HTTP_404_NOT_FOUND
         )
 
     try:
@@ -255,6 +272,15 @@ def submit_command_result(request):
     )
     if serializer.is_valid():
         serializer.save()
+
+        final_status = serializer.validated_data.get('status', status_update)
+        final_result = serializer.validated_data.get('result', '')
+
+        alert_if_command_failed(command.hostname, final_result)
+
+        if final_status == 'done' and command.notify_on_success:
+            alert_on_success(command.hostname, final_result)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -276,3 +302,103 @@ def dashboard_view(request):
 class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TriggeredAlert.objects.order_by('-triggered_at')
     serializer_class = TriggeredAlertSerializer
+
+
+@extend_schema(
+    tags=['Metrics'],
+    parameters=[
+        OpenApiParameter(
+            name='hostname',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Hostname of the server to filter metrics.'
+        ),
+        OpenApiParameter(
+            name='start',
+            type=OpenApiTypes.DATETIME,
+            location=OpenApiParameter.QUERY,
+            description='Start datetime (ISO 8601) for metrics filtering.'
+        ),
+        OpenApiParameter(
+            name='end',
+            type=OpenApiTypes.DATETIME,
+            location=OpenApiParameter.QUERY,
+            description='End datetime (ISO 8601) for metrics filtering.'
+        ),
+    ],
+    responses={
+        status.HTTP_200_OK: OpenApiResponse(
+            description='List of filtered agent metrics.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Invalid datetime format or query parameters.'
+        ),
+    },
+    description=(
+        'Returns historical server metrics (CPU, RAM, disk usage, '
+        'load average) based on optional filters: hostname, '
+        'start time, and end time.'
+    ),
+)
+@api_view(['GET'])
+def metrics_history_view(request):
+    """
+    Returns historical server metrics as JSON.
+    Processes a GET request with optional `hostname`, `start`, and `end`
+    parameters. Filters the ServerStatus records based on the provided
+    criteria and returns a list of metrics (CPU, RAM, disk usage, load
+    average) within the specified time range.
+    """
+    hostname = request.GET.get('hostname')
+    start_str = request.GET.get('start')
+    end_str = request.GET.get('end')
+
+    start = parse_datetime(start_str) if start_str else None
+    end = parse_datetime(end_str) if end_str else None
+
+    if start_str and not start:
+        raise ValidationError({'start': 'Invalid datetime format.'})
+    if end_str and not end:
+        raise ValidationError({'end': 'Invalid datetime format.'})
+
+    if start and is_naive(start):
+        start = make_aware(start, timezone=utc)
+    if end and is_naive(end):
+        end = make_aware(end, timezone=utc)
+
+    filters = Q()
+    if hostname:
+        filters &= Q(server_status__hostname=hostname)
+    if start:
+        filters &= Q(timestamp__gte=start)
+    if end:
+        filters &= Q(timestamp__lte=end)
+
+    records = (
+        AgentMetric.objects
+        .filter(filters)
+        .select_related('server_status')
+        .order_by('timestamp')
+        .values(
+            'timestamp',
+            'cpu',
+            'ram',
+            'disk',
+            'load_avg',
+            'server_status__hostname'
+        )
+    )
+    return Response(records)
+
+
+def metrics_graphing_page(request):
+    hostnames = (
+        ServerStatus.objects
+        .values_list('hostname', flat=True)
+        .distinct()
+    )
+    return render(
+        request,
+        'historical_metrics.html',
+        {'hostnames': hostnames}
+    )

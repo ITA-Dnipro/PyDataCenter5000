@@ -1,0 +1,10 @@
+codecov:
+  require_ci_to_pass: true
+
+flags:
+  agents:
+    paths:
+      - "agents/"
+  monitoring:
+    paths:
+      - "pydata_center/monitoring/"

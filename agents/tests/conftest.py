@@ -6,7 +6,7 @@ import mock
 import pytest
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.yield_fixture
 def setup_temp_file_logging():
     config_file = tempfile.NamedTemporaryFile(delete=False)
     log_file = tempfile.NamedTemporaryFile(delete=False)

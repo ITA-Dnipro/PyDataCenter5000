@@ -71,7 +71,11 @@ def dummy_supervisor(setup_temp_file_logging, monkeypatch):
 
     agent = mock.MagicMock()
 
+    @property
+    def mock_logger():
+        return logging.getLogger('mock-logger')
+
     supervisor = AgentSupervisor(agent)
-    monkeypatch(supervisor, 'logger', logging.getLogger('mock-logger'))
+    monkeypatch(supervisor, 'logger', mock_logger)
 
     return supervisor

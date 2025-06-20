@@ -781,3 +781,4 @@ class ServerAgent(object):
         thread = threading.Thread(target=run, name='HealthServerThread')
         thread.setDaemon(True)
         thread.start()
+        self.health_thread = thread

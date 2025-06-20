@@ -766,11 +766,8 @@ class ServerAgent(object):
                 server.server_name = self.server_name
                 server.uptime = lambda: get_linux_uptime()
                 server.service_healthy = self.service_healthy
-                maybe_log_message(
-                    'Health server running at /health on port %s', self.port,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO
+                self.logger.info(
+                    "Health server running at /health on port %s", self.port
                 )
                 server.serve_forever()
             except Exception as e:

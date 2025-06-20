@@ -17,7 +17,6 @@ class DNSAgent(ServerAgent):
         interface=None,
         protocol='udp',
         whitelist_commands=None,
-        log_path=None,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -27,7 +26,6 @@ class DNSAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def run_dig(self, query_domain):

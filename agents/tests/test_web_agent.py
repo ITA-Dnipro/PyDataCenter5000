@@ -23,7 +23,8 @@ def web_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummyWebAgent(log_path=logfile.name)
+    agent = DummyWebAgent()
+    agent.setup_logging(logfile.name)
 
     handler = MemoryHandler(capacity=10000)
     agent.logger.addHandler(handler)

@@ -100,8 +100,6 @@ class ServerAgent(object):
         interface=None,
         protocol=None,
         whitelist_commands=None,
-        log_path=None,
-
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -129,20 +127,6 @@ class ServerAgent(object):
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
 
-        # Initialize logging from logging config file
-        log_path = (
-            log_path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
-        )
-
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={
-                'agent_name': self.server_name,
-                'log_path': log_path
-            },
-        )
-
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -156,14 +140,40 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls(log_path=log_path)
+        agent = cls()
 
         agent._parse_config_file(filename)
+        agent.setup_logging(log_path)
 
         return agent
 
+    def setup_logging(self, log_path=None):
+        """
+        Setup agent's logger based on its server_name.
+
+        Parameters:
+            log_path (PathLike, optional): Path to where logs will be
+                stored.
+        """
+        log_path = (
+            log_path or pkg_resources.resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
+
     @property
     def logger(self):
+        if not self.server_name:
+            raise ValueError('Must assign a valid server name to use logger')
+
         return logging.getLogger(self.server_name)
 
     @property

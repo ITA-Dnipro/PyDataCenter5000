@@ -2,7 +2,6 @@ import json
 import os
 import platform
 import socket
-import subprocess
 import tempfile
 import types
 
@@ -35,26 +34,6 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
-def setup_interface_test(monkeypatch, net_if_addrs_mock):
-    """Helper function to setup common test environment for interface tests."""
-    def mock_gethostbyname(hostname):
-        raise socket.gaierror('Name or service not known')
-
-    monkeypatch.setattr(psutil, 'net_if_addrs', net_if_addrs_mock)
-    monkeypatch.setattr(socket, 'gethostbyname', mock_gethostbyname)
-
-    agent = MockAgent(port=12345, interface='nonexistent')
-    agent.collect_server_metadata()
-
-    assert agent.ip is None
-
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
-
-    return contents
-
-
 class MockAgent(ServerAgent):
 
     def __init__(
@@ -66,11 +45,7 @@ class MockAgent(ServerAgent):
         interface=None,
         protocol=None,
         whitelist_commands=None,
-        log_path=None,
     ):
-        self.logfile = tempfile.NamedTemporaryFile(delete=False)
-        self.logfile.close()
-
         super(MockAgent, self).__init__(
             server_name,
             port,
@@ -79,8 +54,13 @@ class MockAgent(ServerAgent):
             interface,
             protocol,
             whitelist_commands,
-            log_path or self.logfile.name,
         )
+
+    def setup_logging(self, log_path=None):
+        self.logfile = tempfile.NamedTemporaryFile(delete=False)
+        self.logfile.close()
+
+        super(MockAgent, self).setup_logging(self.logfile.name)
 
     def __del__(self):
         if hasattr(self, 'logfile'):
@@ -91,6 +71,28 @@ class MockAgent(ServerAgent):
 
     def maybe_restart_service(self):
         return super(MockAgent, self).maybe_restart_service()
+
+
+def setup_interface_test(monkeypatch, net_if_addrs_mock):
+    """Helper function to setup common test environment for interface tests."""
+    def mock_gethostbyname(hostname):
+        raise socket.gaierror('Name or service not known')
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', net_if_addrs_mock)
+    monkeypatch.setattr(socket, 'gethostbyname', mock_gethostbyname)
+
+    agent = MockAgent(port=12345, interface='nonexistent')
+    agent.setup_logging()
+
+    agent.collect_server_metadata()
+
+    assert agent.ip is None
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    return contents
 
 
 def mock_popen_with_output(stdout, stderr=''):
@@ -212,6 +214,7 @@ def test_status_to_json_type_error():
         return status
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
 
@@ -257,6 +260,7 @@ def test_status_to_controller_success(monkeypatch):
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.collect_server_metadata()
 
@@ -276,6 +280,8 @@ def test_status_to_controller_success(monkeypatch):
 def test_status_to_controller_missing_url():
     """Test that missing controller URL is properly handled and logged."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.collect_server_metadata()
 
     # Set controller's URL explicitly to be independent of changes
@@ -314,6 +320,7 @@ def test_status_to_controller_error(monkeypatch):
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
         agent = MockAgent(port=12345)
+        agent.setup_logging()
 
         agent.collect_server_metadata()
 
@@ -334,6 +341,7 @@ def test_status_to_controller_error(monkeypatch):
 
 def test_post_data_success(monkeypatch):
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     class MockResponse:
         def getcode(self):
@@ -362,6 +370,7 @@ def test_post_data_success(monkeypatch):
 
 def test_post_data_retry(monkeypatch):
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     call_count = {'count': 0}
 
@@ -400,6 +409,7 @@ def test_post_data_retry(monkeypatch):
 
 def test_post_data_max_retries_fail(monkeypatch):
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     monkeypatch.setattr(
         urllib2,
@@ -455,6 +465,7 @@ def test_fetch_command_from_controller_success(monkeypatch):
         )
 
         agent = MockAgent(port=12345)
+        agent.setup_logging()
 
         agent.hostname = 'mock_server'
         agent.controller_url = 'http://mock/'
@@ -492,6 +503,7 @@ def test_fetch_command_from_controller_emty_response(monkeypatch):
     )
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
@@ -520,6 +532,7 @@ def test_fetch_command_from_controller_missing_data():
 
     for controller_url, hostname in parameters:
         agent = MockAgent(port=12345)
+        agent.setup_logging()
 
         agent.hostname = hostname
         agent.controller_url = controller_url
@@ -559,6 +572,7 @@ def test_fetch_command_from_controller_error(monkeypatch):
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
         agent = MockAgent(port=12345)
+        agent.setup_logging()
 
         agent.collect_server_metadata()
 
@@ -590,6 +604,7 @@ def test_maybe_add_to_queue_adds_item():
     }
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.maybe_add_to_queue(data)
 
@@ -610,6 +625,7 @@ def test_maybe_add_to_queue_logs_bad_input():
     }
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.maybe_add_to_queue(data)
 
@@ -635,6 +651,7 @@ def test_status_to_dict_keys():
     in the status dictionary.
     """
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     # Set attributes manually
     agent.os_type = 'linux'
@@ -666,6 +683,7 @@ def test_status_to_dict_with_missing_fields():
     Ensure status_to_dict() handles missing or None fields gracefully.
     """
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     agent.os_type = None
     agent.hostname = None
@@ -686,6 +704,8 @@ def test_status_to_dict_with_missing_fields():
 def test_is_port_open_invalid_port():
     """Test that is_port_open raises ValueError for invalid port."""
     agent = MockAgent()
+    agent.setup_logging()
+
     agent.port = -1
 
     with pytest.raises(ValueError, match='Port not set'):
@@ -695,6 +715,8 @@ def test_is_port_open_invalid_port():
 def test_is_port_open_missing_ip():
     """Test that is_port_open returns False when IP is not set."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = None
 
     assert not agent.is_port_open()
@@ -703,6 +725,8 @@ def test_is_port_open_missing_ip():
 def test_is_port_open_missing_protocol():
     """Test that is_port_open raises ValueError when protocol is not set."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
 
     with pytest.raises(ValueError, match='Protocol not set'):
@@ -712,12 +736,15 @@ def test_is_port_open_missing_protocol():
 def test_protocol_property_default():
     """Test that protocol property returns None by default."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     assert agent.protocol is None
 
 
 def test_protocol_setter_type_error():
     """Test that protocol setter raises TypeError for non-string values."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = 123
@@ -729,6 +756,7 @@ def test_protocol_setter_type_error():
 def test_protocol_setter_value_error():
     """Test that protocol setter raises ValueError for invalid protocols."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
 
     with pytest.raises(ValueError, match='Unknown protocol value'):
         agent.protocol = 'invalid_protocol'
@@ -740,6 +768,8 @@ def test_protocol_setter_value_error():
 def test_is_port_open_tcp_success(monkeypatch):
     """Test successful TCP port check."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
     agent.protocol = 'tcp'
 
@@ -757,6 +787,8 @@ def test_is_port_open_tcp_success(monkeypatch):
 def test_is_port_open_tcp_failure(monkeypatch):
     """Test failed TCP port check."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
     agent.protocol = 'tcp'
 
@@ -776,6 +808,8 @@ def test_is_port_open_tcp_failure(monkeypatch):
 def test_is_port_open_udp_success(monkeypatch):
     """Test successful UDP port check."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
 
@@ -793,6 +827,8 @@ def test_is_port_open_udp_success(monkeypatch):
 def test_is_port_open_udp_with_packet_size(monkeypatch):
     """Test UDP port check with packet size verification."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
 
@@ -814,6 +850,8 @@ def test_is_port_open_udp_with_packet_size(monkeypatch):
 def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
     """Test UDP port check with packet size mismatch."""
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.ip = '127.0.0.1'
     agent.protocol = 'udp'
 
@@ -913,6 +951,8 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     monkeypatch.setattr(platform, 'system', mock_system)
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.collect_server_metadata()
 
     assert agent.os_type == 'linux'
@@ -926,6 +966,8 @@ def test_collect_server_metadata_unknown_os(monkeypatch):
     monkeypatch.setattr(platform, 'system', mock_system)
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.collect_server_metadata()
 
     assert agent.os_type == 'unknown'
@@ -952,6 +994,8 @@ def test_collect_server_metadata_interface_ip_success(monkeypatch):
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
     agent = MockAgent(port=12345, interface='eth0')
+    agent.setup_logging()
+
     agent.collect_server_metadata()
 
     assert agent.ip == '192.168.1.1'
@@ -998,6 +1042,8 @@ def test_collect_server_metadata_hostname_error(monkeypatch):
     monkeypatch.setattr(socket, 'gethostname', mock_gethostname)
 
     agent = MockAgent(port=12345)
+    agent.setup_logging()
+
     agent.collect_server_metadata()
 
     assert agent.hostname == 'unknown'
@@ -1127,7 +1173,7 @@ whitelist_commands =
         tmp.write(config_content)
         tmp.flush()
 
-        agent = MockAgent.from_config_file(tmp.name)
+        agent = MockAgent.from_config_file(filename=tmp.name)
         assert agent.whitelist_commands == []
 
 

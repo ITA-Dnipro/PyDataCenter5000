@@ -25,7 +25,8 @@ def smtp_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummySMTPAgent(server_name='smtp_agent', log_path=logfile.name)
+    agent = DummySMTPAgent()
+    agent.setup_logging(logfile.name)
 
     yield agent, logfile.name
 

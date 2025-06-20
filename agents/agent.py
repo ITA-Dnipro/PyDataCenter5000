@@ -19,7 +19,7 @@ from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
-from .utils.helpers import is_process_active
+from .utils.helpers import is_process_active, restart_service
 from .utils.logtools import maybe_log_message
 from .utils.networking import get_ip_from_interface, get_linux_uptime
 
@@ -65,7 +65,6 @@ class ServerAgent(object):
         self,
         server_name=None,
         port=None,
-        processes=None,
         critical_processes=None,
         interface=None,
         protocol=None,
@@ -73,9 +72,7 @@ class ServerAgent(object):
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
-        self.processes = processes if processes is not None else self.processes
         self.interface = interface
-        self.log_path = log_path
 
         if protocol is not None:
             self.protocol = protocol
@@ -167,21 +164,6 @@ class ServerAgent(object):
         self._port = value
 
     @property
-    def processes(self):
-        return getattr(self, '_processes', [])
-
-    @processes.setter
-    def processes(self, value):
-        if not isinstance(value, Sequence):
-            raise TypeError(
-                (
-                    'Process names must be provided as a string or a sequence '
-                    '(list, tuple etc.), not %s' % type(value)
-                )
-            )
-        self._processes = value
-
-    @property
     def protocol(self):
         return getattr(self, '_protocol', None)
 
@@ -224,16 +206,6 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=int,
-            )
-
-            self.processes = get_config_option(
-                config,
-                'server',
-                'processes',
-                default=self.processes,
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                cast=parse_csv_list,
             )
 
             # Append server-specific critical_processes
@@ -339,6 +311,9 @@ class ServerAgent(object):
         self.timestamp = datetime.datetime.utcnow().strftime(
             '%Y-%m-%d %H:%M:%S'
         )
+        data = self.status_to_dict()
+        for k, v in data.items():
+            self.logger.info(u'%s: %s' % (k, v))
 
     def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
@@ -405,48 +380,20 @@ class ServerAgent(object):
         finally:
             s.close()
 
-    # def _is_process_running(self):
-    #     try:
-    #         output = subprocess.Popen(['ps', '-eo', 'comm'],
-    #                                   stdout=subprocess.PIPE).communicate()[0]
-
-    #         if hasattr(output, 'decode'):
-    #             output = output.decode('utf-8')
-
-    #         normalized_lines = output.lower().splitlines()
-
-    #         return any(
-    #             re.search(r'\b{0}\b'.format(re.escape(proc)), line)
-    #             for proc in self.processes
-    #             for line in normalized_lines
-    #             )
-
-    #     except OSError as e:
-    #         maybe_log_message(
-    #             'Process check failed: %s' % e,
-    #             self.logger,
-    #             fallback_logger=self.fallback_logger,
-    #             exc_info=True,
-    #         )
-
-    #         return False
-
-    def _are_all_processes_active(self):
+    def _are_all_critical_processes_active(self):
         inactive_processes = 0
 
         try:
             for proc in self.critical_processes:
-                is_active = is_process_active(
-                    self.logger, self.fallback_logger, proc
-                    )
+                is_active = is_process_active(proc)
                 if not is_active:
                     inactive_processes += 1
-                    # maybe_log_message(
-                    # '%s process inactive' % proc,
-                    # self.logger,
-                    # fallback_logger=self.fallback_logger,
-                    # exc_info=True
-                    # )
+                    maybe_log_message(
+                        '%s process inactive' % proc,
+                        self.logger,
+                        fallback_logger=self.fallback_logger,
+                        exc_info=True
+                    )
             return inactive_processes == 0
 
         except OSError as e:
@@ -464,11 +411,34 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._are_all_processes_active()
+        return self._are_all_critical_processes_active()
 
-    @abc.abstractmethod
     def maybe_restart_service(self):
-        pass
+        inactive_services = []
+
+        for proc in self.critical_processes:
+            if not is_process_active(proc):
+                inactive_services.append(proc)
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True
 
     def status_to_dict(self):
         return {
@@ -480,53 +450,6 @@ class ServerAgent(object):
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
-
-    def status_to_json(self, log=False):
-        """
-        Dump host metadata to json file.
-
-        Parameters:
-            log (bool): Whether to log JSON status string to the logfile.
-                Default is False.
-
-        Returns:
-            str: JSON status string.
-        """
-        try:
-            status = json.dumps(self.status_to_dict(), default=str)
-
-            if log:
-                try:
-                    self.logger.info(status)
-                except (IOError, OSError) as e:
-                    maybe_log_message(
-                        'Error logging to file: %s' % str(e),
-                        self.logger,
-                        fallback_logger=self.fallback_logger,
-                    )
-
-            return status
-        except TypeError as e:
-            maybe_log_message(
-                ('JSON serialization of status failed '
-                 'due to error: %s' % str(e)),
-                self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-
-    def status_to_txt(self):
-        """Dump host metadata to txt file as key-value pairs."""
-        data = self.status_to_dict()
-
-        try:
-            for k, v in data.items():
-                self.logger.info(u'%s: %s' % (k, v))
-        except (IOError, OSError) as e:
-            maybe_log_message(
-                'Error logging to file: %s' % str(e),
-                self.logger,
-                fallback_logger=self.fallback_logger,
-            )
 
     def post_data(
         self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
@@ -603,67 +526,6 @@ class ServerAgent(object):
                     raise RuntimeError(
                         'POST failed after %d attempts' % max_retries
                     )
-
-    def status_to_controller(
-        self, api_key=None, max_retries=3, delay=5, timeout=5
-    ):
-        """
-        Sends a POST request with JSON data to the specified URL, including
-        optional authentication, and with built-in retry logic.
-
-        Parameters:
-            url (str): Target URL for the POST request.
-            data (dict): Data to send as JSON payload.
-            auth_token_type (str): Token type prefix for the Authorization
-                header (e.g., 'Bearer').
-            api_key (str): API key to be used for the Authorization header. If
-                None, no auth header is added.
-            max_retries (int): Maximum number of retry attempts on failure.
-                Default is MAX_RETRIES.
-            delay (int | float): Delay (in seconds) between
-        """
-        if not self.controller_url:
-            maybe_log_message(
-                "Couldn't send status update: controller URL is not set",
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return
-
-        payload_str = self.status_to_json(log=False)
-        payload = json.loads(payload_str)
-
-        try:
-            result = self.post_data(
-                self.controller_url,
-                payload,
-                api_key,
-                max_retries,
-                delay,
-                timeout
-            )
-
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
 
     def fetch_command_from_controller(
         self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs

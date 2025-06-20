@@ -12,7 +12,6 @@ class DNSAgent(ServerAgent):
         self,
         server_name='dns',
         port=53,
-        processes=None,
         critical_processes=None,
         interface=None,
         protocol='udp',
@@ -21,7 +20,6 @@ class DNSAgent(ServerAgent):
         super(DNSAgent, self).__init__(
             server_name=server_name,
             port=port,
-            processes=processes or ['named', 'bind9'],
             critical_processes=critical_processes,
             interface=interface,
             protocol=protocol,
@@ -76,30 +74,3 @@ class DNSAgent(ServerAgent):
         dns_status = self.is_dns_running()
 
         return process_status and port and dns_status
-
-    def maybe_restart_service(self):
-        inactive_services = []
-
-        for proc in self.critical_processes:
-            if not is_process_active(proc):
-                inactive_services.append(proc)
-
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
-
-            maybe_log_message(
-                'Finished attempts to restart services',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
-            return False
-
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
-        return True

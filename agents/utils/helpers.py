@@ -91,7 +91,7 @@ def is_valid_ip(output):
         return False
 
 
-def is_process_active(logger, fallback_logger, process):
+def is_process_active(process):
     """
     Check if a given systemd service is currently active.
 
@@ -115,13 +115,5 @@ def is_process_active(logger, fallback_logger, process):
         stdout = stdout.decode('utf-8')
 
     stdout = stdout.strip().lower()
-
-    if stdout != 'activeaa':
-        maybe_log_message(
-            '%s process is not active. Status: %s' % (process, stdout),
-            logger,
-            fallback_logger=fallback_logger,
-            exc_info=True
-            )
 
     return stdout == 'active'

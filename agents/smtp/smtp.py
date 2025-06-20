@@ -1,8 +1,6 @@
-import logging
 import socket
 
 from ..agent import ServerAgent
-from ..utils.helpers import restart_service
 from ..utils.logtools import maybe_log_message
 
 
@@ -19,7 +17,6 @@ class SMTPAgent(ServerAgent):
         self,
         server_name='smtp',
         port=25,
-        processes=None,
         critical_processes=None,
         interface=None,
         protocol='tcp',
@@ -28,7 +25,6 @@ class SMTPAgent(ServerAgent):
         super(SMTPAgent, self).__init__(
             server_name=server_name,
             port=port,
-            processes=processes or self.DEFAULT_PROCESSES,
             critical_processes=critical_processes,
             interface=interface,
             protocol=protocol,
@@ -65,29 +61,3 @@ class SMTPAgent(ServerAgent):
         status['banner'] = banner if banner else None
 
         return status
-
-    def maybe_restart_service(self):
-        inactive_services = []
-
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
-
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
-
-            maybe_log_message(
-                'Finished attempts to restart services',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
-            return False
-
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
-        return True

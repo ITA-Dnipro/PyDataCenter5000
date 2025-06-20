@@ -1,4 +1,6 @@
 import pytest
+from monitoring.models import ServerStatus
+from django.utils.timezone import now
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
 from rest_framework.test import APIClient
@@ -46,13 +48,42 @@ class TestRBACPermissions:
         assert response.status_code == 403
 
     def test_viewer_role_can_get_status_list(self, viewer_client):
+        ServerStatus.objects.create(
+            hostname='agent001',
+            ip='192.168.1.1',
+            uptime=123,
+            timestamp=now(),
+            healthy=True,
+            server_name='TestServer',
+            os='Linux'
+        )
         response = viewer_client.get(self.url)
         assert response.status_code == 200
 
     def test_viewer_role_cannot_patch_status(self, viewer_client):
-        response = viewer_client.patch(self.url + '1/', data={'uptime': 999})
+        status = ServerStatus.objects.create(
+            hostname='agent001',
+            ip='192.168.1.1',
+            uptime=123,
+            timestamp=now(),
+            healthy=True,
+            server_name='TestServer',
+            os='Linux'
+        )
+        url = f'{self.url}{status.id}/'
+        response = viewer_client.patch(url, data={'uptime': 999})
         assert response.status_code == 403
 
     def test_viewer_role_cannot_delete_status(self, viewer_client):
-        response = viewer_client.delete(self.url + '1/')
+        status = ServerStatus.objects.create(
+            hostname='agent001',
+            ip='192.168.1.1',
+            uptime=123,
+            timestamp=now(),
+            healthy=True,
+            server_name='TestServer',
+            os='Linux'
+        )
+        url = f'{self.url}{status.id}/'
+        response = viewer_client.delete(url)
         assert response.status_code == 403

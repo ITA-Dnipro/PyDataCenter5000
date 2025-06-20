@@ -5,7 +5,9 @@ from django.core.management import call_command
 from django.utils.timezone import now
 from monitoring.admin import CommandHistoryAdmin
 from monitoring.models import CommandHistory, ServerStatus
-from rest_framework.test import APIClient
+from monitoring.permissions import IsAdminOrOperatorForWrite
+from rest_framework.permissions import SAFE_METHODS
+from rest_framework.test import APIClient, APIRequestFactory
 
 
 @pytest.fixture(autouse=True)
@@ -177,3 +179,15 @@ def test_non_admin_user_has_no_change_or_delete_permission():
     assert not model_admin.has_delete_permission(
         request=type('Request', (), {'user': user})()
     )
+
+
+@pytest.mark.django.db
+def test_permission_denies_unauthenticated_user():
+    factory = APIRequestFactory()
+    request = factory.post('/api/v1/server/status/')
+    request.user = None
+
+    permission = IsAdminOrOperatorForWrite()
+    has_perm = permission.has_permission(request, view=None)
+
+    assert has_perm is False

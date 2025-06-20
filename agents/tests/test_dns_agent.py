@@ -18,7 +18,8 @@ def dns_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DNSAgent(log_path=logfile.name)
+    agent = DNSAgent()
+    agent.setup_logging(logfile.name)
 
     yield agent
 

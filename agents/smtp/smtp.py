@@ -22,7 +22,6 @@ class SMTPAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        log_path=None,
     ):
         super(SMTPAgent, self).__init__(
             server_name=server_name,
@@ -32,7 +31,6 @@ class SMTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def check_banner(self):

@@ -12,7 +12,6 @@ class NTPAgent(ServerAgent):
         interface='enp0s3',
         protocol='udp',
         whitelist_commands=None,
-        log_path=None,
     ):
         super(NTPAgent, self).__init__(
             server_name=server_name,
@@ -22,7 +21,6 @@ class NTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
     def service_healthy(

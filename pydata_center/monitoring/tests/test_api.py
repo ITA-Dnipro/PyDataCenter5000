@@ -547,6 +547,9 @@ class TestEvaluateAgentAlerts:
             ),
         ]
     )
+    @override_settings(
+        ALERT_SLACK_WEBHOOK='https://hooks.slack.com/fake-url'
+    )
     def test_alert_triggered(self, destination, mocked, caplog):
         with caplog.at_level('WARNING'), \
             patch(mocked) as mock_send_message, \
@@ -598,6 +601,9 @@ class TestEvaluateAgentAlerts:
             'monitoring.webhook.send_async_webhook_message.apply_async'
         ),
     ])
+    @override_settings(
+        ALERT_SLACK_WEBHOOK='https://hooks.slack.com/fake-url'
+    )
     def test_alert_triggered_with_less_than_operator(
         self, destination, mocked, caplog
     ):

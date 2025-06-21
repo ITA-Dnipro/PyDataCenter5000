@@ -1,6 +1,9 @@
+import logging
 import os
 
 from ..agent import ServerAgent
+from ..utils.helpers import restart_service
+from ..utils.logtools import maybe_log_message
 
 
 class WebAgent(ServerAgent):
@@ -40,3 +43,29 @@ class WebAgent(ServerAgent):
         return status and self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )
+
+    def maybe_restart_service(self):
+        inactive_services = []
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True

@@ -113,8 +113,6 @@ class TestCommandHistoryRBAC:
         response = viewer_client.patch(url, data={'status': 'done'})
         assert response.status_code == 403
 
-    @pytest.mark.skip(
-            reason='status field is read-only in serializer')
     def test_operator_can_patch_command(self, operator_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',

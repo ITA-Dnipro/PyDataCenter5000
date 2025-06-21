@@ -29,39 +29,48 @@ def send_async_webhook_message(self, message):
     """
     Send webhook message asynchronously with retry support.
     """
+
+    if isinstance(message, dict):
+        try:
+            message = WebhookMessage(**message)
+        except (TypeError, ValueError):
+            logger.error('Error due to missing or invalid arguments')
+            return None
+
     try:
         response = requests.post(
             message.webhook,
             json={'text': message.content},
-            timeout=5
+            timeout=getattr(message, 'timeout', 5)
         )
         response.raise_for_status()
-
-        if response.status_code not in [200, 204]:
-            logger.warning(
-                f'Unexpected webhook response: '
-                f'{response.status_code} {response.text}'
-            )
-        else:
-            logger.info(
-                f'POST request sent successfully. '
-                f'Webhook response: {response.status_code} {response.text}'
-            )
-
-    except requests.RequestException as e:
-        webhook_hash = hashlib.sha256(
-            message.webhook.encode()
-        ).hexdigest()[:8]
-
-        safe_error_msg = (
-            f'Sending message to webhook failed due to '
-            f'error: {sys.exc_info()[0]}. Webhook hash: {webhook_hash}'
+    except requests.exceptions.HTTPError as e:
+        logger.error(
+            f'Sending message to webhook failed due to error: {type(e)}'
         )
+        if not getattr(message, 'fail_silently', False):
 
-        logger.error(safe_error_msg)
+            raise
+        return None
+    except (requests.exceptions.ConnectionError,
+            requests.exceptions.InvalidURL) as e:
+        logger.error(
+            f'Sending message to webhook failed due to error: {type(e)}'
+        )
+        return None
 
-        if self.request.retries >= self.max_retries:
-            if not message.fail_silently:
-                raise type(e)(safe_error_msg)
-        else:
-            raise self.retry(exc=type(e)(safe_error_msg))
+    if response.status_code not in (200, 204):
+        logger.warning(
+            (
+                f'Unexpected webhook response: '
+                f'{response.status_code} {response.text} '
+            )
+        )
+    else:
+        logger.info(
+            (
+                f'POST request sent successfully. '
+                f'Webhook response: {response.status_code} {response.text} '
+            )
+        )
+    return None

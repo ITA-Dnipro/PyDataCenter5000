@@ -9,7 +9,7 @@ import pytest
 
 
 @pytest.yield_fixture
-def setup_temp_file_logging():
+def setup_temp_file_logging_with_fallback():
     """
     Setup the primary file logger and the fallback stream logger for
     tests.
@@ -77,7 +77,33 @@ class=logging.Formatter
 
 
 @pytest.fixture
-def dummy_supervisor(setup_temp_file_logging, monkeypatch):
+def assert_msg_in_logfile(setup_temp_file_logging_with_fallback):
+    def wrapped(msg):
+        logger = logging.getLogger('mock-logger')
+
+        if (
+            not len(logger.handlers) == 1
+            or not isinstance(logger.handlers[0], logging.FileHandler)
+        ):
+            raise RuntimeError(
+                'Something went wrong with temp file logging setup'
+            )
+
+        with open(logger.handlers[0].baseFilename, 'r') as f:
+            f.seek(0)
+            contents = f.read()
+
+        assert msg in contents, (
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
+        )
+
+    return wrapped
+
+
+@pytest.fixture
+def dummy_supervisor(setup_temp_file_logging_with_fallback, monkeypatch):
     from agents.supervisor import AgentSupervisor
 
     @property

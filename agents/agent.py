@@ -520,13 +520,6 @@ class ServerAgent(object):
                 'Error logging to file: %s' % str(e), logger=self.logger
             )
 
-    def collect_server_metric(self, cpu_count_interval=None):
-        """
-        Collect server's metric such as CPU usage, RAM usage, disc usage
-        etc.
-        """
-        pass
-
     def post_data(
         self,
         url,

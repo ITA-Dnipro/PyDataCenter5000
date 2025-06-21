@@ -1,6 +1,6 @@
+import itertools
 import logging
 import threading
-import uuid
 
 import coro
 
@@ -29,6 +29,8 @@ class AgentSupervisor(object):
 
         self._coros = {}  # Store coroutine IDs and references
         self._lock = threading.Lock()
+
+        self.counter = itertools.count()
 
     @property
     def logger(self):
@@ -152,7 +154,8 @@ class AgentSupervisor(object):
         Returns:
             int: Task ID.
         """
-        idx = uuid.uuid4().int
+        with self._lock:
+            idx = next(self.counter)
 
         def run_task():
             try:

@@ -30,7 +30,7 @@ class AgentSupervisor(object):
         self._coros = {}  # Store coroutine IDs and references
         self._lock = threading.Lock()
 
-        self.counter = itertools.count()
+        self.counter = itertools.count(1)
 
     @property
     def logger(self):

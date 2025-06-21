@@ -1,7 +1,3 @@
-import logging
-import os
-import tempfile
-
 import mock
 import pytest
 
@@ -41,16 +37,17 @@ def test_task_execution_logged(dummy_supervisor):
 
     idxs, flags = [], {}
 
-    def mock_execution_task(*args, **kwargs):
-        flags['task ran'] = True
+    def mock_execution_task(idx, *args, **kwargs):
+        flags['task %d ran' % idx] = True
 
-    for n in range(ntasks):
-        flags['task ran'] = False
+    for n in range(1, ntasks + 1):
+        flags['task %d ran' % n] = False
 
         # Schedule mock_task ntask times
-        idxs.append(
-            dummy_supervisor.schedule(mock_execution_task, max_retries=1)
+        idx = dummy_supervisor.schedule(
+            mock_execution_task, max_retries=1, idx=n
         )
+        idxs.append(idx)
 
     dummy_supervisor.schedule_exit(min_delay=0.1, max_delay=0.5)
 

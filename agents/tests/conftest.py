@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import tempfile
+from io import StringIO
 
 import mock
 import pytest
@@ -9,10 +10,18 @@ import pytest
 
 @pytest.yield_fixture
 def setup_temp_file_logging():
-    config_file = tempfile.NamedTemporaryFile(delete=False)
-    log_file = tempfile.NamedTemporaryFile(delete=False)
+    """
+    Setup the primary file logger and the fallback stream logger for
+    tests.
+    """
+    # Temporarily redirect stderr (fallback logging destination).
+    stderr = sys.stderr
+    sys.stderr = StringIO()
 
-    config_file.write("""
+    config = tempfile.NamedTemporaryFile(delete=False)
+    log = tempfile.NamedTemporaryFile(delete=False)
+
+    config.write("""
 [loggers]
 keys=root,fallback,supervisor
 
@@ -52,17 +61,19 @@ args=('%(filename)s', 'w')
 class=logging.Formatter
     """)
 
-    config_file.close()
-    log_file.close()
+    config.close()
+    log.close()
 
     logging.config.fileConfig(
-        config_file.name, defaults={'filename': log_file.name}
+        config.name, defaults={'filename': log.name}
     )
 
     yield
 
-    os.remove(config_file.name)
-    os.remove(log_file.name)
+    os.remove(config.name)
+    os.remove(log.name)
+
+    sys.stderr = stderr
 
 
 @pytest.fixture
@@ -76,7 +87,6 @@ def dummy_supervisor(setup_temp_file_logging, monkeypatch):
     monkeypatch.setattr(AgentSupervisor, 'logger', mock_logger)
 
     agent = mock.MagicMock()
-
     supervisor = AgentSupervisor(agent)
 
     return supervisor

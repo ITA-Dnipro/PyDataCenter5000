@@ -1,6 +1,5 @@
 import logging
-
-import mock
+import sys
 
 from agents.utils import get_fallback_logger, maybe_log_message
 
@@ -33,14 +32,18 @@ def test_maybe_log_message_logged(setup_temp_file_logging):
     )
 
 
-def test_maybe_log_message_exception_handled(setup_temp_file_logging, caplog):
+def test_maybe_log_message_logged_with_fallback_logger(
+    setup_temp_file_logging
+):
     class DummyLogger(object):
         def log(self, level, message, *args, **kwargs):
             raise RuntimeError('Something went wrong')
 
-    with caplog.at_level(logging.ERROR):
+    try:
         maybe_log_message(
-            'Dummy message', logger=DummyLogger(), level=logging.ERROR
+            u'Dummy message', logger=DummyLogger(), level=logging.ERROR
         )
 
-    assert 'Dummy message' in caplog.text
+        assert u'Dummy message' in sys.stderr.getvalue()
+    finally:
+        pass

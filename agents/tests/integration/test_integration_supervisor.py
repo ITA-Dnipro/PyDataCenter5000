@@ -7,7 +7,9 @@ from agents.utils import make_callback
 @pytest.mark.coro
 @pytest.mark.integration
 def test_integration_start_event_loop_with_no_tasks_logged(
-    dummy_supervisor, assert_msg_in_logfile
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
 ):
     """
     Test that starting the event queue with only the exit coro scheduled
@@ -23,7 +25,11 @@ def test_integration_start_event_loop_with_no_tasks_logged(
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_execution_logged(dummy_supervisor, assert_msg_in_logfile):
+def test_task_execution_logged(
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
+):
     """Test coroutine execution in the event loop."""
     ntasks = 2
 
@@ -56,7 +62,12 @@ def test_task_execution_logged(dummy_supervisor, assert_msg_in_logfile):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_jitter_backoff_delays(dummy_supervisor, monkeypatch):
+def test_jitter_backoff_delays(
+    monkeypatch,
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
+):
     """
     Test that uncorrelated jitter backoff delays are consumed as expected
     by the supervisor.
@@ -91,7 +102,11 @@ def test_jitter_backoff_delays(dummy_supervisor, monkeypatch):
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_timeout_logged(dummy_supervisor, assert_msg_in_logfile):
+def test_task_timeout_logged(
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
+):
     """Test proper handling and logging of task timeout."""
     def mock_timeout_task(*args, **kwargs):
         import coro
@@ -117,7 +132,9 @@ def test_task_timeout_logged(dummy_supervisor, assert_msg_in_logfile):
 @pytest.mark.coro
 @pytest.mark.integration
 def test_task_with_timeout_callback_logged(
-    dummy_supervisor, assert_msg_in_logfile
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
 ):
     """Test that timeout callback is properly called and logged."""
     def mock_timeout_task(*args, **kwargs):
@@ -152,7 +169,9 @@ def test_task_with_timeout_callback_logged(
 @pytest.mark.coro
 @pytest.mark.integration
 def test_task_with_retry_callback_logged(
-    dummy_supervisor, assert_msg_in_logfile
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
 ):
     """Test that retry callback is properly called and logged."""
     def mock_failed_task(*args, **kwargs):
@@ -186,7 +205,11 @@ def test_task_with_retry_callback_logged(
 
 @pytest.mark.coro
 @pytest.mark.integration
-def test_task_error_logged(dummy_supervisor, assert_msg_in_logfile):
+def test_task_error_logged(
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
+):
     """Test proper handling and logging of task error."""
     def mock_error_task(*args, **kwargs):
         raise RuntimeError('Task failed for some reason')
@@ -210,7 +233,9 @@ def test_task_error_logged(dummy_supervisor, assert_msg_in_logfile):
 @pytest.mark.coro
 @pytest.mark.integration
 def test_exit_task_should_exit_logged(
-    dummy_supervisor, assert_msg_in_logfile
+    dummy_supervisor,
+    setup_temp_file_logging_with_fallback,
+    assert_msg_in_logfile
 ):
     """Test that custom should_exit callable works as expected."""
     flags = {'should_exit': False}

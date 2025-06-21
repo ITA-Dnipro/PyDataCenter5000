@@ -79,27 +79,6 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).maybe_restart_service()
 
 
-def setup_interface_test(monkeypatch, net_if_addrs_mock):
-    """Helper function to setup common test environment for interface tests."""
-    def mock_gethostbyname(hostname):
-        raise socket.gaierror('Name or service not known')
-
-    monkeypatch.setattr(psutil, 'net_if_addrs', net_if_addrs_mock)
-    monkeypatch.setattr(socket, 'gethostbyname', mock_gethostbyname)
-
-    agent = MockAgent(port=12345, interface='nonexistent')
-
-    agent.collect_server_metadata()
-
-    assert agent.ip is None
-
-    with open(agent.logfile.name, 'r') as f:
-        f.seek(0)
-        contents = f.read()
-
-    return contents
-
-
 def mock_popen_with_output(stdout, stderr=''):
     process_mock = mock.Mock()
     process_mock.communicate.return_value = (stdout, stderr)

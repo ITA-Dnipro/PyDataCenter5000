@@ -4,7 +4,9 @@ import sys
 from agents.utils import get_fallback_logger, maybe_log_message
 
 
-def test_get_fallback_logger_returns_logger():
+def test_get_fallback_logger_returns_logger(
+    setup_temp_file_logging_with_fallback
+):
     """
     Test that get_fallback_logger always returns the same instance of
     logger.

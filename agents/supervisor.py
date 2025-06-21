@@ -116,6 +116,7 @@ class AgentSupervisor(object):
     def schedule(
         self,
         task,
+        on_success=None,
         max_retries=3,
         min_delay=2,
         max_delay=10,
@@ -192,6 +193,15 @@ class AgentSupervisor(object):
                             logger=self.logger,
                             level=logging.INFO,
                         )
+
+                        if on_success:
+                            maybe_log_message(
+                                'Task %d executing success callback' % idx,
+                                logger=self.logger,
+                                level=logging.INFO,
+                            )
+
+                            on_success(idx, task)
 
                         return
 

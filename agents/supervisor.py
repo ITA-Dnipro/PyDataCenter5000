@@ -176,7 +176,14 @@ class AgentSupervisor(object):
                                 level=logging.INFO,
                             )
 
-                            on_timeout(idx, retry)
+                            try:
+                                on_timeout(idx, retry)
+                            except Exception as e:
+                                maybe_log_message(
+                                    'Timeout callback failed due to error: %s'
+                                    % str(e),
+                                    logger=self.logger,
+                                )
                     except Exception as e:
                         maybe_log_message(
                             'Task %d failed on retry %d due to error: %s' % (
@@ -201,7 +208,14 @@ class AgentSupervisor(object):
                                 level=logging.INFO,
                             )
 
-                            on_success(idx, task)
+                            try:
+                                on_success(idx, task)
+                            except Exception as e:
+                                maybe_log_message(
+                                    'Success callback failed due to error: %s'
+                                    % str(e),
+                                    logger=self.logger,
+                                )
 
                         return
 
@@ -214,7 +228,14 @@ class AgentSupervisor(object):
                             level=logging.DEBUG,
                         )
 
-                        self.sleep(delay)
+                        try:
+                            self.sleep(delay)
+                        except Exception as e:
+                            maybe_log_message(
+                                'Retry callback failed due to error: %s'
+                                % str(e),
+                                logger=self.logger,
+                            )
                     else:
                         if on_retry:
                             maybe_log_message(

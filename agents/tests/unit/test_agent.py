@@ -45,6 +45,7 @@ class MockAgent(ServerAgent):
         interface=None,
         protocol=None,
         whitelist_commands=None,
+        command_queue_size=0,
     ):
         super(MockAgent, self).__init__(
             server_name,
@@ -54,6 +55,7 @@ class MockAgent(ServerAgent):
             interface,
             protocol,
             whitelist_commands,
+            command_queue_size=command_queue_size,
         )
 
     def setup_logging(self, log_path=None):
@@ -601,7 +603,6 @@ def test_fetch_command_from_controller_error(monkeypatch):
         )
 
 
-@pytest.mark.coro
 def test_maybe_add_to_queue_adds_item():
     """Test that good command history input is added to queue."""
     data = {
@@ -619,7 +620,70 @@ def test_maybe_add_to_queue_adds_item():
     assert agent.queue.qsize() == 1
 
 
-@pytest.mark.coro
+def test_maybe_add_to_queue_full_logged():
+    """
+    Test that trying to add command to the full queue is properly handled
+    and logged.
+    """
+    import datetime
+
+    agent = MockAgent(whitelist_commands=['cmd'], command_queue_size=1)
+    agent.setup_logging()
+
+    cmd = CommandHistory(
+        command='cmd',
+        hostname='mock-server',
+        status='pending',
+        timestamp=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    )
+
+    agent.maybe_add_command_to_queue(cmd)
+    agent.maybe_add_command_to_queue(cmd)
+
+    assert agent.queue.qsize() == 1
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Queue is full - could not append command'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
+def test_get_command_from_queue_has_item():
+    agent = MockAgent()
+
+    agent.queue.put('cmd')
+    assert agent.get_command_from_queue(block=True) == 'cmd'
+
+
+def test_get_command_from_queue_no_item_logged():
+    import threading
+
+    agent = MockAgent()
+    agent.setup_logging()
+
+    with threading.Lock():
+        agent.get_command_from_queue()
+
+    with open(agent.logfile.name, 'r') as f:
+        f.seek(0)
+        contents = f.read()
+
+    msg = 'Queue is empty - could not retrieve command'
+
+    assert msg in contents, (
+        'Expected log message %s not found. Log contents:\n %s' % (
+            msg, contents
+        )
+    )
+
+
 def test_maybe_add_to_queue_logs_bad_input():
     """
     Test that bad command history input is logged by server agent and

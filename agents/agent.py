@@ -719,19 +719,20 @@ class ServerAgent(object):
         Add command to queue if it passes field validation and if
         whitelisted by the server.
         """
-        try:
-            command_history = CommandHistory.from_dict(data)
-        except (TypeError, ValueError) as e:
-            maybe_log_message(
-                'Command validation failed due to error: %s' % str(e),
-                logger=self.logger,
-            )
-
-            return
-
-        if command_history.command in self.whitelist_commands:
+        if not isinstance(data, CommandHistory):
             try:
-                self.queue.put(command_history, block=block, timeout=timeout)
+                data = CommandHistory.from_dict(data)
+            except (TypeError, ValueError) as e:
+                maybe_log_message(
+                    'Command validation failed due to error: %s' % str(e),
+                    logger=self.logger,
+                )
+
+                return
+
+        if data.command in self.whitelist_commands:
+            try:
+                self.queue.put(data, block=block, timeout=timeout)
             except Queue.Full:
                 maybe_log_message(
                     'Queue is full - could not append command',

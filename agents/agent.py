@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import platform
+import re
 import signal
 import socket
 import subprocess
@@ -104,8 +105,6 @@ class ServerAgent(object):
         interface=None,
         protocol=None,
         whitelist_commands=None,
-        log_path=None,
-
     ):
         self.health_thread = None
         self.server_name = server_name
@@ -134,31 +133,17 @@ class ServerAgent(object):
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
 
-        # Initialize logging from logging config file
-        log_path = (
-            log_path or pkg_resources.
-            resource_filename(self.__class__.__module__, 'logs/agent.log')
+    try:
+        self.start_health_server()
+    except Exception as e:
+        maybe_log_message(
+            'Health server initialization failed: %s' % str(e),
+            logger=self.logger,
+            fallback_logger=self.fallback_logger,
         )
 
-        logging.config.fileConfig(
-            log_config_path,
-            defaults={
-                'agent_name': self.server_name,
-                'log_path': log_path
-            },
-        )
-
-        try:
-            self.start_health_server()
-        except Exception as e:
-            maybe_log_message(
-                'Health server initialization failed: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+    signal.signal(signal.SIGINT, self._signal_handler)
+    signal.signal(signal.SIGTERM, self._signal_handler)
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -173,14 +158,40 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls(log_path=log_path)
+        agent = cls()
 
         agent._parse_config_file(filename)
+        agent.setup_logging(log_path)
 
         return agent
 
+    def setup_logging(self, log_path=None):
+        """
+        Setup agent's logger based on its server_name.
+
+        Parameters:
+            log_path (PathLike, optional): Path to where logs will be
+                stored.
+        """
+        log_path = (
+            log_path or pkg_resources.resource_filename(
+                self.__class__.__module__, 'logs/%s.log' % self.server_name
+            )
+        )
+
+        logging.config.fileConfig(
+            log_config_path,
+            defaults={
+                'agent_name': self.server_name,
+                'log_path': log_path
+            },
+        )
+
     @property
     def logger(self):
+        if not self.server_name:
+            raise ValueError('Must assign a valid server name to use logger')
+
         return logging.getLogger(self.server_name)
 
     @property
@@ -446,12 +457,14 @@ class ServerAgent(object):
             if hasattr(output, 'decode'):
                 output = output.decode('utf-8')
 
-            output = output.lower()
+            normalized_lines = output.lower().splitlines()
 
             return any(
-                any(proc in p for p in output.split())
+                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
                 for proc in self.processes
-            )
+                for line in normalized_lines
+                )
+
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
@@ -462,13 +475,42 @@ class ServerAgent(object):
 
             return False
 
+    def is_ssh_service_active(self):
+        try:
+            proc = subprocess.Popen(
+                ['systemctl', 'is-active', 'ssh'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            stdout, stderr = proc.communicate()
+
+            if hasattr(stdout, 'decode'):
+                stdout = stdout.decode('utf-8')
+
+            stdout = stdout.strip().lower()
+
+            return stdout == 'active'
+
+        except OSError as e:
+            maybe_log_message(
+                'SSH service check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True
+                )
+            return False
+
     @abc.abstractmethod
-    def service_healthy(self):
+    def is_service_healthy(self):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running()
+        return self._is_process_running() and self.is_ssh_service_active()
+
+    @abc.abstractmethod
+    def maybe_restart_service(self):
+        pass
 
     def status_to_dict(self):
         return {
@@ -478,7 +520,7 @@ class ServerAgent(object):
             'server_name': self.server_name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
-            'healthy': self.service_healthy(),
+            'healthy': self.is_service_healthy(),
         }
 
     def status_to_json(self, log=False):
@@ -765,13 +807,139 @@ class ServerAgent(object):
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
 
+    def get_cpu_usage(self, interval=60):
+        """
+        Get the average CPU usage percentage over the last minute.
+        """
+        try:
+            return psutil.cpu_percent(interval=interval)
+        except (psutil.Error, ValueError) as e:
+            maybe_log_message(
+                'Error getting CPU usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_ram_usage(self):
+        """
+        Get the current RAM usage percentage.
+        """
+        try:
+            mem = psutil.virtual_memory()
+            return mem.percent
+        except psutil.Error as e:
+            maybe_log_message(
+                'Error getting RAM usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_load_average(self):
+        """
+        Get the system load average over the last 1 minute.
+        """
+        try:
+            return os.getloadavg()[0]
+        except (OSError, AttributeError) as e:
+            maybe_log_message(
+                'Error getting load average: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_disk_usage(self):
+        """
+        Get the current disk usage percentage for the root filesystem.
+        """
+        try:
+            usage = psutil.disk_usage('/')
+            return usage.percent
+        except psutil.Error as e:
+            maybe_log_message(
+                'Error getting disk usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def generate_report(self):
+        """
+        Generate a report containing server resource usage.
+        """
+        return {
+            'cpu': self.get_cpu_usage(),
+            'ram': self.get_ram_usage(),
+            'disk': self.get_disk_usage(),
+            'load_avg': self.get_load_average(),
+            'timestamp': datetime.datetime.now().isoformat(),
+        }
+
+    def send_metrics_to_controller(
+        self,
+        suffix='agent/metrics/',
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+    ):
+        """
+        Sends a POST request with JSON data to the controller URL,
+        including authentication, and built-in retry logic.
+        """
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        metrics_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
+
+        payload = self.generate_report()
+        try:
+            result = self.post_data(
+                url,
+                payload,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
+
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )
+
     def start_health_server(self):
         def run():
             try:
                 server = HTTPServer(('', 8081), HealthHandler)
                 server.server_name = self.server_name
                 server.uptime = lambda: get_linux_uptime()
-                server.service_healthy = self.service_healthy
+                server.is_service_healthy = self.is_service_healthy
 
                 self.health_server = server
 

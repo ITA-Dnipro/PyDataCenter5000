@@ -11,7 +11,7 @@ from agents.utils.health_http import HealthHandler
 class DummyServer(object):
     def __init__(self, name='test-agent', healthy=True, uptime=123):
         self.server_name = name
-        self.service_healthy = lambda: healthy
+        self.is_service_healthy = lambda: healthy
         self.uptime = lambda: uptime
 
 
@@ -119,11 +119,12 @@ class TestHealthHandler(unittest.TestCase):
     def test_health_status_error_on_exception(self):
         """
         Health endpoint returns 500 with status 'error' and error message
-        when uptime() or service_healthy_func() raises an exception.
+        when uptime() or is_service_healthy() raises an exception.
         """
         class FailingServer(DummyServer):
             def __init__(self):
                 super(FailingServer, self).__init__()
+
                 def fail():
                     return 1 / 0
                 self.uptime = fail
@@ -157,4 +158,3 @@ class TestHealthHandler(unittest.TestCase):
         self.assertTrue(
             'message' in data, "Response should contain an error 'message'"
         )
-

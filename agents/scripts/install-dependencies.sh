@@ -172,6 +172,16 @@ if ! python -c "import dateutil"; then
     install_python_package_from_src dateutil
 fi
 
+if ! python -c "import coverage"; then
+    get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
+    install_python_package_from_src coverage
+fi
+
+if ! python -c "import pytest_cov"; then
+    get_package_src_from_tar pytest-cov "https://files.pythonhosted.org/packages/source/p/pytest-cov/pytest-cov-2.2.0.tar.gz"
+    install_python_package_from_src pytest-cov
+fi
+
 echo "[INFO] Setup completed successfully."
 echo "[INFO] Cleaning up build directories..."
 rm -rf /python-build/src

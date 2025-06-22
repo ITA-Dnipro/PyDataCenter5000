@@ -18,6 +18,7 @@ module VagrantCommon
       cd /vagrant/agents/scripts
       chmod +x setup-server.sh install-dependencies.sh
       ./setup-server.sh  && ./install-dependencies.sh
+      cp /vagrant/agents/.coveragerc /home/vagrant/.coveragerc
     SHELL
   end
 end

@@ -13,20 +13,20 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             try:
-                is_healthy = getattr(self.server, 'service_healthy', lambda: True)()
-
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                     'agent': getattr(self.server, 'server_name', 'unknown'),
                     'uptime': getattr(self.server, 'uptime', lambda: -1)(),
                     'status': 'ok' if getattr(
-                        self.server, 'service_healthy', lambda: False
+                        self.server, 'is_service_healthy', lambda: False
                     )() else 'error',
                 }
                 status_code = 200
             except Exception as e:
                 maybe_log_message(
-                    message='Error while generating health check response: %s' % e,
+                    message=(
+                        'Error while generating health check response: %s' % e
+                    ),
                     logger=logger,
                     level=logging.ERROR
                 )
@@ -50,4 +50,3 @@ class HealthHandler(BaseHTTPRequestHandler):
                 level=logging.WARNING
             )
             self.send_error(404, 'Not Found')
-

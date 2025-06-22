@@ -51,7 +51,7 @@ class TestHealthHandler(unittest.TestCase):
         self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
         self.assertEqual(data['agent'], 'test-agent', 'Agent name mismatch')
         self.assertEqual(data['uptime'], 123, 'Uptime value mismatch')
-        self.assertIn('timestamp', data, "'timestamp' missing in response")
+        self.assertTrue('timestamp' in data, "'timestamp' missing in response")
 
     def test_health_status_error_when_unhealthy(self):
         """
@@ -112,6 +112,6 @@ class TestHealthHandler(unittest.TestCase):
             handler._code, 404, 'HTTP code should be 404 for unknown path'
         )
         response_body = handler._wfile.getvalue()
-        self.assertIn(
-            'Not Found', response_body, "Response should contain 'Not Found'"
+        self.assertTrue(
+            'Not Found' in response_body, "Response should contain 'Not Found'"
         )

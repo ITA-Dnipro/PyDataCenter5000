@@ -814,7 +814,7 @@ class ServerAgent(object):
                 )
             except Exception as e:
                 maybe_log_message(
-                    f'Failed to shut down health server: {e}',
+                    'Failed to shut down health server: %s' % e,
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.ERROR
@@ -825,7 +825,7 @@ class ServerAgent(object):
 
     def _signal_handler(self, signum, frame):
         maybe_log_message(
-            f'Received signal {signum}, shutting down...',
+            'Received signal %s, shutting down...' % signum,
             logger=self.logger,
             fallback_logger=self.fallback_logger,
             level=logging.INFO

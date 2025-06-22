@@ -25,7 +25,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 maybe_log_message(
                     message=(
-                        f'Error while generating health check response: {e}'
+                        'Error while generating health check response: %s' % e
                     ),
                     logger=logger,
                     level=logging.ERROR
@@ -45,7 +45,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(health))
         else:
             maybe_log_message(
-                message=f'Received unknown path: {self.path}',
+                message='Received unknown path: %s' % self.path,
                 logger=logger,
                 level=logging.WARNING
             )

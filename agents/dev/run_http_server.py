@@ -19,7 +19,7 @@ if __name__ == '__main__':
     try:
         agent = DNSAgent(server_name='myagent', port=8081)
     except OSError as e:
-        logger.error(f'Failed to start health server: {e}')
+        logger.error('Failed to start health server: %s' % e)
         exit(1)
     logger.info('Health server started on port 8081. Press Ctrl+C to stop.')
     try:
@@ -27,3 +27,4 @@ if __name__ == '__main__':
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info('Stopping server.')
+

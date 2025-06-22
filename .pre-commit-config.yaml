@@ -16,6 +16,7 @@ repos:
     hooks:
       - id: flake8
         args: ["--extend-ignore=F401,F821"]
+        exclude: '(^|/)migrations/|migrations\\'
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0

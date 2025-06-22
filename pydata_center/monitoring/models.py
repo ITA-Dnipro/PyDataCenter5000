@@ -62,6 +62,11 @@ class AgentMetric(models.Model):
 
 
 class CommandHistory(models.Model):
+    COMMAND_TYPE_CHOICES = [
+        ('linux', 'Linux Command'),
+        ('health_check', 'Health Check Command'),
+        ('process_check', 'Process Check Command'),
+    ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('done', 'Done'),
@@ -69,7 +74,12 @@ class CommandHistory(models.Model):
     ]
 
     hostname = models.CharField(max_length=100, db_index=True)
-    command = models.TextField()
+
+    type = models.CharField(
+        max_length=20, choices=COMMAND_TYPE_CHOICES, default='linux'
+    )
+    params = models.JSONField(null=True)
+
     result = models.TextField(null=True, blank=True)
     status = models.CharField(
         max_length=10,

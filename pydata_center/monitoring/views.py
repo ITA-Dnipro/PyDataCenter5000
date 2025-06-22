@@ -19,7 +19,7 @@ from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
-from .utils import extract_status_data, get_client_ip
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
-    search_fields = ['hostname', 'status']
+    search_fields = ['type', 'hostname', 'status']
     ordering_fields = ['timestamp']
 
     def partial_update(self, request, *args, **kwargs):

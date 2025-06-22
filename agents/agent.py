@@ -10,15 +10,14 @@ import subprocess
 import time
 from collections import Sequence
 
-import attr
 import ConfigParser
 import pkg_resources
 import psutil
 import Queue
 import urllib2
-from dateutil import parser
 from urlparse import urljoin
 
+from .command import CommandHistory
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
@@ -58,23 +57,6 @@ def get_linux_uptime():
     """Get uptime on Linux OS."""
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
-
-
-@attr.s
-class CommandHistory(object):
-    """Helper class used to validate command fields."""
-    command = attr.ib(validator=attr.validators.instance_of(basestring))
-    hostname = attr.ib(validator=attr.validators.instance_of(basestring))
-    status = attr.ib(validator=attr.validators.instance_of(basestring))
-    timestamp = attr.ib(
-        validator=lambda instance, attribute, value: parser.parse(value)
-    )
-    result = attr.ib(default=None)
-    id = attr.ib(default=None)
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(**data)
 
 
 class ServerAgent(object):

@@ -7,10 +7,29 @@ from .models import AgentMetric, AlertRule, CommandHistory, ServerStatus
 
 @admin.register(CommandHistory)
 class CommandHistoryAdmin(admin.ModelAdmin):
-    list_display = ('hostname', 'status', 'timestamp', 'notify_on_success')
-    list_filter = ('status', 'hostname')
-    search_fields = ('hostname', 'command')
-    readonly_fields = ('hostname', 'command', 'result', 'status', 'timestamp')
+    list_display = (
+        'type', 'hostname', 'status', 'timestamp', 'notify_on_success'
+    )
+    list_filter = ('type', 'status', 'hostname')
+    search_fields = ('type', 'hostname')
+    readonly_fields = (
+        'hostname', 'type', 'params', 'result', 'status', 'timestamp'
+    )
+
+    fieldsets = (
+        (
+            'Command Definition',
+            {
+                'fields': ('type', 'params')
+            },
+        ),
+        (
+            'Status and Meta',
+            {
+                'fields': ('hostname', 'result', 'status', 'timestamp')
+            }
+        ),
+    )
 
 
 @admin.register(ServerStatus)

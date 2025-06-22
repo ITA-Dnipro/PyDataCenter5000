@@ -82,9 +82,9 @@ class TestHealthHandler(unittest.TestCase):
         data = json.loads(output)
 
         self.assertEqual(
-            handler._code, 200, 'HTTP code should be 200 if ok'
+            handler._code, 200, 'HTTP code should be 200 if service unhealhy'
         )
-        self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
+        self.assertEqual(data['status'], 'error', "Status should be 'error'")
 
     def test_health_endpoint_returns_404_for_invalid_path(self):
         """Unknown endpoint returns 404 and error message."""
@@ -115,3 +115,46 @@ class TestHealthHandler(unittest.TestCase):
         self.assertTrue(
             'Not Found' in response_body, "Response should contain 'Not Found'"
         )
+
+    def test_health_status_error_on_exception(self):
+        """
+        Health endpoint returns 500 with status 'error' and error message
+        when uptime() or service_healthy_func() raises an exception.
+        """
+        class FailingServer(DummyServer):
+            def __init__(self):
+                super(FailingServer, self).__init__()
+                def fail():
+                    return 1 / 0
+                self.uptime = fail
+
+        class FailingHandler(self.handler_class):
+            def __init__(self):
+                self.path = '/health'
+                self.server = FailingServer()
+                self.wfile = self._wfile = StringIO.StringIO()
+
+            def send_response(self, code):
+                self._code = code
+
+            def send_header(self, header, value):
+                pass
+
+            def end_headers(self):
+                pass
+
+        handler = FailingHandler()
+        handler.do_GET()
+        output = handler._wfile.getvalue()
+        data = json.loads(output)
+
+        self.assertEqual(
+            handler._code,
+            500,
+            'HTTP code should be 500 while exception is raised'
+        )
+        self.assertEqual(data['status'], 'error', "Status should be 'error'")
+        self.assertTrue(
+            'message' in data, "Response should contain an error 'message'"
+        )
+

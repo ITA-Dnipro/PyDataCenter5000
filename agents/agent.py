@@ -4,8 +4,10 @@ import json
 import logging
 import logging.config
 import platform
+import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 from collections import Sequence
@@ -105,6 +107,7 @@ class ServerAgent(object):
         log_path=None,
 
     ):
+        self.health_thread = None
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
@@ -153,6 +156,9 @@ class ServerAgent(object):
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
             )
+
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -766,6 +772,9 @@ class ServerAgent(object):
                 server.server_name = self.server_name
                 server.uptime = lambda: get_linux_uptime()
                 server.service_healthy = self.service_healthy
+
+                self.health_server = server
+
                 self.logger.info(
                     'Health server running at /health on port %s', self.port
                 )
@@ -782,3 +791,44 @@ class ServerAgent(object):
         thread.setDaemon(True)
         thread.start()
         self.health_thread = thread
+
+    def stop_health_server(self):
+        if hasattr(self, 'health_server'):
+            maybe_log_message(
+                'Shutting down health server...',
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+            )
+
+            try:
+                self.health_server.shutdown()
+                self.health_server.server_close()
+                self.health_thread.join()
+
+                maybe_log_message(
+                    'Health server shut down successfully.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+            except Exception as e:
+                maybe_log_message(
+                    f'Failed to shut down health server: {e}',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.ERROR
+                )
+            finally:
+                del self.health_server
+                del self.health_thread
+
+    def _signal_handler(self, signum, frame):
+        maybe_log_message(
+            f'Received signal {signum}, shutting down...',
+            logger=self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+        )
+        self.stop_health_server()
+        sys.exit(0)

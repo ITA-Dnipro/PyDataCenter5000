@@ -44,5 +44,10 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(health))
         else:
+            maybe_log_message(
+                message='Received unknown path: %s' % self.path,
+                logger=logger,
+                level=logging.WARNING
+            )
             self.send_error(404, 'Not Found')
 

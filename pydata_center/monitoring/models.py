@@ -78,6 +78,10 @@ class CommandHistory(models.Model):
         db_index=True
     )
     timestamp = models.DateTimeField(auto_now_add=True)
+    notify_on_success = models.BooleanField(
+        default=False,
+        help_text='If true, send a Discord alert upon successful completion.'
+    )
 
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'

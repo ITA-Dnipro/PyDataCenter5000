@@ -13,7 +13,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .alerts import alert_if_command_failed, alert_if_unhealthy
+from .alerts import (alert_if_command_failed, alert_if_unhealthy,
+                     alert_on_success)
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
@@ -141,7 +142,15 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        alert_if_command_failed(instance.hostname, data.get('result', ''))
+
+        result = data.get('result', '')
+        command_status = data.get('status')
+
+        alert_if_command_failed(instance.hostname, result)
+
+        if command_status == 'done' and instance.notify_on_success:
+            alert_on_success(instance.hostname, result)
+
         return Response(serializer.data)
 
     def get_queryset(self):
@@ -263,10 +272,15 @@ def submit_command_result(request):
     )
     if serializer.is_valid():
         serializer.save()
-        alert_if_command_failed(
-            command.hostname,
-            request.data.get('result', '')
-        )
+
+        final_status = serializer.validated_data.get('status', status_update)
+        final_result = serializer.validated_data.get('result', '')
+
+        alert_if_command_failed(command.hostname, final_result)
+
+        if final_status == 'done' and command.notify_on_success:
+            alert_on_success(command.hostname, final_result)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

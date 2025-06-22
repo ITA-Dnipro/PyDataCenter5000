@@ -1,6 +1,9 @@
+import logging
 import os
 
 from ..agent import ServerAgent
+from ..utils.helpers import restart_service
+from ..utils.logtools import maybe_log_message
 
 
 class WebAgent(ServerAgent):
@@ -14,7 +17,6 @@ class WebAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        log_path=None,
     ):
         if port is None and 'PORT' not in os.environ:
             raise ValueError('WEB port environment variable is not set.')
@@ -29,14 +31,39 @@ class WebAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
-            log_path=log_path,
         )
 
-    def service_healthy(
+    def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
         # TODO: extend health check.
-        status = super(WebAgent, self).service_healthy()
+        status = super(WebAgent, self).is_service_healthy()
         return status and self.is_port_open(
             timeout=timeout, payload=payload, packet_size=packet_size
         )
+
+    def maybe_restart_service(self):
+        inactive_services = []
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True

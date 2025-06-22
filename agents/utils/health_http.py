@@ -1,16 +1,17 @@
 import datetime
 import json
+import logging
 
 from BaseHTTPServer import BaseHTTPRequestHandler
+
+from .logtools import maybe_log_message
+
+logger = logging.getLogger(__name__)
 
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-
             try:
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
@@ -18,20 +19,34 @@ class HealthHandler(BaseHTTPRequestHandler):
                     'uptime': getattr(self.server, 'uptime', lambda: -1)(),
                     'status': 'ok' if getattr(
                         self.server, 'service_healthy_func', lambda: True
-                        )() else 'error',
+                    )() else 'error',
                 }
+                status_code = 200
             except Exception as e:
+                maybe_log_message(
+                    message=(
+                        f'Error while generating health check response: {e}'
+                    ),
+                    logger=logger,
+                    level=logging.ERROR
+                )
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                     'agent': getattr(self.server, 'server_name', 'unknown'),
-                    'uptime': getattr(
-                        self.server, 'uptime', lambda: -1
-                        )(),
+                    'uptime': getattr(self.server, 'uptime', lambda: -1)(),
                     'status': 'error',
                     'message': 'Internal error: %s' % str(e),
                 }
+                status_code = 500
 
+            self.send_response(status_code)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
             self.wfile.write(json.dumps(health))
         else:
-            self.send_response(404)
-            self.end_headers()
+            maybe_log_message(
+                message=f'Received unknown path: {self.path}',
+                logger=logger,
+                level=logging.WARNING
+            )
+            self.send_error(404, 'Not Found')

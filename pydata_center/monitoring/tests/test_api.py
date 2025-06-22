@@ -23,6 +23,7 @@ from rest_framework.test import APIClient, APITestCase
 
 
 class ServerStatusAPITest(TestCase):
+    """Test suite for server status API endpoints."""
 
     @classmethod
     def setUpTestData(cls):
@@ -48,6 +49,7 @@ class ServerStatusAPITest(TestCase):
         }
 
     def test_missing_hostname(self):
+        """Test that request with missing hostname returns 400."""
         payload = self._get_base_payload()
         payload.pop('hostname')
         response = self.client.post(self.url, payload, format='json')
@@ -59,6 +61,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_ip(self):
+        """Test that request with invalid IP returns 400."""
         payload = self._get_base_payload()
         payload['ip'] = '999.999.999.999'
         response = self.client.post(self.url, payload, format='json')
@@ -70,6 +73,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_non_float_uptime(self):
+        """Test that request with non-float uptime returns 400."""
         payload = self._get_base_payload()
         payload['uptime'] = 'up'
         response = self.client.post(self.url, payload, format='json')
@@ -81,6 +85,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_valid_status_submission(self):
+        """Test that valid status submission returns 201."""
         payload = self._get_base_payload()
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(
@@ -102,6 +107,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_empty_payload(self):
+        """Test that empty payload returns 400."""
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(
             response.status_code,
@@ -116,6 +122,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_valid_healthy_type(self):
+        """Test that yes/no values for healthy field are accepted."""
         payload = self._get_base_payload()
         payload['healthy'] = 'yes'
         response = self.client.post(self.url, payload, format='json')
@@ -135,6 +142,8 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_healthy_type(self):
+        """Test that invalid healthy value returns 400."""
+        """Test that invalid healthy value returns 400."""
         payload = self._get_base_payload()
         payload['healthy'] = 'abc'
         response = self.client.post(self.url, payload, format='json')
@@ -146,6 +155,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_timestamp_format(self):
+        """Test that invalid timestamp format returns 400."""
         payload = self._get_base_payload()
         payload['timestamp'] = 'not-a-date'
         response = self.client.post(self.url, payload, format='json')
@@ -163,6 +173,8 @@ class ServerStatusAPITest(TestCase):
 
 
 class ReceiveStatusEndpointTests(APITestCase):
+    """Test suite for server status receive endpoint."""
+
     @classmethod
     def setUpTestData(cls):
         cls.url = reverse('monitoring:receive_status')
@@ -187,6 +199,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         }
 
     def test_receive_valid_status(self):
+        """Test that valid status is received and saved correctly."""
         valid_data = self._get_valid_status_data()
         response = self.client.post(self.url, data=valid_data, format='json')
 
@@ -249,6 +262,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_receive_invalid_status(self):
+        """Test that invalid status returns 400."""
         invalid_data = {
             'hostname': '',
             'uptime': 123
@@ -276,6 +290,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_hostname_too_long(self):
+        """Test that overly long hostname returns 400."""
         data = self._get_valid_status_data()
         data['hostname'] = 'x' * 300
         response = self.client.post(self.url, data=data, format='json')
@@ -292,6 +307,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_invalid_uptime_type(self):
+        """Test that non-numeric uptime returns 400."""
         data = self._get_valid_status_data()
         data['uptime'] = 'not_a_number'
         response = self.client.post(self.url, data=data, format='json')
@@ -308,6 +324,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_hostname_field(self):
+        """Test that missing hostname field returns 400."""
         data = self._get_valid_status_data()
         data.pop('hostname')
         response = self.client.post(self.url, data=data, format='json')
@@ -324,6 +341,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_ip_field(self):
+        """Test that missing IP field returns 400."""
         data = self._get_valid_status_data()
         data.pop('ip')
         response = self.client.post(self.url, data=data, format='json')
@@ -340,6 +358,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_uptime_field(self):
+        """Test that missing uptime field returns 400."""
         data = self._get_valid_status_data()
         data.pop('uptime')
         response = self.client.post(self.url, data=data, format='json')
@@ -356,6 +375,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_timestamp_field(self):
+        """Test that missing timestamp field returns 400."""
         data = self._get_valid_status_data()
         data.pop('timestamp')
         response = self.client.post(self.url, data=data, format='json')
@@ -372,6 +392,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_os_field(self):
+        """Test that missing OS field returns 400."""
         data = self._get_valid_status_data()
         data.pop('os')
         response = self.client.post(self.url, data=data, format='json')
@@ -388,6 +409,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_healthy_field(self):
+        """Test that missing healthy field defaults to False."""
         data = self._get_valid_status_data()
         data.pop('healthy')
         response = self.client.post(self.url, data=data, format='json')
@@ -404,6 +426,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_server_name_field(self):
+        """Test that missing server_name field returns 400."""
         data = self._get_valid_status_data()
         data.pop('server_name')
         response = self.client.post(self.url, data=data, format='json')
@@ -978,6 +1001,7 @@ class TestCheckAgentHealth:
 class TestSaveAgentPingStatus:
     """Test for save_agent_ping_status"""
     def test_creates_new_status(self):
+        """Test that new agent status is created with correct data"""
         ip = '192.168.1.1'
         data = {
             'agent': 'agent-01',
@@ -999,6 +1023,7 @@ class TestSaveAgentPingStatus:
         )
 
     def test_logs_status_change(self, caplog):
+        """Test that status changes are properly logged"""
         ip = '192.168.1.2'
         AgentPingStatus.objects.create(
             agent_name='agent-02',
@@ -1023,6 +1048,7 @@ class TestSaveAgentPingStatus:
         )
 
     def test_no_log_when_status_same(self, caplog):
+        """Test that no warning is logged when status hasn't changed"""
         ip = '192.168.1.3'
         AgentPingStatus.objects.create(
             agent_name='agent-03',
@@ -1048,7 +1074,9 @@ class TestSaveAgentPingStatus:
 
 @pytest.mark.django_db
 class TestCheckAllAgentsHealth:
+    """Test suite for check_all_agents_health task."""
     def test_creates_group_task(self):
+        """Test that task creates a group of subtasks for each agent IP."""
         agent_ips = ['192.168.1.1', '192.168.1.2']
 
         with patch('monitoring.tasks.group') as mock_group:

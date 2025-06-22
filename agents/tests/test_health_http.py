@@ -18,6 +18,7 @@ class DummyServer(object):
 class TestHealthHandler(unittest.TestCase):
 
     def setUp(self):
+        """Set up dummy request handler with test server."""
         class DummyRequestHandler(HealthHandler):
             def __init__(self):
                 self.path = '/health'
@@ -37,6 +38,9 @@ class TestHealthHandler(unittest.TestCase):
         self.handler_class = DummyRequestHandler
 
     def test_health_ok(self):
+        """
+        Health endpoint returns 200 and status 'ok' for healthy service.
+        """
         handler = self.handler_class()
         handler.do_GET()
 
@@ -47,9 +51,12 @@ class TestHealthHandler(unittest.TestCase):
         self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
         self.assertEqual(data['agent'], 'test-agent', 'Agent name mismatch')
         self.assertEqual(data['uptime'], 123, 'Uptime value mismatch')
-        self.assertTrue('timestamp' in data, "'timestamp' missing in response")
+        self.assertIn('timestamp', data, "'timestamp' missing in response")
 
-    def test_health_service_error(self):
+    def test_health_status_error_when_unhealthy(self):
+        """
+        Health endpoint returns 200 but status 'error' when service unhealthy.
+        """
         class BadServer(DummyServer):
             def __init__(self):
                 DummyServer.__init__(self, healthy=False)
@@ -79,7 +86,8 @@ class TestHealthHandler(unittest.TestCase):
         )
         self.assertEqual(data['status'], 'ok', "Status should be 'ok'")
 
-    def test_not_found(self):
+    def test_health_endpoint_returns_404_for_invalid_path(self):
+        """Unknown endpoint returns 404 and error message."""
         class NotFoundHandler(self.handler_class):
             def __init__(self):
                 self.path = '/other'
@@ -88,6 +96,13 @@ class TestHealthHandler(unittest.TestCase):
             def send_response(self, code):
                 self._code = code
 
+            def send_error(self, code, message=None):
+                self._code = code
+                self.wfile.write(message.encode('utf-8') if message else b'')
+
+            def send_header(self, header, value):
+                pass
+
             def end_headers(self):
                 pass
 
@@ -95,4 +110,8 @@ class TestHealthHandler(unittest.TestCase):
         handler.do_GET()
         self.assertEqual(
             handler._code, 404, 'HTTP code should be 404 for unknown path'
+        )
+        response_body = handler._wfile.getvalue()
+        self.assertIn(
+            'Not Found', response_body, "Response should contain 'Not Found'"
         )

@@ -1,6 +1,14 @@
+import subprocess
+
 import attr
 from dateutil import parser
 from singledispatch import singledispatchmethod
+
+
+class ProcessStatus(object):
+    ACTIVE = 'active'
+    ENABLED = 'enabled'
+    FAILED = 'failed'
 
 
 class Command(object):
@@ -16,13 +24,13 @@ class LinuxCommand(Command):
 
 
 @attr.attributes
-class ProcessCheckCommand(Command):
+class CheckSystemProcessCommand(Command):
     process = attr.attr(validator=attr.validators.instance_of(basestring))
 
 
 COMMAND_TYPE_MAP = {
     'linux': LinuxCommand,
-    'process_check': ProcessCheckCommand,
+    'process_check': CheckSystemProcessCommand,
 }
 
 
@@ -61,6 +69,26 @@ class CommandHistory(object):
         return cls(command=command, **data)
 
 
+def execute_shell_command(
+    cmd, input=None, timeout=None, encoding='utf-8', **kwargs
+):
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+    )
+
+    stdout, stderr = proc.communicate(input=input)
+    if encoding:
+        stdout, stderr = stdout.decode(encoding), stderr.decode(encoding)
+
+    return stdout, stderr
+
+
+def check_system_process_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
+    stdout, stderr = execute_shell_command(
+        ['systemctl', '-'.join('is', status), proc], **kwargs
+    )
+
+
 class CommandDispatcher(object):
     @singledispatchmethod
     def dispatch(self, command, **kwargs):
@@ -68,8 +96,8 @@ class CommandDispatcher(object):
 
     @dispatch.register(LinuxCommand)
     def _(self, command, **kwargs):
-        pass
+        return execute_shell_command(command.shell, **kwargs)
 
-    @dispatch.register(ProcessCheckCommand)
-    def _(self, command, **kwargs):
-        pass
+    @dispatch.register(CheckSystemProcessCommand)
+    def _(self, command, status=ProcessStatus.ACTIVE, **kwargs):
+        return check_system_process_status(command.proc, status)

@@ -581,15 +581,25 @@ class TestEvaluateAgentAlerts:
         ]
     )
     def test_alert_triggered(self, destination, mocked, caplog):
-        with caplog.at_level('WARNING'), \
-            patch(mocked) as mock_send_message, \
-            patch(
-                f'pydata_center.settings.ALERT_{destination.upper()}_WEBHOOK',
-                'https://mock/webhook',
-                create=True):
-            evaluate_agent_alerts(destinations=[destination], batch=False)
+        with caplog.at_level('WARNING'), patch(mocked) as mock_send:
+            if destination in ('discord', 'slack'):
+                with patch(
+                    f'pydata_center.settings.ALERT_'
+                    f'{destination.upper()}_WEBHOOK',
+                    'https://mock/webhook',
+                    create=True,
+                ):
+                    evaluate_agent_alerts(
+                        destinations=[destination],
+                        batch=False,
+                    )
+            else:
+                evaluate_agent_alerts(
+                    destinations=[destination],
+                    batch=False,
+                )
 
-            assert mock_send_message.called
+        assert mock_send.called
         assert 'CPU usage exceeded threshold of 10%' in caplog.text
 
     @pytest.mark.parametrize('destination,mocked', [

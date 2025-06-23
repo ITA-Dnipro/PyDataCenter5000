@@ -1,9 +1,19 @@
 from datetime import timedelta
 
 import pytest
+from django.contrib.auth.models import Group, User
 from django.urls import reverse
 from django.utils.timezone import now
 from monitoring.models import ServerStatus
+
+
+@pytest.fixture
+def authenticated_client(client, db):
+    user = User.objects.create_user(username='testuser', password='pass')
+    operator_group, _ = Group.objects.get_or_create(name='Operator')
+    user.groups.add(operator_group)
+    client.force_login(user)
+    return client
 
 
 @pytest.mark.django_db
@@ -14,12 +24,12 @@ class TestDashboardView:
     def url(self):
         return reverse('monitoring:dashboard')
 
-    def test_dashboard_smoke_test(self, client, url):
+    def test_dashboard_smoke_test(self, authenticated_client, url):
         """
         Tests that the dashboard page loads correctly, uses the right template,
         and contains key static text when no agents exist.
         """
-        response = client.get(url)
+        response = authenticated_client.get(url)
         content = response.content.decode()
 
         assert response.status_code == 200
@@ -39,7 +49,7 @@ class TestDashboardView:
     )
     def test_dashboard_online_offline_status(
             self,
-            client,
+            authenticated_client,
             url,
             timestamp_delta,
             expected_offline_status,
@@ -53,7 +63,7 @@ class TestDashboardView:
             hostname='vm-test-agent', ip='10.0.0.1', uptime=100, healthy=True,
             timestamp=now() - timestamp_delta
         )
-        response = client.get(url)
+        response = authenticated_client.get(url)
         content = response.content.decode()
 
         assert response.status_code == 200
@@ -68,7 +78,9 @@ class TestDashboardView:
         else:
             assert 'class="offline"' not in content
 
-    def test_dashboard_displays_multiple_agents(self, client, url):
+    def test_dashboard_displays_multiple_agents(
+            self, authenticated_client, url
+    ):
         """
         Tests that the dashboard correctly lists multiple agents with
         different statuses.
@@ -82,7 +94,7 @@ class TestDashboardView:
             timestamp=now() - timedelta(minutes=5)
         )
 
-        response = client.get(url)
+        response = authenticated_client.get(url)
         content = response.content.decode()
 
         assert response.status_code == 200

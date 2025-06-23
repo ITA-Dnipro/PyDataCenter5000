@@ -22,7 +22,7 @@ def web_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummyWebAgent()
+    agent = DummyWebAgent(port=8000, server_host='localhost')
     agent.setup_logging(logfile.name)
 
     handler = MemoryHandler(capacity=10000)
@@ -51,7 +51,7 @@ def test_web_agent_is_service_healthy_success(web_agent):
 
 
 def test_web_agent_is_service_healthy_failed_status(web_agent):
-    """Test is_service_healthyservice_healthy returns False on non-200 status"""
+    """Test is_service_healthy returns False on non-200 status"""
     agent, log_handler = web_agent
 
     mock_response = MagicMock()

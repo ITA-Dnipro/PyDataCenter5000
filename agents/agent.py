@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import logging.config
+import os
 import platform
 import re
 import socket
@@ -788,3 +789,129 @@ class ServerAgent(object):
 
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
+
+    def get_cpu_usage(self, interval=60):
+        """
+        Get the average CPU usage percentage over the last minute.
+        """
+        try:
+            return psutil.cpu_percent(interval=interval)
+        except (psutil.Error, ValueError) as e:
+            maybe_log_message(
+                'Error getting CPU usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_ram_usage(self):
+        """
+        Get the current RAM usage percentage.
+        """
+        try:
+            mem = psutil.virtual_memory()
+            return mem.percent
+        except psutil.Error as e:
+            maybe_log_message(
+                'Error getting RAM usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_load_average(self):
+        """
+        Get the system load average over the last 1 minute.
+        """
+        try:
+            return os.getloadavg()[0]
+        except (OSError, AttributeError) as e:
+            maybe_log_message(
+                'Error getting load average: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def get_disk_usage(self):
+        """
+        Get the current disk usage percentage for the root filesystem.
+        """
+        try:
+            usage = psutil.disk_usage('/')
+            return usage.percent
+        except psutil.Error as e:
+            maybe_log_message(
+                'Error getting disk usage: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return -1.0
+
+    def generate_report(self):
+        """
+        Generate a report containing server resource usage.
+        """
+        return {
+            'cpu': self.get_cpu_usage(),
+            'ram': self.get_ram_usage(),
+            'disk': self.get_disk_usage(),
+            'load_avg': self.get_load_average(),
+            'timestamp': datetime.datetime.now().isoformat(),
+        }
+
+    def send_metrics_to_controller(
+        self,
+        suffix='agent/metrics/',
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+    ):
+        """
+        Sends a POST request with JSON data to the controller URL,
+        including authentication, and built-in retry logic.
+        """
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+            return
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        metrics_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
+
+        payload = self.generate_report()
+        try:
+            result = self.post_data(
+                url,
+                payload,
+                api_key,
+                max_retries,
+                delay,
+                timeout
+            )
+
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True,
+            )

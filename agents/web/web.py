@@ -1,9 +1,11 @@
 import json
+import logging
 import os
 
 import urllib2
 
 from ..agent import ServerAgent
+from ..utils.helpers import restart_service
 from ..utils.logtools import maybe_log_message
 
 

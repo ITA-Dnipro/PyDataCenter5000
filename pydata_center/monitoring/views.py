@@ -17,8 +17,8 @@ from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
-from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
-                          TriggeredAlertSerializer)
+from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
+                          ServerStatusSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -297,6 +297,31 @@ def dashboard_view(request):
         template_name='monitoring/dashboard.html',
         context={'agents': agents}
     )
+
+
+@api_view(['POST'])
+def create_agent_metric(request):
+    hostname = request.query_params.get('hostname')
+
+    if not hostname:
+        return Response({'error': 'Hostname is required'}, status=400)
+
+    try:
+        server_status = ServerStatus.objects.get(hostname=hostname)
+    except ServerStatus.DoesNotExist:
+        return Response(
+            {'error': f'Server with hostname {hostname} not found'},
+            status=404
+        )
+
+    data = request.data.copy()
+    data['server_status'] = server_status.id  # replace hostname with FK ID
+
+    serializer = AgentMetricSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({'status': 'metric recorded'}, status=201)
+    return Response(serializer.errors, status=400)
 
 
 class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):

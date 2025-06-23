@@ -11,8 +11,7 @@ import psutil
 import pytest
 import urllib2
 
-import agents.agent
-from agents.agent import CommandHistory, ServerAgent
+from ..agent import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -703,6 +702,244 @@ def test_status_to_dict_with_missing_fields():
     assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
 
 
+def test_get_cpu_usage():
+    """
+    Test that get_cpu_usage returns the mocked CPU usage percentage.
+    """
+    agent = MockAgent()
+    with mock.patch('psutil.cpu_percent', return_value=55.5):
+        assert agent.get_cpu_usage() == 55.5
+
+
+def test_get_cpu_usage_exception():
+    """
+    Test that get_cpu_usage handles the mock Exception.
+    """
+    agent = MockAgent()
+    for exc in [
+        psutil.Error('CPU psutil error'),
+        ValueError('CPU value error')
+    ]:
+        with mock.patch('psutil.cpu_percent', side_effect=exc):
+            result = agent.get_cpu_usage()
+            assert result == -1.0
+
+
+def test_get_ram_usage():
+    """
+    Test that get_ram_usage returns the mocked RAM usage percentage.
+    """
+    agent = MockAgent()
+    mock_mem = mock.Mock()
+    mock_mem.percent = 66.6
+    with mock.patch('psutil.virtual_memory', return_value=mock_mem):
+        assert agent.get_ram_usage() == 66.6
+
+
+def test_get_ram_usage_exception():
+    """
+    Test that get_ram_usage handles the ram Exception.
+    """
+    agent = MockAgent()
+    with mock.patch(
+        'psutil.virtual_memory',
+        side_effect=psutil.Error('RAM error')
+    ):
+        result = agent.get_ram_usage()
+        assert result == -1.0
+
+
+def test_get_disk_usage():
+    """
+    Test that get_disk_usage returns the mocked disk usage percentage.
+    """
+    agent = MockAgent()
+    mock_disk = mock.Mock()
+    mock_disk.percent = 77.7
+    with mock.patch('psutil.disk_usage', return_value=mock_disk):
+        assert agent.get_disk_usage() == 77.7
+
+
+def test_get_disk_usage_exception():
+    """
+    Test that get_disk_usage returns the mocked disk usage percentage.
+    """
+    agent = MockAgent()
+    exc = psutil.Error('Disk psutil error')
+    with mock.patch('psutil.disk_usage', side_effect=exc):
+        result = agent.get_disk_usage()
+        assert result == -1.0
+
+
+def test_get_load_average():
+    """
+    Test that get_load_average returns the mocked 1-minute load average.
+    """
+    agent = MockAgent()
+    with mock.patch('os.getloadavg', return_value=(2.22, 1.0, 0.5)):
+        assert agent.get_load_average() == 2.22
+
+
+def test_get_load_average_unsupported():
+    """
+    Test that get_load_average returns -1.0 when os.getloadavg
+    raises an exception.
+    """
+    agent = MockAgent()
+    for exc in [OSError('no loadavg'), AttributeError('not available')]:
+        with mock.patch('os.getloadavg', side_effect=exc):
+            assert agent.get_load_average() == -1.0
+
+
+def test_generate_report():
+    """
+    Test that generate_report returns
+    correct mocked metrics data and hostname.
+    """
+    agent = MockAgent()
+    cpu_patch = mock.patch.object(agent, 'get_cpu_usage', return_value=10.1)
+    ram_patch = mock.patch.object(agent, 'get_ram_usage', return_value=20.2)
+    disk_patch = mock.patch.object(agent, 'get_disk_usage', return_value=30.3)
+    load_patch = mock.patch.object(
+        agent,
+        'get_load_average',
+        return_value=40.4
+    )
+
+    cpu_patch.start()
+    ram_patch.start()
+    disk_patch.start()
+    load_patch.start()
+
+    try:
+        report = agent.generate_report()
+        assert report['cpu'] == 10.1
+        assert report['ram'] == 20.2
+        assert report['disk'] == 30.3
+        assert report['load_avg'] == 40.4
+    finally:
+        cpu_patch.stop()
+        ram_patch.stop()
+        disk_patch.stop()
+        load_patch.stop()
+
+
+def test_send_metrics_to_controller_no_url_returns_none():
+    agent = MockAgent()
+    agent.controller_url = None
+
+    result = agent.send_metrics_to_controller()
+
+    assert result is None
+
+
+def test_send_metrics_to_controller_post_success_returns_true():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
+
+    fake_payload = {'data': 'value'}
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            return_value=True
+        ) as mock_post:
+            result = agent.send_metrics_to_controller(api_key='key123')
+
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                'key123',
+                3,
+                5,
+                5
+            )
+
+            assert result is None
+
+
+def test_send_metrics_to_controller_post_failure_returns_none():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
+
+    fake_payload = {'data': 'value'}
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            return_value=False
+        ) as mock_post:
+            result = agent.send_metrics_to_controller()
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                None,
+                3,
+                5,
+                5
+            )
+            assert result is None
+
+
+def test_send_metrics_to_controller_post_raises_returns_none():
+    agent = MockAgent()
+    agent.controller_url = 'http://controller/'
+    agent.api_prefix = 'api/'
+    agent.hostname = 'test-host'
+
+    fake_payload = {'data': 'value'}
+
+    def raise_exc(*args, **kwargs):
+        raise RuntimeError('Boom!')
+
+    with mock.patch.object(
+        agent,
+        'generate_report',
+        return_value=fake_payload
+    ):
+        with mock.patch.object(
+            agent,
+            'post_data',
+            side_effect=raise_exc
+        ) as mock_post:
+            result = agent.send_metrics_to_controller()
+            expected_url = (
+                'http://controller/api/agent/metrics/'
+                '?hostname=test-host'
+            )
+            mock_post.assert_called_once_with(
+                expected_url,
+                fake_payload,
+                None,
+                3,
+                5,
+                5
+            )
+            assert result is None
+
+
 def test_is_port_open_invalid_port():
     """Test that is_port_open raises ValueError for invalid port."""
     agent = MockAgent()
@@ -953,8 +1190,9 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     def mock_get_linux_uptime():
         return 12345.0
 
+    from .. import agent
     monkeypatch.setattr(platform, 'system', mock_system)
-    monkeypatch.setattr(agents.agent,
+    monkeypatch.setattr(agent,
                         'get_linux_uptime',
                         mock_get_linux_uptime)
 

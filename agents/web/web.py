@@ -30,7 +30,7 @@ class WebAgent(ServerAgent):
         super(WebAgent, self).__init__(
             server_name=server_name,
             port=port,
-            processes=processes or ['uvicorn'],
+            processes=processes or ['gunicorn', 'uvicorn', 'nginx'],
             critical_processes=critical_processes,
             interface=interface,
             protocol=protocol,

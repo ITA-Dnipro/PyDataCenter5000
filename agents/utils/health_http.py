@@ -13,10 +13,11 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             try:
+                uptime = getattr(self.server, 'uptime', lambda: None)()
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                     'agent': getattr(self.server, 'server_name', 'unknown'),
-                    'uptime': getattr(self.server, 'uptime', lambda: -1)(),
+                    'uptime': None if uptime == -1 else uptime,
                     'status': 'ok' if getattr(
                         self.server, 'is_service_healthy', lambda: False
                     )() else 'error',
@@ -33,7 +34,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                     'agent': getattr(self.server, 'server_name', 'unknown'),
-                    'uptime': -1,
+                    'uptime': None,
                     'status': 'error',
                     'message': 'Internal error: %s' % str(e),
                 }

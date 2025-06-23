@@ -133,17 +133,17 @@ class ServerAgent(object):
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
 
-    try:
-        self.start_health_server()
-    except Exception as e:
-        maybe_log_message(
-            'Health server initialization failed: %s' % str(e),
-            logger=self.logger,
-            fallback_logger=self.fallback_logger,
-        )
+        try:
+            self.start_health_server()
+        except Exception as e:
+            maybe_log_message(
+                'Health server initialization failed: %s' % str(e),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
 
-    signal.signal(signal.SIGINT, self._signal_handler)
-    signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -933,10 +933,10 @@ class ServerAgent(object):
                 exc_info=True,
             )
 
-    def start_health_server(self):
+    def start_health_server(self, port=8081):
         def run():
             try:
-                server = HTTPServer(('', 8081), HealthHandler)
+                server = HTTPServer(('', port), HealthHandler)
                 server.server_name = self.server_name
                 server.uptime = lambda: get_linux_uptime()
                 server.is_service_healthy = self.is_service_healthy
@@ -944,7 +944,7 @@ class ServerAgent(object):
                 self.health_server = server
 
                 self.logger.info(
-                    'Health server running at /health on port %s', self.port
+                    'Health server running at /health on port %s', port
                 )
                 server.serve_forever()
             except Exception as e:

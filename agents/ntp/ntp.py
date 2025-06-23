@@ -36,27 +36,48 @@ class NTPAgent(ServerAgent):
             )
 
     def maybe_restart_service(self):
+        """
+        Check NTP and SSH services; if any are inactive, attempt restart.
+        Returns True if all services are healthy (or successfully restarted),
+        False if one failed to restart.
+        """
         inactive_services = []
 
+        # SSH
         if not self.is_ssh_service_active():
             inactive_services.append('ssh')
 
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
+        # NTP daemons
+        # If none of the configured critical_processes are running,
+        # treat as down.
+        ntp_running = False
+        for proc in self.critical_processes:
+            self.processes = [proc]
+            if self._is_process_running():
+                ntp_running = True
+                break
 
+        if not ntp_running:
+            inactive_services.append('ntp')
+
+        if not inactive_services:
             maybe_log_message(
-                'Finished attempts to restart services',
+                'All services are healthy and running',
                 self.logger,
                 fallback_logger=self.fallback_logger,
                 level=logging.INFO
-                )
-            return False
+            )
+            return True
+
+        for service in inactive_services:
+            restart_service(self.logger, self.fallback_logger, service)
 
         maybe_log_message(
-            'All services are heathy and running',
+            'Finished attempts to restart services: %s' % ', '
+            .join(inactive_services),
             self.logger,
             fallback_logger=self.fallback_logger,
             level=logging.INFO
-            )
-        return True
+        )
+
+        return False

@@ -46,18 +46,31 @@ class WebAgent(ServerAgent):
         """
         Check if the web service is healthy.
 
-        Makes an HTTP request to the health endpoint and verifies:
-        1. The response JSON contains status="ok"
-        2. The port is open and accessible
-        3. The parent class's health check passes
-
-        Args:
-            timeout (int, optional): Request timeout in seconds. Defaults to 2.
-            payload (str, optional): Payload for the request. Defaults to None.
-            packet_size (int, optional): Size of the packet. Defaults to 0.
-
         Returns:
             bool: True if the service is healthy, False otherwise.
+        """
+        try:
+            if not self._check_http_health(timeout):
+                return False
+
+            status = super(WebAgent, self).is_service_healthy()
+            return status and self.is_port_open(
+                timeout=timeout, payload=payload, packet_size=packet_size
+            )
+        except Exception as e:
+            maybe_log_message(
+                'Health check failed with error: %s' % str(e),
+                self.logger,
+                self.fallback_logger
+            )
+            return False
+
+    def _check_http_health(self, timeout=2):
+        """
+        Make an HTTP request to the health endpoint and check the response.
+
+        Returns:
+            bool: True if the HTTP health check passes, False otherwise.
         """
         try:
             request = urllib2.Request(self.health_url)
@@ -93,13 +106,10 @@ class WebAgent(ServerAgent):
                 )
                 return False
 
-            status = super(WebAgent, self).is_service_healthy()
-            return status and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
-            )
+            return True
         except Exception as e:
             maybe_log_message(
-                'Health check failed with error: %s' % str(e),
+                'HTTP health check failed with error: %s' % str(e),
                 self.logger,
                 self.fallback_logger
             )

@@ -17,7 +17,8 @@ import Queue
 import urllib2
 from urlparse import urljoin
 
-from .command import CommandHistory
+from .command import CommandDispatcher, CommandHistory
+from .exceptions import BadProcessReturnCode
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
 
@@ -57,6 +58,9 @@ def get_linux_uptime():
     """Get uptime on Linux OS."""
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
+
+
+command_dispatcher = CommandDispatcher()
 
 
 class ServerAgent(object):
@@ -107,7 +111,7 @@ class ServerAgent(object):
         self.uptime = self.timestamp = None
 
         # Initialize thread-safe command queue
-        self.queue = Queue.Queue()
+        self.command_queue = Queue.Queue()
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -769,4 +773,23 @@ class ServerAgent(object):
             return
 
         if command_history.command in self.whitelist_commands:
-            self.queue.put(command_history)
+            self.command_queue.put(command_history)
+
+    def execute_command(self):
+        """
+        Pull command from the queue and execute it via CommandDispatcher.
+        """
+        command_history = self.command_queue.get()
+
+        try:
+            output = command_dispatcher.dispatch(command_history.command)
+        except BadProcessReturnCode as e:
+            maybe_log_message(
+                'Command failed due to error: %s.\n stderr: %s' % (
+                    str(e), output[1]
+                ),
+                logger=self.logger,
+            )
+            return
+
+        return output[0]

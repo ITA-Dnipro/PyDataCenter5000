@@ -1,11 +1,14 @@
 import subprocess
+from enum import Enum
 
 import attr
 from dateutil import parser
 from singledispatch import singledispatchmethod
 
+from .exceptions import BadProcessReturnCode
 
-class ProcessStatus(object):
+
+class ProcessStatus(Enum):
     ACTIVE = 'active'
     ENABLED = 'enabled'
     FAILED = 'failed'
@@ -24,13 +27,13 @@ class LinuxCommand(Command):
 
 
 @attr.attributes
-class CheckSystemProcessCommand(Command):
-    process = attr.attr(validator=attr.validators.instance_of(basestring))
+class CheckServiceCommand(Command):
+    service = attr.attr(validator=attr.validators.instance_of(basestring))
 
 
 COMMAND_TYPE_MAP = {
     'linux': LinuxCommand,
-    'process_check': CheckSystemProcessCommand,
+    'service_check': CheckServiceCommand,
 }
 
 
@@ -77,16 +80,23 @@ def execute_shell_command(
     )
 
     stdout, stderr = proc.communicate(input=input)
+
+    if proc.returncode != 0:
+        raise BadProcessReturnCode(
+            'Shell command failed with return code %d' % proc.returncode
+        )
+
     if encoding:
         stdout, stderr = stdout.decode(encoding), stderr.decode(encoding)
 
     return stdout, stderr
 
 
-def check_system_process_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
+def check_service_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
     stdout, stderr = execute_shell_command(
-        ['systemctl', '-'.join('is', status), proc], **kwargs
+        ['systemctl', '-'.join('is', status.value), proc], **kwargs
     )
+    return status in stdout, stderr
 
 
 class CommandDispatcher(object):
@@ -98,6 +108,6 @@ class CommandDispatcher(object):
     def _(self, command, **kwargs):
         return execute_shell_command(command.shell, **kwargs)
 
-    @dispatch.register(CheckSystemProcessCommand)
+    @dispatch.register(CheckServiceCommand)
     def _(self, command, status=ProcessStatus.ACTIVE, **kwargs):
-        return check_system_process_status(command.proc, status)
+        return check_service_status(command.proc, status)

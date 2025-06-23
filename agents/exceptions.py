@@ -1,0 +1,2 @@
+class BadProcessReturnCode(Exception):
+    pass

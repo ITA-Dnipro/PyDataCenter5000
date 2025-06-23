@@ -35,7 +35,8 @@ def main():
 
     try:
         # Dynamically import agents.<agent_name>.<agent_name>
-        module = __import__('agents.%s.%s' % (agent_name, agent_name), fromlist=[''])
+        module = __import__('agents.%s.%s' % (agent_name, agent_name),
+                             fromlist=[''])
         # Pick the right class name (e.g. ntp -> NTPAgent, web -> WebAgent)
         if agent_name.lower() == 'web':
             agent_class = getattr(module, 'WebAgent')

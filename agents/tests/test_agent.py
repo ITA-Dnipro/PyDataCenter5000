@@ -11,6 +11,7 @@ import psutil
 import pytest
 import urllib2
 
+import agents.agent
 from agents.agent import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
@@ -949,7 +950,13 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     def mock_system():
         return 'Linux'
 
+    def mock_get_linux_uptime():
+        return 12345.0
+
     monkeypatch.setattr(platform, 'system', mock_system)
+    monkeypatch.setattr(agents.agent,
+                        'get_linux_uptime',
+                        mock_get_linux_uptime)
 
     agent = MockAgent(port=12345)
     agent.setup_logging()
@@ -957,6 +964,7 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     agent.collect_server_metadata()
 
     assert agent.os_type == 'linux'
+    assert agent.uptime == 12345.0
 
 
 def test_collect_server_metadata_unknown_os(monkeypatch):

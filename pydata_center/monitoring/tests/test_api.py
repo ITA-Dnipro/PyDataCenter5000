@@ -11,6 +11,7 @@ from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from freezegun import freeze_time
 from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import send_async_email
 from monitoring.models import (AgentMetric, AgentPingStatus, AlertRule,
@@ -1088,10 +1089,33 @@ class TestCheckAgentHealth:
             "Expected 'unexpected_error' key in result"
         )
 
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_health_check_reports_error_status(
+        self,
+        mock_get,
+        mock_save_status
+    ):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            'agent': 'test-agent',
+            'status': 'error',
+            'uptime': 100,
+            'timestamp': '2025-06-19T09:50:00.000Z',
+        }
+        mock_get.return_value = mock_response
+
+        result = check_agent_health(self.agent_ip, self.port)
+
+        assert result['status'] == 'error', "Expected status to be 'error'"
+        mock_save_status.assert_called_once()
+
 
 @pytest.mark.django_db
 class TestSaveAgentPingStatus:
-    """Test for save_agent_ping_status"""
+    """Test suite for save_agent_ping_status"""
+    @freeze_time('2025-06-23 10:00:00')
     def test_creates_new_status(self):
         """Test that new agent status is created with correct data"""
         ip = '192.168.1.1'
@@ -1112,6 +1136,10 @@ class TestSaveAgentPingStatus:
         )
         assert status.uptime == 100, (
             f'Expected uptime=100, got {status.uptime}'
+        )
+        assert timezone.now() - status.timestamp < timedelta(seconds=3), (
+            'Timestamp is not within 3 seconds of now: '
+            f'got {status.timestamp}, now is {timezone.now()}'
         )
 
     def test_logs_status_change(self, caplog):
@@ -1163,6 +1191,89 @@ class TestSaveAgentPingStatus:
             'Expected no warning log when status has not changed.'
         )
 
+    @freeze_time('2025-06-23 12:00:00')
+    def test_timestamp_updated_on_status_change(self):
+        """Test that timestamp is updated when agent status changes.
+        Verify timestamp gets updated when
+        transitioning from 'ok' to 'unreachable'."""
+
+        ip = '192.168.1.5'
+        old_time = timezone.now() - timedelta(days=1)
+
+        AgentPingStatus.objects.create(
+            agent_name='agent-05',
+            ip=ip,
+            timestamp=old_time,
+            uptime=100,
+            status='ok'
+        )
+
+        new_data = {
+            'agent': 'agent-05',
+            'status': 'unreachable',
+            'uptime': 300
+        }
+
+        save_agent_ping_status(ip, new_data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.timestamp > old_time, (
+            f'Expected timestamp to be updated, but got {status.timestamp}'
+            f' which is not greater than {old_time}'
+        )
+        assert status.status == 'unreachable', (
+            f"Expected status to be 'unreachable', got '{status.status}'"
+        )
+
+    def test_missing_keys_in_status_data(self):
+        """Handles missing keys gracefully."""
+        ip = '10.0.0.1'
+        data = {}
+
+        save_agent_ping_status(ip, data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.agent_name == 'unknown', (
+            f"agent_name should be 'unknown', got {status.agent_name}"
+        )
+        assert status.status == 'unreachable', (
+            f"status should be 'unreachable', got {status.status}"
+        )
+        assert status.uptime is None, (
+            f'uptime should be None, got {status.uptime}'
+        )
+
+    def test_uptime_always_updated(self):
+        """Updates uptime even if status is unchanged."""
+        ip = '192.168.1.6'
+        AgentPingStatus.objects.create(
+            agent_name='agent-06',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=50,
+            status='ok'
+        )
+
+        data = {
+            'agent': 'agent-06',
+            'status': 'ok',
+            'uptime': 150
+        }
+
+        save_agent_ping_status(ip, data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.uptime == 150, 'uptime was not updated to 150'
+
 
 @pytest.mark.django_db
 class TestCheckAllAgentsHealth:
@@ -1191,6 +1302,10 @@ class TestCheckAllAgentsHealth:
             )
 
             for sig, ip in zip(call_args_list, agent_ips):
+                assert sig.task == 'monitoring.tasks.check_agent_health', (
+                    "Expected task 'monitoring.tasks.check_agent_health',"
+                    f" got '{sig.task}'"
+                )
                 assert sig.args[0] == ip, (
                     f"Expected IP '{ip}', got '{sig.args[0]}'"
                 )

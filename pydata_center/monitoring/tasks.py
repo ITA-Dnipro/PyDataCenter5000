@@ -190,7 +190,7 @@ def save_agent_ping_status(agent_ip, status_data):
     )
     new_status = status_data.get('status', 'unreachable')
     agent_name = status_data.get('agent', 'unknown')
-    uptime = status_data.get('uptime', -1)
+    uptime = status_data.get('uptime')
 
     if last_status and last_status.status != new_status:
         logger.warning(

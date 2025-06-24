@@ -50,6 +50,10 @@ get_package_src_from_git() {
     local url=$2
     local tag=$3
 
+    if [ -d "${name}" ]; then
+        rm -rf "${name}"
+    fi
+
     git clone "${url}" "${name}"
 
     if [ -n "${tag}" ]; then
@@ -201,11 +205,14 @@ if [ "$INSTALL_CORO" = "true" ]; then
     fi
 
     if ! python -c "import coro"; then
+        echo "[INFO] Installing libssl1.0-dev for coro build..."
+
+        # Add bionic repo temporarily
         cp /etc/apt/sources.list /etc/apt/sources.list.bak
         echo "deb [trusted=yes] http://security.ubuntu.com/ubuntu bionic-security main" > /etc/apt/sources.list
 
         apt update && apt-cache policy libssl1.0-dev
-        apt-get install libssl1.0-dev
+        apt-get install -y libssl1.0-dev
 
         get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"
         install_python_package_from_src coro

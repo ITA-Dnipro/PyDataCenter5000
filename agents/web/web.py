@@ -4,7 +4,7 @@ import logging
 import urllib2
 
 from ..agent import ServerAgent
-from ..utils.helpers import get_env_or_param
+from ..utils.helpers import get_env_or_param, restart_service
 from ..utils.logtools import maybe_log_message
 
 
@@ -22,7 +22,8 @@ class WebAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
-        server_host=None,
+        web_server_host=None,
+        web_server_name=None,
     ):
         port = int(get_env_or_param(port, 'PORT'))
 
@@ -36,7 +37,10 @@ class WebAgent(ServerAgent):
             whitelist_commands=whitelist_commands,
         )
 
-        self.server_host = get_env_or_param(server_host, 'SERVER_HOST')
+        self.web_server_host = get_env_or_param(web_server_host,
+                                                'WEB_SERVER_HOST')
+        self.web_server_name = get_env_or_param(web_server_name,
+                                                'WEB_SERVER_NAME')
         self.health_url = self._build_url('health')
 
     def is_service_healthy(
@@ -124,4 +128,33 @@ class WebAgent(ServerAgent):
         Returns:
             str: The complete URL including host, port and endpoint
         """
-        return 'http://%s:%d/%s' % (self.server_host, self.port, endpoint)
+        return 'http://%s:%d/%s' % (self.web_server_host, self.port, endpoint)
+
+    def maybe_restart_service(self):
+        inactive_services = []
+
+        if not self.is_ssh_service_active():
+            inactive_services.append('ssh')
+
+        if not self._check_http_health(self):
+            inactive_services.append(self.web_server_name)
+
+        if inactive_services:
+            for service in inactive_services:
+                restart_service(self.logger, self.fallback_logger, service)
+
+            maybe_log_message(
+                'Finished attempts to restart services',
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+                )
+            return False
+
+        maybe_log_message(
+            'All services are heathy and running',
+            self.logger,
+            fallback_logger=self.fallback_logger,
+            level=logging.INFO
+            )
+        return True

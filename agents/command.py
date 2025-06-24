@@ -31,10 +31,18 @@ class LinuxCommand(Command):
     def __str__(self):
         return 'Linux shell command: %s' % self.shell
 
+    @property
+    def tag(self):
+        return self.shell
+
 
 @attr.attributes
 class CheckServiceCommand(Command):
     service = attr.attr(validator=attr.validators.instance_of(basestring))
+
+    @property
+    def tag(self):
+        return '-'.join([self.service, 'service', 'check'])
 
 
 COMMAND_TYPE_MAP = {

@@ -755,7 +755,7 @@ class ServerAgent(object):
                 exc_info=True,
             )
 
-    def maybe_add_to_queue(self, data):
+    def maybe_add_to_queue(self, data, block=False, timeout=None):
         """
         Add command to queue if it passes field validation and if
         whitelisted by the server.
@@ -771,34 +771,54 @@ class ServerAgent(object):
 
             return
 
-        if command_history.command in self.whitelist_commands:
-            self.command_queue.put(command_history)
+        if command_history.command.tag in self.whitelist_commands:
+            try:
+                self.command_queue.put(
+                    command_history, block=block, timeout=timeout
+                )
+            except Queue.Full:
+                maybe_log_message(
+                    'Queue is full - could not append command',
+                    logger=self.logger,
+                )
 
-    def execute_command(self):
+    def get_command_from_queue(self, block=False, timeout=None):
+        try:
+            return self.command_queue.get(block=block, timeout=timeout)
+        except Queue.Empty:
+            maybe_log_message(
+                'Queue is empty - could not retrieve command',
+                logger=self.logger,
+            )
+
+    def execute_command(self, **kwargs):
         """
         Pull command from the queue and delegate execution to
         CommandDispatcher.
         """
-        command_history = self.command_queue.get()
+        command_history = self.get_command_from_queue(**kwargs)
 
-        try:
-            result = self.command_dispatcher.dispatch(command_history.command)
+        if command_history:
+            try:
+                result = self.command_dispatcher.dispatch(
+                    command_history.command
+                )
 
-            result = result[0]  # If everything went fine, get stdout
+                result = result[0]  # If everything went fine, get stdout
 
-            command_history.status = CommandStatus.DONE
-        except BadProcessReturnCode as e:
-            result = result[1]  # Get stderr
+                command_history.status = CommandStatus.DONE
+            except BadProcessReturnCode as e:
+                result = result[1]  # Get stderr
 
-            maybe_log_message(
-                'Command failed due to error: %s.\nstderr: %s' % (
-                    str(e), result
-                ),
-                logger=self.logger,
-            )
+                maybe_log_message(
+                    'Command failed due to error: %s.\nstderr: %s' % (
+                        str(e), result
+                    ),
+                    logger=self.logger,
+                )
 
-            command_history.status = CommandStatus.FAILED
+                command_history.status = CommandStatus.FAILED
 
-        command_history.result = result
+            command_history.result = result
 
-        return command_history
+            return command_history

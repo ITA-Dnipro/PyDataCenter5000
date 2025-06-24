@@ -22,6 +22,7 @@ class CommandStatus(Enum):
 
 
 class Command(object):
+    """Base class for all commands."""
     __metaclass__ = abc.ABCMeta
 
     @property
@@ -32,6 +33,7 @@ class Command(object):
 
 @attr.attributes
 class LinuxCommand(Command):
+    """Linux shell command."""
     shell = attr.attr(validator=attr.validators.instance_of(basestring))
 
     def __str__(self):
@@ -44,6 +46,7 @@ class LinuxCommand(Command):
 
 @attr.attributes
 class CheckServiceCommand(Command):
+    """Command for check the status of a system service."""
     service = attr.attr(validator=attr.validators.instance_of(basestring))
 
     @property
@@ -98,10 +101,34 @@ class CommandHistory(object):
 
 
 def execute_shell_command(
-    cmd, input=None, timeout=None, encoding='utf-8', **kwargs
+    cmd, shell=False, input=None, encoding='utf-8', **kwargs
 ):
+    """
+    Execute Linux shell command.
+
+    Parameters:
+        cmd (Any): Shell command to execute.
+        shell (bool, optional): Whether to execute command through shell.
+            Default is False.
+        input (str, optional): Data to send to command's standard input
+            (stdin).
+        encoding (str, optional): If specified, decode the output using
+            this encoding.
+
+    Returns:
+        tuple: stdout, stderr
+
+    Raises:
+        BadProcessReturnCode: If shell command fails with return code
+            different from 0.
+    """
+    # Always capture command output with PIPE.
     proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=shell,
+        **kwargs
     )
 
     stdout, stderr = proc.communicate(input=input)
@@ -118,6 +145,17 @@ def execute_shell_command(
 
 
 def check_service_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
+    """
+    Check status of system process.
+
+    Parameters:
+        proc (str): Process name.
+        status (ProcessStatus): Process status (ACTIVE, ENABLED, or FAILEd).
+            Default is ACTIVE.
+
+    Returns:
+        tuple: Whether process has requested status, stderr.
+    """
     stdout, stderr = execute_shell_command(
         ['systemctl', '-'.join('is', status.value), proc], **kwargs
     )

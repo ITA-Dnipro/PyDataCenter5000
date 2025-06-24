@@ -14,6 +14,12 @@ class ProcessStatus(Enum):
     FAILED = 'failed'
 
 
+class CommandStatus(Enum):
+    PENDING = 'pending'
+    DONE = 'done'
+    FAILED = 'failed'
+
+
 class Command(object):
     pass
 
@@ -43,9 +49,12 @@ class CommandHistory(object):
     command = attr.attr(validator=attr.validators.instance_of(Command))
 
     hostname = attr.attr(validator=attr.validators.instance_of(basestring))
-    status = attr.attr(validator=attr.validators.instance_of(basestring))
     timestamp = attr.attr(
         validator=lambda instance, attribute, value: parser.parse(value)
+    )
+    status = attr.attr(
+        validator=attr.validators.instance_of(CommandStatus),
+        default=CommandStatus.PENDING,
     )
     result = attr.attr(default=None)
 
@@ -68,6 +77,8 @@ class CommandHistory(object):
         params = data.pop('params', None)
         if params:
             command = command_factory(**params)
+
+        data['status'] = CommandStatus(data.get('status', 'pending'))
 
         return cls(command=command, **data)
 

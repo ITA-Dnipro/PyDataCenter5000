@@ -17,7 +17,7 @@ import Queue
 import urllib2
 from urlparse import urljoin
 
-from .command import CommandDispatcher, CommandHistory
+from .command import CommandDispatcher, CommandHistory, CommandStatus
 from .exceptions import BadProcessReturnCode
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
@@ -786,7 +786,7 @@ class ServerAgent(object):
 
             result = result[0]  # If everything went fine, get stdout
 
-            command_history.status = 'done'
+            command_history.status = CommandStatus.DONE
         except BadProcessReturnCode as e:
             result = result[1]  # Get stderr
 
@@ -797,9 +797,7 @@ class ServerAgent(object):
                 logger=self.logger,
             )
 
-            command_history.status = 'failed'
-
-            return
+            command_history.status = CommandStatus.FAILED
 
         command_history.result = result
 

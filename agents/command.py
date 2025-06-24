@@ -100,6 +100,10 @@ def check_service_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
 
 
 class CommandDispatcher(object):
+    """
+    Class responsible for dispatching command execution via an appropriate
+    utility function.
+    """
     @singledispatchmethod
     def dispatch(self, command, **kwargs):
         pass

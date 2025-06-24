@@ -60,9 +60,6 @@ def get_linux_uptime():
         return float(f.readline().split()[0])
 
 
-command_dispatcher = CommandDispatcher()
-
-
 class ServerAgent(object):
     """
     Base class for all agents. Handles operations common for all
@@ -70,6 +67,8 @@ class ServerAgent(object):
     """
 
     __metaclass__ = abc.ABCMeta
+
+    command_dispatcher = CommandDispatcher()
 
     controller_url = None
     api_prefix = 'api/'
@@ -777,19 +776,31 @@ class ServerAgent(object):
 
     def execute_command(self):
         """
-        Pull command from the queue and execute it via CommandDispatcher.
+        Pull command from the queue and delegate execution to
+        CommandDispatcher.
         """
         command_history = self.command_queue.get()
 
         try:
-            output = command_dispatcher.dispatch(command_history.command)
+            result = self.command_dispatcher.dispatch(command_history.command)
+
+            result = result[0]  # If everything went fine, get stdout
+
+            command_history.status = 'done'
         except BadProcessReturnCode as e:
+            result = result[1]  # Get stderr
+
             maybe_log_message(
-                'Command failed due to error: %s.\n stderr: %s' % (
-                    str(e), output[1]
+                'Command failed due to error: %s.\nstderr: %s' % (
+                    str(e), result
                 ),
                 logger=self.logger,
             )
+
+            command_history.status = 'failed'
+
             return
 
-        return output[0]
+        command_history.result = result
+
+        return command_history

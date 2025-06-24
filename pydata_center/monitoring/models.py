@@ -65,7 +65,7 @@ class CommandHistory(models.Model):
     COMMAND_TYPE_CHOICES = [
         ('linux', 'Linux Command'),
         ('health_check', 'Health Check Command'),
-        ('process_check', 'Process Check Command'),
+        ('service_check', 'Service Check Command'),
     ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),

@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -95,6 +96,20 @@ class CommandHistory(models.Model):
 
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'
+
+    def clean(self):
+        super().clean()
+
+        # Validate command's params depending on its type
+        if 'linux' in self.type:
+            required = {'shell'}
+        elif 'service_check' in self.type:
+            required = {'service'}
+
+        if not required.issubset(self.params):
+            raise ValidationError(
+                {'params': f'{self.type} command required keys: {required}'}
+            )
 
 
 class AlertRule(models.Model):

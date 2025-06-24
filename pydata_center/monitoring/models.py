@@ -17,6 +17,7 @@ class ServerStatus(models.Model):
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+    tags = models.JSONField(null=True, blank=True, default=dict)
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'

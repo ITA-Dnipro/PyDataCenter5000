@@ -22,7 +22,9 @@ def web_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummyWebAgent(port=8000, server_host='localhost')
+    agent = DummyWebAgent(port=8000,
+                          web_server_host='localhost',
+                          web_server_name='fastapi',)
     agent.setup_logging(logfile.name)
 
     handler = MemoryHandler(capacity=10000)
@@ -173,7 +175,7 @@ def test_web_agent_is_service_healthy_http_unhealthy(web_agent):
 def test_web_agent_build_url(web_agent):
     """Test URL construction"""
     agent, _ = web_agent
-    agent.server_host = 'localhost'
+    agent.web_server_host = 'localhost'
     agent.port = 8000
     assert agent._build_url('health') == 'http://localhost:8000/health', (
         'Expected health URL to be http://localhost:8000/health'

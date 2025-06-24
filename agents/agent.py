@@ -102,7 +102,7 @@ class ServerAgent(object):
         self,
         server_name=None,
         port=None,
-        health_port=None,
+        health_port=8081,
         processes=None,
         critical_processes=None,
         interface=None,

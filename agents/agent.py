@@ -305,6 +305,21 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
+            # Read tags from the [server] section
+            tags = {}
+            for tag_key in ['env', 'role', 'region']:
+                tag_value = get_config_option(
+                    config,
+                    'server',
+                    tag_key,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                )
+                if tag_value:
+                    tags[tag_key] = tag_value.strip()
+            if tags:
+                self.tags = tags
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,

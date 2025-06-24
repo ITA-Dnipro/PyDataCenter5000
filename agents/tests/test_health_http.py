@@ -1,11 +1,12 @@
 import datetime
 import json
 import unittest
-
+import mock
 import StringIO
 from BaseHTTPServer import HTTPServer
 
 from agents.utils.health_http import HealthHandler
+from agents.utils.health_server_manager import HealthServerManager
 
 
 class DummyServer(object):
@@ -158,3 +159,32 @@ class TestHealthHandler(unittest.TestCase):
         self.assertTrue(
             'message' in data, "Response should contain an error 'message'"
         )
+
+
+class TestHealthServerManager(unittest.TestCase):
+    @mock.patch('agents.utils.health_server_manager.HTTPServer')
+    def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):
+        manager = HealthServerManager(
+            agent_name='test',
+            is_service_healthy_callback=lambda: True
+        )
+
+        mock_server = mock.Mock()
+        mock_thread = mock.Mock()
+        manager.health_server = mock_server
+        manager.health_thread = mock_thread
+
+        manager.stop()
+
+        mock_server.shutdown.assert_called_once()
+        mock_server.server_close.assert_called_once()
+        mock_thread.join.assert_called_once()
+
+    def test_logger_initialized(self):
+        manager = HealthServerManager(
+            agent_name='test',
+            is_service_healthy_callback=lambda: True
+        )
+        self.assertTrue(manager.logger is not None)
+        self.assertTrue(manager.fallback_logger is not None)
+

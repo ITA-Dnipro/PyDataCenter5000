@@ -17,7 +17,7 @@ import Queue
 import urllib2
 from urlparse import urljoin
 
-from .command import CommandDispatcher, CommandHistory, CommandStatus
+from .command import CommandHistory, CommandStatus, dispatch_command
 from .exceptions import BadProcessReturnCode
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.logtools import maybe_log_message
@@ -67,8 +67,6 @@ class ServerAgent(object):
     """
 
     __metaclass__ = abc.ABCMeta
-
-    command_dispatcher = CommandDispatcher()
 
     controller_url = None
     api_prefix = 'api/'
@@ -760,6 +758,15 @@ class ServerAgent(object):
         Add command to queue if it passes field validation and if
         whitelisted by the server.
         """
+        if not isinstance(data, dict):
+            maybe_log_message(
+                'Expected data as a dict, got %s' % type(data),
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+            )
+
+            return
+
         try:
             command_history = CommandHistory.from_dict(data)
         except (TypeError, ValueError) as e:
@@ -800,9 +807,7 @@ class ServerAgent(object):
 
         if command_history:
             try:
-                result = self.command_dispatcher.dispatch(
-                    command_history.command
-                )
+                result = dispatch_command(command_history.command)
 
                 result = result[0]  # If everything went fine, get stdout
 

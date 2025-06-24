@@ -4,7 +4,7 @@ from enum import Enum
 
 import attr
 from dateutil import parser
-from singledispatch import singledispatchmethod
+from singledispatch import singledispatch
 
 from .exceptions import BadProcessReturnCode
 
@@ -164,19 +164,16 @@ def check_service_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
     return status in stdout, stderr
 
 
-class CommandDispatcher(object):
-    """
-    Class responsible for dispatching command execution via an appropriate
-    utility function.
-    """
-    @singledispatchmethod
-    def dispatch(self, command, **kwargs):
-        pass
+@singledispatch
+def dispatch_command(command, **kwargs):
+    pass
 
-    @dispatch.register(LinuxCommand)
-    def _(self, command, **kwargs):
-        return execute_shell_command(command.shell, **kwargs)
 
-    @dispatch.register(CheckServiceCommand)
-    def _(self, command, status=ProcessStatus.ACTIVE, **kwargs):
-        return check_service_status(command.proc, status)
+@dispatch_command.register(LinuxCommand)
+def _(command, **kwargs):
+    return execute_shell_command(command.shell, **kwargs)
+
+
+@dispatch_command.register(CheckServiceCommand)
+def _(command, status=ProcessStatus.ACTIVE, **kwargs):
+    return check_service_status(command.proc, status)

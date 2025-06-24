@@ -92,8 +92,10 @@ class CommandHistory(object):
             )
 
         params = data.pop('params', None)
-        if params:
-            command = command_factory(**params)
+        if not params:
+            raise ValueError('Must provide valid command parameters')
+
+        command = command_factory(**params)
 
         data['status'] = CommandStatus(data.get('status', 'pending'))
 

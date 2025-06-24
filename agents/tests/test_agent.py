@@ -10,7 +10,8 @@ import psutil
 import pytest
 import urllib2
 
-from agents.agent import CommandHistory, ServerAgent
+from agents.agent import ServerAgent
+from agents.command import CommandHistory, CommandStatus, LinuxCommand
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -104,7 +105,8 @@ def mock_popen_with_output(stdout, stderr=''):
 def test_command_history_valid_data():
     """Test that command history is properly instantiated."""
     data = {
-        'command': 'ls',
+        'type': 'linux',
+        'params': {'shell': 'ls'},
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -114,9 +116,9 @@ def test_command_history_valid_data():
 
     command_history = CommandHistory.from_dict(data)
 
-    assert command_history.command == 'ls'
+    assert command_history.command == LinuxCommand('ls')
     assert command_history.hostname == 'test-server'
-    assert command_history.status == 'pending'
+    assert command_history.status == CommandStatus.PENDING
     assert command_history.timestamp == '2025-06-03T18:25:35.418746Z'
     assert command_history.result == 'ok'
     assert command_history.id == 1
@@ -134,14 +136,14 @@ def test_command_history_missing_data():
             'timestamp': '2025-06-03T18:25:35.418746Z',
         },
         {
-            'command': 'ls',
+            'type': 'linux',
             'status': 'pending',
             'timestamp': '2025-06-03T18:25:35.418746Z',
         },
     ]
 
     for data in parameters:
-        with pytest.raises(TypeError):
+        with pytest.raises((TypeError, ValueError)):
             CommandHistory.from_dict(data)
 
 
@@ -597,7 +599,8 @@ def test_fetch_command_from_controller_error(monkeypatch):
 def test_maybe_add_to_queue_adds_item():
     """Test that good command history input is added to queue."""
     data = {
-        'command': 'ls',
+        'type': 'linux',
+        'params': {'shell': 'ls'},
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -606,10 +609,10 @@ def test_maybe_add_to_queue_adds_item():
     agent = MockAgent(port=12345)
     agent.setup_logging()
 
-    agent.maybe_add_to_queue(data)
+    agent.maybe_add_to_queue(data.copy())
 
-    with agent.queue.mutex:
-        assert CommandHistory.from_dict(data) in agent.queue.queue
+    with agent.command_queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.command_queue.queue
 
 
 def test_maybe_add_to_queue_logs_bad_input():
@@ -641,8 +644,8 @@ def test_maybe_add_to_queue_logs_bad_input():
         )
     )
 
-    with agent.queue.mutex:
-        assert len(agent.queue.queue) == 0
+    with agent.command_queue.mutex:
+        assert len(agent.command_queue.queue) == 0
 
 
 def test_status_to_dict_keys():

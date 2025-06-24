@@ -43,7 +43,7 @@ def execute(agent, max_exec, stop):
     """
     for _ in range(max_exec):
         try:
-            command_history = agent.queue.get(timeout=10)
+            command_history = agent.command_queue.get(timeout=10)
         except Queue.Empty:
             logging.warning('No command received in allocated time')
             break
@@ -74,7 +74,7 @@ def execute(agent, max_exec, stop):
                     exc_info=True,
                 )
 
-        agent.queue.task_done()
+        agent.command_queue.task_done()
 
     stop.set()
 

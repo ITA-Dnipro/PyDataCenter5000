@@ -4,8 +4,9 @@ from unittest.mock import patch
 import pytest
 import requests
 from dateutil.parser import isoparse
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.cache import cache
+from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
@@ -18,6 +19,12 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 
+@pytest.fixture(scope='session', autouse=True)
+def setup_roles(django_db_setup, django_db_blocker):
+    with django_db_blocker.unblock():
+        call_command('init_roles')
+
+
 class ServerStatusAPITest(TestCase):
 
     @classmethod
@@ -26,6 +33,9 @@ class ServerStatusAPITest(TestCase):
             username='testuser',
             password='testpass'
         )
+        # add user to Operator group
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
         cls.url = '/api/v1/server/status/'
 
     def setUp(self):
@@ -168,8 +178,12 @@ class ReceiveStatusEndpointTests(APITestCase):
             username=cls.username, password=cls.password
         )
 
+        # add user to group Operator
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
+
     def setUp(self):
-        self.client.login(username=self.username, password=self.password)
+        self.client.force_authenticate(user=self.user)
 
     def _get_valid_status_data(self):
         return {

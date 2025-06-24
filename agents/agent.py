@@ -128,6 +128,9 @@ class ServerAgent(object):
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
 
+        # Initialize tags
+        self.tags = {}
+
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """

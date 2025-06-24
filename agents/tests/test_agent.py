@@ -1734,3 +1734,120 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
                 fallback_logger=agent.fallback_logger,
                 exc_info=True
                 )
+
+
+def test_tag_parsing_full_config():
+    """
+    Test that all tags (env, role, region) are correctly parsed
+    from the config file.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+region = eu-central
+"""
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        expected_tags = {
+            'env': 'production',
+            'role': 'web',
+            'region': 'eu-central',
+        }
+        assert agent.tags == expected_tags
+
+
+def test_tag_parsing_partial_config():
+    """
+    Test that only provided tags are parsed, and missing ones are ignored.
+    """
+    config_content = """
+[server]
+name = test_server
+env = staging
+role = db
+"""
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        expected_tags = {
+            'env': 'staging',
+            'role': 'db',
+        }
+        assert agent.tags == expected_tags
+        assert 'region' not in agent.tags
+
+
+def test_tag_parsing_ignores_empty_values():
+    """
+    Test that tags with empty values in the config are not included.
+    """
+    config_content = """
+[server]
+name = test_server
+env = dev
+role =
+region = us-east
+"""
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        expected_tags = {
+            'env': 'dev',
+            'region': 'us-east',
+        }
+        assert agent.tags == expected_tags
+        assert 'role' not in agent.tags
+
+
+def test_status_dict_includes_tags_when_present():
+    """
+    Test that status_to_dict() includes the 'tags' key
+    when tags are configured.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+"""
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+        status = agent.status_to_dict()
+
+        assert 'tags' in status
+        assert status['tags'] == {'env': 'production', 'role': 'web'}
+
+
+def test_status_dict_omits_tags_for_backward_compatibility():
+    """
+    Test that status_to_dict() does not include the 'tags' key
+    when no tags are configured, ensuring backward compatibility.
+    """
+    config_content = """
+[server]
+name = old_agent_server
+"""
+    with tempfile.NamedTemporaryFile() as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+        status = agent.status_to_dict()
+
+        assert agent.tags == {}
+        assert 'tags' not in status

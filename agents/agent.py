@@ -432,7 +432,19 @@ class ServerAgent(object):
         finally:
             s.close()
 
-    def _is_process_running(self):
+    def _is_process_running(self, proc_name=None):
+        """
+        Check whether a given process (or any in self.processes) is running.
+
+        Args:
+            proc_name (str, optional): If provided, only check this single
+                process name. Otherwise, checks each name in self.processes.
+
+        Returns:
+            bool: True if at least one matching process is running.
+        """
+        names_to_check = [proc_name] if proc_name else self.processes
+
         try:
             output = subprocess.Popen(['ps', '-eo', 'comm'],
                                       stdout=subprocess.PIPE).communicate()[0]
@@ -442,11 +454,13 @@ class ServerAgent(object):
 
             normalized_lines = output.lower().splitlines()
 
-            return any(
-                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
-                for proc in self.processes
-                for line in normalized_lines
-                )
+            for proc in names_to_check:
+                pattern = r'\b{0}\b'.format(re.escape(proc.lower()))
+                for line in normalized_lines:
+                    if re.search(pattern, line):
+                        return True
+
+            return False
 
         except OSError as e:
             maybe_log_message(

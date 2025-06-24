@@ -514,7 +514,7 @@ class ServerAgent(object):
         pass
 
     def status_to_dict(self):
-        return {
+        status_data = {
             'os': self.os_type,
             'hostname': self.hostname,
             'ip': self.ip,
@@ -523,6 +523,10 @@ class ServerAgent(object):
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
+        if self.tags:
+            status_data['tags'] = self.tags
+
+        return status_data
 
     def status_to_json(self, log=False):
         """

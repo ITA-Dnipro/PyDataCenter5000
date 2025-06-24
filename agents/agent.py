@@ -26,8 +26,8 @@ from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.health_http import HealthHandler
-from .utils.logtools import maybe_log_message
 from .utils.health_server_manager import HealthServerManager
+from .utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'

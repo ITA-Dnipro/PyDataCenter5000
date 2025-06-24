@@ -1,8 +1,10 @@
-import threading
 import logging
 import signal
 import sys
+import threading
+
 from BaseHTTPServer import HTTPServer
+
 from agents.utils.health_http import HealthHandler
 from agents.utils.logtools import maybe_log_message
 
@@ -10,6 +12,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
+
 
 class HealthServerManager:
     def __init__(
@@ -44,7 +47,7 @@ class HealthServerManager:
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
                     level=logging.INFO
-                )  
+                )
                 self.server.serve_forever()
             except Exception as e:
                 maybe_log_message(
@@ -99,4 +102,3 @@ class HealthServerManager:
         )
         self.stop_health_server()
         sys.exit(0)
-

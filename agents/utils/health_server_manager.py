@@ -60,9 +60,6 @@ class HealthServerManager:
         self.thread.setDaemon(True)
         self.thread.start()
 
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-
     def stop(self):
         if hasattr(self, 'health_server'):
             maybe_log_message(

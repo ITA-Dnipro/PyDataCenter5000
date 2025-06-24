@@ -1,7 +1,7 @@
+import logging
 import os
 import sys
 import time
-import logging
 
 sys.path.insert(
     0,
@@ -72,4 +72,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

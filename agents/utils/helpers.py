@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 import re
 import socket
 import subprocess
@@ -93,20 +93,19 @@ def is_valid_ip(output):
 
 
 def get_env_or_param(param_value, env_name):
-        """
-        Get value from parameter or environment variable.
+    """
+    Get value from parameter or environment variable.
 
-        Args:
-            param_value: Value passed as parameter
-            env_name (str): Name of environment variable
+    Args:
+        param_value: Value passed as parameter
+        env_name (str): Name of environment variable
 
-        Returns:
-            The parameter value if provided, otherwise environment variable
+    Returns:
+        The parameter value if provided, otherwise environment variable
 
-        Raises:
-            ValueError: If neither parameter nor environment variable is set
-        """
-        if param_value is None and env_name not in os.environ:
-            raise ValueError('%s environment variable is not set.' % env_name)
-        return param_value or os.environ[env_name]
-
+    Raises:
+        ValueError: If neither parameter nor environment variable is set
+    """
+    if param_value is None and env_name not in os.environ:
+        raise ValueError('%s environment variable is not set.' % env_name)
+    return param_value or os.environ[env_name]

@@ -47,6 +47,7 @@ ALLOWED_HOSTS = (
     if os.getenv('DJANGO_ALLOWED_HOSTS')
     else []
 )
+
 AGENT_IPS = (
     os.getenv('AGENT_IPS', '').split(',')
     if os.getenv('AGENT_IPS')

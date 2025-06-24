@@ -1,6 +1,7 @@
 import datetime
 import json
 import unittest
+
 import mock
 import StringIO
 from BaseHTTPServer import HTTPServer
@@ -176,15 +177,25 @@ class TestHealthServerManager(unittest.TestCase):
 
         manager.stop()
 
-        mock_server.shutdown.assert_called_once()
-        mock_server.server_close.assert_called_once()
-        mock_thread.join.assert_called_once()
+        self.assertTrue(
+            mock_server.shutdown.called,
+            'shutdown() was not called on the server'
+            )
+        self.assertTrue(
+            mock_server.server_close.called,
+            'server_close() was not called on the server'
+        )
+        self.assertTrue(
+            mock_thread.join.called,
+            'join() was not called on the thread'
+        )
 
     def test_logger_initialized(self):
         manager = HealthServerManager(
             agent_name='test',
             is_service_healthy_callback=lambda: True
         )
-        self.assertTrue(manager.logger is not None)
-        self.assertTrue(manager.fallback_logger is not None)
-
+        self.assertIsNotNone(manager.logger, 'Logger is not initialized')
+        self.assertIsNotNone(
+            manager.fallback_logger, 'Fallback logger is not initialized'
+        )

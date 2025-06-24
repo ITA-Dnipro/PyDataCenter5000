@@ -102,6 +102,7 @@ class ServerAgent(object):
         self,
         server_name=None,
         port=None,
+        health_port=None,
         processes=None,
         critical_processes=None,
         interface=None,
@@ -111,6 +112,11 @@ class ServerAgent(object):
         self.health_thread = None
         self.server_name = server_name
         self.port = port if port is not None else self.port
+        self.health_port = (
+            health_port
+            if health_port is not None
+            else self.health_port
+        )
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
 
@@ -138,7 +144,7 @@ class ServerAgent(object):
         self.health_server_manager = HealthServerManager(
             agent_name=self.server_name,
             is_service_healthy_callback=self.is_service_healthy,
-            port=self.port,
+            port=self.health_port,
             uptime_callback=get_linux_uptime
         )
 

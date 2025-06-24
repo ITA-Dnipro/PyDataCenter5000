@@ -92,13 +92,3 @@ class HealthServerManager:
             finally:
                 del self.health_server
                 del self.health_thread
-
-    def _signal_handler(self, signum, frame):
-        maybe_log_message(
-            'Received signal %s, shutting down...' % signum,
-            logger=self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-        )
-        self.stop_health_server()
-        sys.exit(0)

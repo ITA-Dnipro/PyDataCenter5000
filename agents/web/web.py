@@ -136,7 +136,7 @@ class WebAgent(ServerAgent):
         if not self.is_ssh_service_active():
             inactive_services.append('ssh')
 
-        if not self._check_http_health(self):
+        if not self._check_http_health():
             inactive_services.append(self.web_server_name)
 
         if inactive_services:
@@ -152,7 +152,7 @@ class WebAgent(ServerAgent):
             return False
 
         maybe_log_message(
-            'All services are heathy and running',
+            'All services are healthy and running',
             self.logger,
             fallback_logger=self.fallback_logger,
             level=logging.INFO

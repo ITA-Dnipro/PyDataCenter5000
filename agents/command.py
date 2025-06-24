@@ -1,3 +1,4 @@
+import abc
 import subprocess
 from enum import Enum
 
@@ -21,7 +22,12 @@ class CommandStatus(Enum):
 
 
 class Command(object):
-    pass
+    __metaclass__ = abc.ABCMeta
+
+    @property
+    @abc.abstractmethod
+    def tag(self):
+        pass
 
 
 @attr.attributes

@@ -177,6 +177,11 @@ if ! python -c "import enum"; then
     install_python_package_from_src enum34
 fi
 
+if ! python -c "import singledispatch"; then
+    get_package_src_from_tar singledispatch "https://files.pythonhosted.org/packages/d9/e9/513ad8dc17210db12cb14f2d4d190d618fb87dd38814203ea71c87ba5b68/singledispatch-3.4.0.3.tar.gz"
+    install_python_package_from_src singledispatch
+fi
+
 if ! python -c "import coverage"; then
     get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
     install_python_package_from_src coverage

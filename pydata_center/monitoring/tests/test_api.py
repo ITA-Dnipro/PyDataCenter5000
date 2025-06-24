@@ -1023,8 +1023,8 @@ class TestCheckAgentHealth:
     """Test suite for a check_agent_health task."""
     def setup_method(self):
         self.agent_ip = '127.0.0.1'
-        self.port = 8081
-        self.url = f'http://{self.agent_ip}:{self.port}/health'
+        self.health_port = 8081
+        self.url = f'http://{self.agent_ip}:{self.health_port}/health'
 
     @patch('monitoring.tasks.save_agent_ping_status')
     @patch('monitoring.tasks.requests.get')
@@ -1040,7 +1040,7 @@ class TestCheckAgentHealth:
         mock_get.return_value = mock_response
 
         with caplog.at_level('INFO'):
-            result = check_agent_health(self.agent_ip, self.port)
+            result = check_agent_health(self.agent_ip, self.health_port)
 
         mock_get.assert_called_once_with(
             self.url, timeout=5
@@ -1066,7 +1066,7 @@ class TestCheckAgentHealth:
         )
 
         with pytest.raises(RequestException, match='Connection error'):
-            check_agent_health(self.agent_ip, self.port)
+            check_agent_health(self.agent_ip, self.health_port)
 
         mock_save_status.assert_called_once_with(
             self.agent_ip,
@@ -1078,7 +1078,7 @@ class TestCheckAgentHealth:
     def test_exception_handling(self, mock_get, mock_save_status):
         mock_get.side_effect = Exception('Unexpected error')
 
-        result = check_agent_health(self.agent_ip, self.port)
+        result = check_agent_health(self.agent_ip, self.health_port)
 
         mock_save_status.assert_called_once_with(
             self.agent_ip,
@@ -1107,7 +1107,7 @@ class TestCheckAgentHealth:
         }
         mock_get.return_value = mock_response
 
-        result = check_agent_health(self.agent_ip, self.port)
+        result = check_agent_health(self.agent_ip, self.health_port)
 
         assert result['status'] == 'error', "Expected status to be 'error'"
         mock_save_status.assert_called_once()

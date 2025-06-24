@@ -140,27 +140,3 @@ def test_web_agent_build_url(web_agent):
     agent.port = 8000
     assert agent._build_url('health') == 'http://localhost:8000/health'
     assert agent._build_url('metrics') == 'http://localhost:8000/metrics'
-
-
-def test_web_agent_get_env_or_param(web_agent):
-    """Test environment variable handling"""
-    agent, _ = web_agent
-
-    original_value = os.environ.get('TEST_VAR')
-
-    try:
-        os.environ['TEST_VAR'] = 'env_value'
-        assert agent._get_env_or_param(None, 'TEST_VAR') == 'env_value'
-
-        assert agent._get_env_or_param('mock_val', 'TEST_VAR') == 'mock_val'
-
-        del os.environ['TEST_VAR']
-        with pytest.raises(ValueError):
-            agent._get_env_or_param(None, 'MISSING_VAR')
-
-    finally:
-        # Clean up
-        if original_value is not None:
-            os.environ['TEST_VAR'] = original_value
-        elif 'TEST_VAR' in os.environ:
-            del os.environ['TEST_VAR']

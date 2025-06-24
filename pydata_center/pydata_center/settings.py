@@ -48,11 +48,23 @@ ALLOWED_HOSTS = (
     else []
 )
 
-AGENT_IPS = (
-    os.getenv('AGENT_IPS', '').split(',')
-    if os.getenv('AGENT_IPS')
-    else []
-)
+DEFAULT_AGENT_HEALTH_PORT = os.getenv('DEFAULT_AGENT_HEALTH_PORT', 8081)
+
+
+def parse_agent_addresses(env_value):
+    agents = []
+    for entry in env_value.split(','):
+        if ':' in entry:
+            ip, port = entry.split(':')
+            agents.append({'ip': ip.strip(), 'port': int(port)})
+        else:
+            agents.append(
+                {'ip': entry.strip(), 'port': DEFAULT_AGENT_HEALTH_PORT}
+            )
+    return agents
+
+
+AGENTS = parse_agent_addresses(os.getenv('AGENT_HEALTH_ADDRESSES', ''))
 
 API_PREFIX = os.getenv('API_PREFIX', 'api/v1')
 
@@ -310,7 +322,7 @@ CELERY_BEAT_SCHEDULE = {
     'check-all-agents-health': {
         'task': 'monitoring.tasks.check_all_agents_health',
         'schedule': crontab(minute='*/5'),
-        'args': [AGENT_IPS],
+        'args': [json.dumps(AGENTS)],
     }
 }
 

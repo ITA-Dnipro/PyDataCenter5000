@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest.mock import MagicMock, patch
@@ -1279,43 +1280,49 @@ class TestSaveAgentPingStatus:
 class TestCheckAllAgentsHealth:
     """Test suite for check_all_agents_health task."""
     def test_creates_group_task(self):
-        """Test that task creates a group of subtasks for each agent IP."""
-        agent_ips = ['192.168.1.1', '192.168.1.2']
+        """Test that task creates a group of subtasks
+        for each agent IP and port."""
+        agents = [
+            {'ip': '192.168.1.1', 'port': 8081},
+            {'ip': '192.168.1.2', 'port': 9000}
+        ]
+        serialized_agents = json.dumps(agents)
 
         with patch('monitoring.tasks.group') as mock_group:
             mock_task_group = MagicMock()
             mock_group.return_value = mock_task_group
             mock_task_group.apply_async.return_value.id = 'fake-task-id'
 
-            result = check_all_agents_health(agent_ips)
+            result = check_all_agents_health(serialized_agents)
 
             assert mock_group.call_count == 1, (
                 'group() was not called exactly once'
             )
 
+            # Extract list of subtasks from group() call
             call_args = mock_group.call_args[0][0]
             call_args_list = list(call_args)
 
-            assert len(call_args_list) == len(agent_ips), (
-                f'Expected {len(agent_ips)} subtasks, '
-                f'got {len(call_args_list)}'
+            assert len(call_args_list) == len(agents), (
+                f'Expected {len(agents)} subtasks, got {len(call_args_list)}'
             )
 
-            for sig, ip in zip(call_args_list, agent_ips):
+            for sig, agent in zip(call_args_list, agents):
                 assert sig.task == 'monitoring.tasks.check_agent_health', (
                     "Expected task 'monitoring.tasks.check_agent_health',"
                     f" got '{sig.task}'"
                 )
-                assert sig.args[0] == ip, (
-                    f"Expected IP '{ip}', got '{sig.args[0]}'"
+                assert sig.args[0] == agent['ip'], (
+                    f"Expected IP '{agent['ip']}', got '{sig.args[0]}'"
                 )
-                assert sig.args[1] == 8081, (
-                    f'Expected port 8081, got {sig.args[1]}'
+                assert sig.args[1] == agent['port'], (
+                    f"Expected port {agent['port']}, got {sig.args[1]}"
                 )
 
             assert mock_task_group.apply_async.call_count == 1, (
                 'apply_async() was not called exactly once'
             )
+
             assert result == 'fake-task-id', (
                 f"Expected result ID to be 'fake-task-id', got '{result}'"
             )

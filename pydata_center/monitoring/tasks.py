@@ -1,3 +1,4 @@
+import json
 import logging
 import operator
 from datetime import timedelta
@@ -208,7 +209,7 @@ def save_agent_ping_status(agent_ip, status_data):
 
 
 @shared_task
-def check_agent_health(agent_ip, port=8081):
+def check_agent_health(agent_ip, port):
     """
     Task to check agent health via health endpoint.
 
@@ -246,10 +247,16 @@ def check_agent_health(agent_ip, port=8081):
 
 
 @shared_task
-def check_all_agents_health(agent_ips, port=8081):
+def check_all_agents_health(serialized_agents):
     """
     Task to check health of multiple agents.
+
+    Parameters:
+        serialized_agents (str): JSON string with list of {'ip', 'port'} dicts
     """
-    task_group = group(check_agent_health.s(ip, port) for ip in agent_ips)
+    agents = json.loads(serialized_agents)
+    task_group = group(
+        check_agent_health.s(agent['ip'], agent['port']) for agent in agents
+    )
     result = task_group.apply_async()
     return result.id

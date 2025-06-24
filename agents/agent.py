@@ -10,7 +10,6 @@ import signal
 import socket
 import subprocess
 import sys
-import threading
 import time
 from collections import Sequence
 
@@ -20,12 +19,10 @@ import pkg_resources
 import psutil
 import Queue
 import urllib2
-from BaseHTTPServer import HTTPServer
 from dateutil import parser
 from urlparse import urljoin
 
 from .utils.configtools import get_config_option, parse_csv_list
-from .utils.health_http import HealthHandler
 from .utils.health_server_manager import HealthServerManager
 from .utils.logtools import maybe_log_message
 

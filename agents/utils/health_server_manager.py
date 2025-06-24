@@ -1,6 +1,4 @@
 import logging
-import signal
-import sys
 import threading
 
 from BaseHTTPServer import HTTPServer

@@ -17,8 +17,8 @@ def web_agent():
     logfile.close()
 
     agent = WebAgent(port=8000,
-                          web_server_host='localhost',
-                          web_server_name='fastapi',)
+                     web_server_host='localhost',
+                     web_server_name='fastapi',)
     agent.setup_logging(logfile.name)
 
     handler = MemoryHandler(capacity=10000)
@@ -306,6 +306,6 @@ def test_is_service_healthy_logs_exception(web_agent):
             'Health check failed with error: test error'
             in mock_log.call_args[0][0]
         ), (
-            "Expected error message to be logged when exception is raised "
-            "in is_service_healthy"
+            'Expected error message to be logged when exception is raised '
+            'in is_service_healthy'
         )

@@ -1468,7 +1468,10 @@ def test_fetch_command_from_controller_headers_default():
     with mock.patch('urllib2.urlopen', mock_urlopen):
         agent.fetch_command_from_controller()
 
-    assert captured_request['headers'] == {'Accept': 'application/json'}
+    assert captured_request['headers'] == {'Accept': 'application/json'}, (
+        "Expected headers {'Accept': 'application/json'}, "
+        'but got %r' % captured_request['headers']
+    )
 
 
 def test_fetch_command_from_controller_headers_with_api_key():
@@ -1495,7 +1498,10 @@ def test_fetch_command_from_controller_headers_with_api_key():
         'Accept': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_with_kwargs():
@@ -1528,7 +1534,10 @@ def test_fetch_command_from_controller_headers_with_kwargs():
         'Customheader': 'custom-value',
         'Xrequestid': '12345'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_kwargs_override():
@@ -1558,7 +1567,10 @@ def test_fetch_command_from_controller_headers_kwargs_override():
         'Accept': 'text/plain',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_update():
@@ -1585,7 +1597,10 @@ def test_fetch_command_from_controller_headers_update():
         'Accept': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_post_data_headers_update():
@@ -1614,7 +1629,10 @@ def test_post_data_headers_update():
         'Content-type': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_is_process_running_when_any_process_running():
@@ -1771,9 +1789,11 @@ def test_status_to_dict_timestamp_format():
     result = agent.status_to_dict()
     timestamp = result['timestamp']
 
-    assert re.match(
-        r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp
-    ) is not None
+    match = re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp)
+    assert match is not None and match.group(0) == timestamp, (
+        "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
+        % timestamp
+    )
 
 
 def test_status_to_txt():
@@ -1792,4 +1812,7 @@ def test_status_to_txt():
     dict_data = agent.status_to_dict()
     for key, value in dict_data.items():
         expected_message = '%s: %s' % (key, value)
-        assert expected_message in contents
+        assert expected_message in contents, (
+            "Expected '%s' in log file contents, but it was not found."
+            % expected_message
+        )

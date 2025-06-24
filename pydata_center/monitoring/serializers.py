@@ -40,6 +40,7 @@ class AgentMetricSerializer(serializers.ModelSerializer):
 
 class ServerStatusSerializer(serializers.ModelSerializer):
     metrics = AgentMetricSerializer(many=True, read_only=True)
+    tags = serializers.JSONField(required=False)
 
     class Meta:
         model = ServerStatus

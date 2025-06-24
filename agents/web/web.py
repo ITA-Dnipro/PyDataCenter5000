@@ -4,7 +4,7 @@ import logging
 import urllib2
 
 from ..agent import ServerAgent
-from ..utils.helpers import get_env_or_param 
+from ..utils.helpers import get_env_or_param
 from ..utils.logtools import maybe_log_message
 
 

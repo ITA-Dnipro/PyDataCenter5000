@@ -195,7 +195,10 @@ class TestHealthServerManager(unittest.TestCase):
             agent_name='test',
             is_service_healthy_callback=lambda: True
         )
-        self.assertIsNotNone(manager.logger, 'Logger is not initialized')
-        self.assertIsNotNone(
-            manager.fallback_logger, 'Fallback logger is not initialized'
+        self.assertTrue(
+            manager.logger is not None, 'Logger is not initialized'
+        )
+        self.assertTrue(
+            manager.fallback_logger is not None,
+            'Fallback logger is not initialized'
         )

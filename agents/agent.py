@@ -226,6 +226,16 @@ class ServerAgent(object):
         self._port = value
 
     @property
+    def health_port(self):
+        return getattr(self, '_health_port', 8081)
+
+    @health_port.setter
+    def health_port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('Health port must be an integer')
+        self._health_port = value
+
+    @property
     def processes(self):
         return getattr(self, '_processes', [])
 
@@ -280,6 +290,16 @@ class ServerAgent(object):
                 'server',
                 'port',
                 default=self.port,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                cast=int,
+            )
+
+            self.health_port = get_config_option(
+                config,
+                'server',
+                'health_port',
+                default=self.health_port,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
                 cast=int,

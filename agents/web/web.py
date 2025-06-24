@@ -1,11 +1,10 @@
 import json
 import logging
-import os
 
 import urllib2
 
 from ..agent import ServerAgent
-from ..utils.helpers import restart_service
+from ..utils.helpers import get_env_or_param 
 from ..utils.logtools import maybe_log_message
 
 
@@ -25,7 +24,7 @@ class WebAgent(ServerAgent):
         whitelist_commands=None,
         server_host=None,
     ):
-        port = int(self._get_env_or_param(port, 'PORT'))
+        port = int(get_env_or_param(port, 'PORT'))
 
         super(WebAgent, self).__init__(
             server_name=server_name,
@@ -37,7 +36,7 @@ class WebAgent(ServerAgent):
             whitelist_commands=whitelist_commands,
         )
 
-        self.server_host = self._get_env_or_param(server_host, 'SERVER_HOST')
+        self.server_host = get_env_or_param(server_host, 'SERVER_HOST')
         self.health_url = self._build_url('health')
 
     def is_service_healthy(
@@ -126,21 +125,3 @@ class WebAgent(ServerAgent):
             str: The complete URL including host, port and endpoint
         """
         return 'http://%s:%d/%s' % (self.server_host, self.port, endpoint)
-
-    def _get_env_or_param(self, param_value, env_name):
-        """
-        Get value from parameter or environment variable.
-
-        Args:
-            param_value: Value passed as parameter
-            env_name (str): Name of environment variable
-
-        Returns:
-            The parameter value if provided, otherwise environment variable
-
-        Raises:
-            ValueError: If neither parameter nor environment variable is set
-        """
-        if param_value is None and env_name not in os.environ:
-            raise ValueError('%s environment variable is not set.' % env_name)
-        return param_value or os.environ[env_name]

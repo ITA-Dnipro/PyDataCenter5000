@@ -1,3 +1,4 @@
+import os
 import logging
 import re
 import socket
@@ -89,3 +90,23 @@ def is_valid_ip(output):
         return True
     except socket.error:
         return False
+
+
+def get_env_or_param(param_value, env_name):
+        """
+        Get value from parameter or environment variable.
+
+        Args:
+            param_value: Value passed as parameter
+            env_name (str): Name of environment variable
+
+        Returns:
+            The parameter value if provided, otherwise environment variable
+
+        Raises:
+            ValueError: If neither parameter nor environment variable is set
+        """
+        if param_value is None and env_name not in os.environ:
+            raise ValueError('%s environment variable is not set.' % env_name)
+        return param_value or os.environ[env_name]
+

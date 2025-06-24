@@ -172,6 +172,11 @@ if ! python -c "import dateutil"; then
     install_python_package_from_src dateutil
 fi
 
+if ! python -c "import enum"; then
+    get_package_src_from_tar enum34 "https://files.pythonhosted.org/packages/11/c4/2da1f4952ba476677a42f25cd32ab8aaf0e1c0d0e00b89822b835c7e654c/enum34-1.1.10.tar.gz"
+    install_python_package_from_src enum34
+fi
+
 if ! python -c "import coverage"; then
     get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
     install_python_package_from_src coverage

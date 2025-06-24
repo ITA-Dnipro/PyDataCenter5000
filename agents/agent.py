@@ -27,6 +27,7 @@ from urlparse import urljoin
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.health_http import HealthHandler
 from .utils.logtools import maybe_log_message
+from .utils.health_server_manager import HealthServerManager
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -134,8 +135,15 @@ class ServerAgent(object):
         # Initialize thread-safe command queue
         self.queue = Queue.Queue()
 
+        self.health_server_manager = HealthServerManager(
+            agent_name=self.server_name,
+            is_service_healthy_callback=self.is_service_healthy,
+            port=self.port,
+            uptime_callback=get_linux_uptime
+        )
+
         try:
-            self.start_health_server()
+            self.health_server_manager.start()
         except Exception as e:
             maybe_log_message(
                 'Health server initialization failed: %s' % str(e),
@@ -934,63 +942,8 @@ class ServerAgent(object):
                 exc_info=True,
             )
 
-    def start_health_server(self, port=8081):
-        def run():
-            try:
-                server = HTTPServer(('', port), HealthHandler)
-                server.server_name = self.server_name
-                server.uptime = lambda: get_linux_uptime()
-                server.is_service_healthy = self.is_service_healthy
-
-                self.health_server = server
-
-                self.logger.info(
-                    'Health server running at /health on port %s', port
-                )
-                server.serve_forever()
-            except Exception as e:
-                maybe_log_message(
-                    'Failed to start health server: %s' % str(e),
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    exc_info=True,
-                )
-
-        thread = threading.Thread(target=run, name='HealthServerThread')
-        thread.setDaemon(True)
-        thread.start()
-        self.health_thread = thread
-
     def stop_health_server(self):
-        if hasattr(self, 'health_server'):
-            maybe_log_message(
-                'Shutting down health server...',
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-            )
-
-            try:
-                self.health_server.shutdown()
-                self.health_server.server_close()
-                self.health_thread.join()
-
-                maybe_log_message(
-                    'Health server shut down successfully.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO
-                )
-            except Exception as e:
-                maybe_log_message(
-                    'Failed to shut down health server: %s' % e,
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.ERROR
-                )
-            finally:
-                del self.health_server
-                del self.health_thread
+        self.health_server_manager.stop()
 
     def _signal_handler(self, signum, frame):
         maybe_log_message(

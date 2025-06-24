@@ -21,9 +21,5 @@ if __name__ == '__main__':
     except OSError as e:
         logger.error('Failed to start health server: %s' % e)
         exit(1)
-    logger.info('Health server started on port 8081. Press Ctrl+C to stop.')
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info('Stopping server.')
+    while True:
+        time.sleep(1)

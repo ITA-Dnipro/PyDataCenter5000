@@ -10,9 +10,10 @@ from celery import group, shared_task
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
-from monitoring.discord import DiscordMessage, send_async_discord_message
 from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
+from monitoring.webhook import (DiscordMessage, SlackMessage, WebhookMessage,
+                                send_async_webhook_message)
 from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,11 @@ ALERT_DESTINATION_MAP = {
         content=f'{subject} {body}',
         webhook=settings.ALERT_DISCORD_WEBHOOK,
         fail_silently=fail_silently,
+    ),
+    'slack': lambda subject, body, fail_silently=True: SlackMessage(
+        content=f'{subject} {body}',
+        webhook=settings.ALERT_SLACK_WEBHOOK,
+        fail_silently=fail_silently,
     )
 }
 
@@ -51,8 +57,8 @@ class AlertDispatcher:
         send_async_email.apply_async(kwargs={'message': message})
 
     @send.register
-    def _(self, message: DiscordMessage, **kwargs):
-        send_async_discord_message.apply_async(kwargs={'message': message})
+    def _(self, message: WebhookMessage, **kwargs):
+        send_async_webhook_message.apply_async(kwargs={'message': message})
 
 
 # At the moment, a module-level singleton is sufficient.

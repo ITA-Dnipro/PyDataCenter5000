@@ -1,0 +1,2 @@
+class BadSubprocessReturnCode(Exception):
+    pass

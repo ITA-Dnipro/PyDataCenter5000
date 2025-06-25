@@ -21,6 +21,7 @@ class SMTPAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
+        command_queue_size=0,
     ):
         super(SMTPAgent, self).__init__(
             server_name=server_name,
@@ -29,6 +30,7 @@ class SMTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
+            command_queue_size=command_queue_size,
         )
 
     def check_banner(self):
@@ -43,7 +45,6 @@ class SMTPAgent(ServerAgent):
             maybe_log_message(
                 'Banner check failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
         finally:
             sock.close()

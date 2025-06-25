@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import socket
 import subprocess
@@ -7,7 +8,7 @@ import time
 from .logtools import maybe_log_message
 
 
-def restart_service(logger, fallback_logger, service, attempts=3):
+def restart_service(service, attempts=3, logger=None):
     """
     Attempts to restart a system service with exponential backoff
     if it is found to be inactive. Logs each attempt and result.
@@ -27,12 +28,10 @@ def restart_service(logger, fallback_logger, service, attempts=3):
     """
 
     maybe_log_message(
-        '%s not active. Attempting restart...' % service,
-        logger,
-        fallback_logger=fallback_logger
-        )
+        '%s not active. Attempting restart...' % service, logger=logger
+    )
 
-    for i in range(1, attempts+1):
+    for i in range(1, attempts + 1):
         try:
             delay = 2**i
 
@@ -42,9 +41,8 @@ def restart_service(logger, fallback_logger, service, attempts=3):
                     service,
                     delay
                 ),
-                logger,
-                fallback_logger=fallback_logger
-                )
+                logger=logger,
+            )
 
             time.sleep(delay)
 
@@ -58,27 +56,24 @@ def restart_service(logger, fallback_logger, service, attempts=3):
             if retcode == 0:
                 maybe_log_message(
                     '%s service restarted successfully.' % service,
-                    logger,
-                    fallback_logger=fallback_logger,
+                    logger=logger,
                     level=logging.INFO
                     )
                 return True  # If restsrting successful
             else:
                 maybe_log_message(
                     '%s restart failed with code %s.' % (service, retcode),
-                    logger,
-                    fallback_logger=fallback_logger
-                    )
+                    logger=logger,
+                )
 
         except Exception as restart_err:
             maybe_log_message(
                 'Error during %s service restart: %s' % (
-                    service,
-                    restart_err),
-                logger,
-                fallback_logger=fallback_logger,
-                exc_info=True
-                )
+                    service, restart_err
+                ),
+                logger=logger,
+                exc_info=True,
+            )
             return False  # Stop after first fatal error
     return False  # If restarting failed
 
@@ -89,6 +84,25 @@ def is_valid_ip(output):
         return True
     except socket.error:
         return False
+
+
+def get_env_or_param(param_value, env_name):
+    """
+    Get value from parameter or environment variable.
+
+    Args:
+        param_value: Value passed as parameter
+        env_name (str): Name of environment variable
+
+    Returns:
+        The parameter value if provided, otherwise environment variable
+
+    Raises:
+        ValueError: If neither parameter nor environment variable is set
+    """
+    if param_value is None and env_name not in os.environ:
+        raise ValueError('%s environment variable is not set.' % env_name)
+    return param_value or os.environ[env_name]
 
 
 def is_process_active(process):

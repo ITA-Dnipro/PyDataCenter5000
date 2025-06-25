@@ -4,7 +4,7 @@ require_relative "common"
 Vagrant.configure("2") do |config|
   VagrantCommon.configure_box(config, ENV_WEB)
   config.vm.network "forwarded_port", guest: 80, host: ENV_WEB["HOST_PORT"]
-  config.vm.synced_folder "servers/web", "/home/vagrant/server"
+  config.vm.synced_folder "agents_infra/servers/web", "/home/vagrant/server"
 
   # Export environment variables to shell script
   ENV_WEB.each do |key, value|

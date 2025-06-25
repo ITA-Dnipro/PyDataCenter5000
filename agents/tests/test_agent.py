@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import re
 import socket
 import tempfile
 import types
@@ -1186,7 +1187,14 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     def mock_system():
         return 'Linux'
 
+    def mock_get_linux_uptime():
+        return 12345.0
+
+    from .. import agent
     monkeypatch.setattr(platform, 'system', mock_system)
+    monkeypatch.setattr(agent,
+                        'get_linux_uptime',
+                        mock_get_linux_uptime)
 
     agent = MockAgent(port=12345)
     agent.setup_logging()
@@ -1194,6 +1202,7 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     agent.collect_server_metadata()
 
     assert agent.os_type == 'linux'
+    assert agent.uptime == 12345.0
 
 
 def test_collect_server_metadata_unknown_os(monkeypatch):
@@ -1459,7 +1468,10 @@ def test_fetch_command_from_controller_headers_default():
     with mock.patch('urllib2.urlopen', mock_urlopen):
         agent.fetch_command_from_controller()
 
-    assert captured_request['headers'] == {'Accept': 'application/json'}
+    assert captured_request['headers'] == {'Accept': 'application/json'}, (
+        "Expected headers {'Accept': 'application/json'}, "
+        'but got %r' % captured_request['headers']
+    )
 
 
 def test_fetch_command_from_controller_headers_with_api_key():
@@ -1486,7 +1498,10 @@ def test_fetch_command_from_controller_headers_with_api_key():
         'Accept': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_with_kwargs():
@@ -1519,7 +1534,10 @@ def test_fetch_command_from_controller_headers_with_kwargs():
         'Customheader': 'custom-value',
         'Xrequestid': '12345'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_kwargs_override():
@@ -1549,7 +1567,10 @@ def test_fetch_command_from_controller_headers_kwargs_override():
         'Accept': 'text/plain',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_fetch_command_from_controller_headers_update():
@@ -1576,7 +1597,10 @@ def test_fetch_command_from_controller_headers_update():
         'Accept': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_post_data_headers_update():
@@ -1605,7 +1629,10 @@ def test_post_data_headers_update():
         'Content-type': 'application/json',
         'Authorization': 'Bearer test-token'
     }
-    assert captured_request['headers'] == expected_headers
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
 
 
 def test_is_process_running_when_any_process_running():
@@ -1734,3 +1761,58 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
                 fallback_logger=agent.fallback_logger,
                 exc_info=True
                 )
+
+
+def test_status_to_dict_format():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+    result = agent.status_to_dict()
+
+    required_keys = set([
+        'os', 'hostname', 'ip', 'server_name', 'uptime', 'timestamp',
+        'healthy'
+    ])
+    assert set(result.keys()) == required_keys
+
+    assert isinstance(result['os'], str)
+    assert isinstance(result['hostname'], str)
+    assert isinstance(result['ip'], (str, type(None)))
+    assert result['server_name'] == 'mock'
+    assert isinstance(result['uptime'], (int, float))
+    assert isinstance(result['timestamp'], str)
+    assert isinstance(result['healthy'], bool)
+
+
+def test_status_to_dict_timestamp_format():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+    result = agent.status_to_dict()
+    timestamp = result['timestamp']
+
+    match = re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp)
+    assert match is not None and match.group(0) == timestamp, (
+        "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
+        % timestamp
+    )
+
+
+def test_status_to_txt():
+    agent = MockAgent(port=12345)
+    agent.collect_server_metadata()
+    agent.setup_logging()
+
+    with open(agent.logfile.name, 'w') as f:
+        f.truncate(0)
+
+    agent.status_to_txt()
+
+    with open(agent.logfile.name, 'r') as f:
+        contents = f.read()
+
+    dict_data = agent.status_to_dict()
+    for key, value in dict_data.items():
+        expected_message = '%s: %s' % (key, value)
+        assert expected_message in contents, (
+            "Expected '%s' in log file contents, but it was not found."
+            % expected_message
+        )

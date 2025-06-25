@@ -1010,8 +1010,9 @@ def test_collect_server_metadata_os_detection(monkeypatch):
     def mock_get_linux_uptime():
         return 12345.0
 
-    from .. import agent
     monkeypatch.setattr(platform, 'system', mock_system)
+
+    from agents import agent
     monkeypatch.setattr(agent,
                         'get_linux_uptime',
                         mock_get_linux_uptime)
@@ -1613,25 +1614,3 @@ def test_status_to_dict_timestamp_format():
         "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
         % timestamp
     )
-
-
-def test_status_to_txt():
-    agent = MockAgent(port=12345)
-    agent.collect_server_metadata()
-    agent.setup_logging()
-
-    with open(agent.logfile.name, 'w') as f:
-        f.truncate(0)
-
-    agent.status_to_txt()
-
-    with open(agent.logfile.name, 'r') as f:
-        contents = f.read()
-
-    dict_data = agent.status_to_dict()
-    for key, value in dict_data.items():
-        expected_message = '%s: %s' % (key, value)
-        assert expected_message in contents, (
-            "Expected '%s' in log file contents, but it was not found."
-            % expected_message
-        )

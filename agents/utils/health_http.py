@@ -11,6 +11,18 @@ logger = logging.getLogger(__name__)
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        """
+        Handle GET requests.
+
+        - If path is '/health':
+          - Returns HTTP 200 with JSON containing uptime, status
+           ('ok' or 'error'), timestamp, and agent name if successful.
+          - Returns HTTP 500 with JSON containing error message
+          if an exception occurs during status computation.
+
+        - For other paths:
+          - Returns HTTP 404 Not Found and logs a warning.
+        """
         if self.path == '/health':
             try:
                 uptime = getattr(self.server, 'uptime', lambda: None)()

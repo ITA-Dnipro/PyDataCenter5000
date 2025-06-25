@@ -1,4 +1,5 @@
 import abc
+import datetime
 import subprocess
 from enum import Enum
 
@@ -21,6 +22,16 @@ class CommandStatus(Enum):
     FAILED = 'failed'
 
 
+COMMAND_REGISTRY = {}  # Dynamic command registry
+
+
+def register_command(name):
+    def wrapped(cls):
+        COMMAND_REGISTRY[name] = cls
+        return cls
+    return wrapped
+
+
 class Command(object):
     """Base class for all commands."""
     __metaclass__ = abc.ABCMeta
@@ -31,6 +42,7 @@ class Command(object):
         pass
 
 
+@register_command('linux')
 @attr.attributes
 class LinuxCommand(Command):
     """Linux shell command."""
@@ -44,20 +56,17 @@ class LinuxCommand(Command):
         return self.shell
 
 
+@register_command('agent')
 @attr.attributes
-class CheckServiceCommand(Command):
-    """Command for check the status of a system service."""
-    service = attr.attr(validator=attr.validators.instance_of(basestring))
+class AgentCommand(Command):
+    """Command for executing agent's method."""
+    method = attr.attr(validator=attr.validators.instance_of(basestring))
+    args = attr.attr(factory=tuple)
+    kwargs = attr.attr(factory=dict)
 
     @property
     def tag(self):
-        return '-'.join([self.service, 'service', 'check'])
-
-
-COMMAND_TYPE_MAP = {
-    'linux': LinuxCommand,
-    'service_check': CheckServiceCommand,
-}
+        return '-'.join(['agent', self.method])
 
 
 @attr.attributes
@@ -67,7 +76,8 @@ class CommandHistory(object):
 
     hostname = attr.attr(validator=attr.validators.instance_of(basestring))
     timestamp = attr.attr(
-        validator=lambda instance, attribute, value: parser.parse(value)
+        converter=parser.parse,
+        validator=attr.validators.instance_of(datetime.datetime),
     )
     status = attr.attr(
         validator=attr.validators.instance_of(CommandStatus),
@@ -85,7 +95,7 @@ class CommandHistory(object):
         if not command_type:
             raise ValueError('Must provide a valid command type')
 
-        command_factory = COMMAND_TYPE_MAP.get(command_type)
+        command_factory = COMMAND_REGISTRY.get(command_type)
         if not command_factory:
             raise ValueError(
                 'Unknown command type: %s' % str(command_factory)
@@ -146,34 +156,20 @@ def execute_shell_command(
     return stdout, stderr
 
 
-def check_service_status(proc, status=ProcessStatus.ACTIVE, **kwargs):
-    """
-    Check status of system process.
-
-    Parameters:
-        proc (str): Process name.
-        status (ProcessStatus): Process status (ACTIVE, ENABLED, or FAILEd).
-            Default is ACTIVE.
-
-    Returns:
-        tuple: Whether process has requested status, stderr.
-    """
-    stdout, stderr = execute_shell_command(
-        ['systemctl', '-'.join('is', status.value), proc], **kwargs
-    )
-    return status in stdout, stderr
-
-
 @singledispatch
-def dispatch_command(command, **kwargs):
-    pass
+def dispatch_command(command, agent, **kwargs):
+    raise TypeError('Unknown command type: %s' % type(command))
 
 
 @dispatch_command.register(LinuxCommand)
-def _(command, **kwargs):
+def _(command, agent, **kwargs):
     return execute_shell_command(command.shell, **kwargs)
 
 
-@dispatch_command.register(CheckServiceCommand)
-def _(command, status=ProcessStatus.ACTIVE, **kwargs):
-    return check_service_status(command.proc, status)
+@dispatch_command.register(AgentCommand)
+def _(command, agent, **kwargs):
+    method = getattr(agent, command.method)
+    if not method:
+        raise AttributeError('Agent does not have method %s' % command.method)
+
+    return method(*command.args, **command.kwargs)

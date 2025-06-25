@@ -9,8 +9,7 @@ import mock
 import psutil
 import pytest
 import urllib2
-
-from ..agent import CommandHistory, ServerAgent
+from agents_infra.agents.base import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -1115,7 +1114,7 @@ def test_get_ip_from_interface_not_found(monkeypatch):
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    from agents.agent import get_ip_from_interface
+    from agents_infra.agents.base import get_ip_from_interface
     assert get_ip_from_interface('nonexistent_interface') is None
 
 
@@ -1133,7 +1132,7 @@ def test_get_ip_from_interface_loopback_only(monkeypatch):
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    from agents.agent import get_ip_from_interface
+    from agents_infra.agents.base import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') is None
 
 
@@ -1151,7 +1150,7 @@ def test_get_ip_from_interface_valid_ipv4(monkeypatch):
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    from agents.agent import get_ip_from_interface
+    from agents_infra.agents.base import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
 
 
@@ -1177,7 +1176,7 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    from agents.agent import get_ip_from_interface
+    from agents_infra.agents.base import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
 
 
@@ -1655,7 +1654,9 @@ def test_is_process_running_with_error():
     agent = MockAgent(processes=['nginx'])
 
     with mock.patch('subprocess.Popen', side_effect=OSError('boom')):
-        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.agents.base.maybe_log_message'
+        ) as mock_log:
 
             result = agent._is_process_running()
 
@@ -1676,7 +1677,7 @@ def test_is_ssh_service_active_returns_true_when_active():
     agent = MockAgent()
     output = 'active\n'
 
-    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
         mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
@@ -1691,7 +1692,7 @@ def test_is_ssh_service_active_returns_false_when_inactive():
     agent = MockAgent()
     output = 'inactive\n'
 
-    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
         mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
@@ -1706,7 +1707,7 @@ def test_is_ssh_service_active_returns_false_when_output_empty():
     agent = MockAgent()
     output = ''
 
-    with mock.patch('agents.agent.subprocess.Popen') as mock_popen:
+    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
         mock_popen.return_value = mock_popen_with_output(output, '')
 
         result = agent.is_ssh_service_active()
@@ -1721,10 +1722,12 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
     agent = MockAgent()
 
     with mock.patch(
-        'agents.agent.subprocess.Popen',
+        'agents_infra.agents.base.subprocess.Popen',
         side_effect=OSError('boom')
     ):
-        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.agents.base.maybe_log_message'
+        ) as mock_log:
             result = agent.is_ssh_service_active()
 
             assert result is False, 'Expected return False, when OSError'
@@ -1733,4 +1736,4 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
                 agent.logger,
                 fallback_logger=agent.fallback_logger,
                 exc_info=True
-                )
+            )

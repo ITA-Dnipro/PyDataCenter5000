@@ -1,4 +1,4 @@
-from . import agent
+from .agents import base as agent
 from .utils import configtools
 
 # Make sure all global configurations (from agents/config.ini) are

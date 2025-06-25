@@ -8,10 +8,10 @@ from .logtools import maybe_log_message
 
 
 def load_global_config():
-    """Attempt loading agents global config file at agents/global.ini."""
+    """Attempt loading agents global config file at agents_infra/global.ini."""
     config = ConfigParser.ConfigParser()
     files = config.read(
-        pkg_resources.resource_filename('agents', 'global.ini')
+        pkg_resources.resource_filename('agents_infra', 'global.ini')
     )
 
     if not files:

@@ -17,14 +17,13 @@ import pkg_resources
 import psutil
 import Queue
 import urllib2
+from agents_infra.utils import configtools
+from agents_infra.utils.logtools import maybe_log_message
 from dateutil import parser
 from urlparse import urljoin
 
-from .utils.configtools import get_config_option, parse_csv_list
-from .utils.logtools import maybe_log_message
-
 log_config_path = pkg_resources.resource_filename(
-    'agents.utils.logtools', 'logconfig.ini'
+    'agents_infra.utils.logtools', 'logconfig.ini'
 )
 
 PROTOCOLS = ('tcp', 'udp')
@@ -234,7 +233,7 @@ class ServerAgent(object):
         config.read(filename)
 
         if config.sections():
-            self.server_name = get_config_option(
+            self.server_name = configtools.get_config_option(
                 config,
                 'server',
                 'name',
@@ -243,7 +242,7 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-            self.port = get_config_option(
+            self.port = configtools.get_config_option(
                 config,
                 'server',
                 'port',
@@ -253,24 +252,24 @@ class ServerAgent(object):
                 cast=int,
             )
 
-            self.processes = get_config_option(
+            self.processes = configtools.get_config_option(
                 config,
                 'server',
                 'processes',
                 default=self.processes,
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
-                cast=parse_csv_list,
+                cast=configtools.parse_csv_list,
             )
 
             # Append server-specific critical_processes
-            critical_processes = get_config_option(
+            critical_processes = configtools.get_config_option(
                 config,
                 'server',
                 'critical_processes',
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
-                cast=parse_csv_list,
+                cast=configtools.parse_csv_list,
             )
             # Extend, avoiding duplicates
             if critical_processes:
@@ -279,7 +278,7 @@ class ServerAgent(object):
                     if proc not in self.critical_processes
                 )
 
-            self.interface = get_config_option(
+            self.interface = configtools.get_config_option(
                 config,
                 'server',
                 'interface',
@@ -287,13 +286,13 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-            whitelist_commands = get_config_option(
+            whitelist_commands = configtools.get_config_option(
                 config,
                 'controller',
                 'whitelist_commands',
                 logger=self.logger,
                 fallback_logger=self.fallback_logger,
-                cast=parse_csv_list,
+                cast=configtools.parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
             if whitelist_commands:

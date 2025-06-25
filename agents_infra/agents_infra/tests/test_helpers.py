@@ -1,8 +1,7 @@
 import logging
 
 import mock
-
-from agents.utils.helpers import restart_service
+from agents_infra.utils.helpers import restart_service
 
 
 def test_restart_service_success_on_first_try():
@@ -12,7 +11,7 @@ def test_restart_service_success_on_first_try():
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
             with mock.patch(
-                'agents.utils.helpers.maybe_log_message'
+                'agents_infra.utils.helpers.maybe_log_message'
             ) as mock_log:
 
                 mock_call.return_value = 0  # Success on first try
@@ -70,7 +69,7 @@ def test_restart_service_success_on_third_try():
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
             with mock.patch(
-                'agents.utils.helpers.maybe_log_message'
+                'agents_infra.utils.helpers.maybe_log_message'
             ) as mock_log:
 
                 # First two attempts fail (return code 1),
@@ -153,7 +152,7 @@ def test_restart_service_fails_all_attempts():
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
             with mock.patch(
-                'agents.utils.helpers.maybe_log_message'
+                'agents_infra.utils.helpers.maybe_log_message'
             ) as mock_log:
 
                 mock_call.return_value = 1  # Always fails
@@ -222,12 +221,12 @@ def test_restart_service_raises_exception():
     fallback_logger = mock.Mock()
 
     with mock.patch(
-        'agents.utils.helpers.subprocess.call',
+        'agents_infra.utils.helpers.subprocess.call',
         side_effect=OSError('boom')
     ):
         with mock.patch('time.sleep'):
             with mock.patch(
-                'agents.utils.helpers.maybe_log_message'
+                'agents_infra.utils.helpers.maybe_log_message'
             ) as mock_log:
 
                 result = restart_service(logger, fallback_logger, 'named')

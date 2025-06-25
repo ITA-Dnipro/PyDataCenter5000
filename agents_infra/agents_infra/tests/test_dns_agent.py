@@ -4,9 +4,8 @@ import os
 import tempfile
 
 import pytest
+from agents_infra.agents.dns.dns import DNSAgent
 from mock import MagicMock, patch
-
-from agents.dns.dns import DNSAgent
 
 
 @pytest.yield_fixture
@@ -104,7 +103,7 @@ def test_is_dns_running_raises_oserror(dns_agent):
     Test that is_dns_running() returns False and logs an error
     when subprocess.Popen raises an OSError.
     """
-    with patch('agents.dns.dns.subprocess.Popen',
+    with patch('agents_infra.agents.dns.dns.subprocess.Popen',
                side_effect=OSError('Mocked OSError')):
         result = dns_agent.is_dns_running()
 
@@ -131,8 +130,12 @@ def test_maybe_restart_service_when_all_services_active(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=True)
     dns_agent.is_ssh_service_active = MagicMock(return_value=True)
 
-    with patch('agents.dns.dns.maybe_log_message') as mock_log:
-        with patch('agents.dns.dns.restart_service') as mock_restart:
+    with patch(
+        'agents_infra.agents.dns.dns.maybe_log_message'
+    ) as mock_log:
+        with patch(
+            'agents_infra.agents.dns.dns.restart_service'
+        ) as mock_restart:
 
             result = dns_agent.maybe_restart_service()
 
@@ -157,8 +160,12 @@ def test_maybe_restart_service_when_dns_inactive(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=False)
     dns_agent.is_ssh_service_active = MagicMock(return_value=True)
 
-    with patch('agents.dns.dns.maybe_log_message') as mock_log:
-        with patch('agents.dns.dns.restart_service') as mock_restart:
+    with patch(
+        'agents_infra.agents.dns.dns.maybe_log_message'
+    ) as mock_log:
+        with patch(
+            'agents_infra.agents.dns.dns.restart_service'
+        ) as mock_restart:
 
             result = dns_agent.maybe_restart_service()
 
@@ -182,8 +189,10 @@ def test_maybe_restart_service_when_ssh_inactive(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=True)
     dns_agent.is_ssh_service_active = MagicMock(return_value=False)
 
-    with patch('agents.dns.dns.maybe_log_message') as mock_log:
-        with patch('agents.dns.dns.restart_service') as mock_restart:
+    with patch('agents_infra.agents.dns.dns.maybe_log_message') as mock_log:
+        with patch(
+            'agents_infra.agents.dns.dns.restart_service'
+        ) as mock_restart:
 
             result = dns_agent.maybe_restart_service()
 
@@ -207,8 +216,10 @@ def test_maybe_restart_service_when_both_services_inactive(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=False)
     dns_agent.is_ssh_service_active = MagicMock(return_value=False)
 
-    with patch('agents.dns.dns.maybe_log_message') as mock_log:
-        with patch('agents.dns.dns.restart_service') as mock_restart:
+    with patch('agents_infra.agents.dns.dns.maybe_log_message') as mock_log:
+        with patch(
+            'agents_infra.agents.dns.dns.restart_service'
+        ) as mock_restart:
 
             result = dns_agent.maybe_restart_service()
 

@@ -4,9 +4,8 @@ import tempfile
 from logging.handlers import MemoryHandler
 
 import pytest
+from agents_infra.agents.web.web import WebAgent
 from mock import patch
-
-from agents.web.web import WebAgent
 
 
 class DummyWebAgent(WebAgent):

@@ -4,10 +4,9 @@ import socket
 import tempfile
 
 import pytest
+from agents_infra.agents.base import ServerAgent
+from agents_infra.agents.smtp.smtp import SMTPAgent
 from mock import MagicMock, patch
-
-from agents.agent import ServerAgent
-from agents.smtp.smtp import SMTPAgent
 
 
 class DummySMTPAgent(SMTPAgent):
@@ -62,7 +61,7 @@ def test_service_healthy_fails_due_to_missing_banner(
     assert result is False
 
 
-@patch('agents.smtp.smtp.socket.socket')
+@patch('agents_infra.agents.smtp.smtp.socket.socket')
 def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     """
     Test that check_banner() returns
@@ -90,7 +89,7 @@ def test_check_banner_raises_socket_error(mock_socket, smtp_agent):
     assert 'error' in log_content.lower()
 
 
-@patch('agents.smtp.smtp.socket.socket')
+@patch('agents_infra.agents.smtp.smtp.socket.socket')
 def test_check_banner_success(mock_socket, smtp_agent):
     """
     Test that check_banner() successfully reads

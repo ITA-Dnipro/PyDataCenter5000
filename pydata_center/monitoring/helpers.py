@@ -24,6 +24,7 @@ def get_latest_agents(cutoff_seconds=60):
             'uptime': agent.uptime,
             'timestamp': agent.timestamp,
             'healthy': agent.healthy,
+            'tags': agent.tags,
             'offline': agent.timestamp < cutoff_time,
         }
         for agent in latest_statuses

@@ -36,3 +36,19 @@ h1 {
 .status-dot.red {
   background-color: #F44336;
 }
+
+.tag {
+  display: inline-block;
+  background-color: #e0e0e0;
+  color: #333;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.tags-cell {
+  max-width: 300px;
+}

@@ -18,6 +18,7 @@
         <th>IP Address</th>
         <th>Uptime (s)</th>
         <th>Last Seen</th>
+        <th>Tags</th>
         <th>Healthy</th>
         <th>Status</th>
       </tr>
@@ -30,6 +31,15 @@
           <td>{{ agent.ip }}</td>
           <td>{{ agent.uptime }}</td>
           <td>{{ agent.timestamp|date:"Y-m-d H:i:s" }}</td>
+          <td class="tags-cell">
+            {% if agent.tags %}
+              {% for key, value in agent.tags.items %}
+                <span class="tag">{{ key }}: {{ value }}</span>
+              {% endfor %}
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td>
             <span class="status-dot {% if agent.healthy %}green{% else %}red{% endif %}"></span>
             {{ agent.healthy }}
@@ -45,7 +55,7 @@
         </tr>
       {% empty %}
         <tr>
-          <td colspan="6">No agent data available.</td>
+          <td colspan="7">No agent data available.</td>
         </tr>
       {% endfor %}
     </tbody>

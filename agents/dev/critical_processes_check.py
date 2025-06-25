@@ -39,59 +39,54 @@ def import_agent_class(agent_type):
     return getattr(module, class_name)
 
 
+def safe_is_running(agent, proc_name):
+    """
+    Check a single process name against agent._is_process_running()
+    without clobbering agent.processes permanently.
+    """
+    original = agent.processes
+    try:
+        agent.processes = [proc_name]
+        return agent._is_process_running()
+    finally:
+        agent.processes = original
+
+
 def monitor_processes(agent, interval, stop_event):
     """
-    Run in a background thread: periodically check each critical process
-    and overall service health, log state transitions, and attempt restarts.
+    Background thread that tracks each critical process by name.
+
+    Logs “RUNNING” or “DOWN” once at startup, then only logs on
+    transitions (DOWN→RECOVERED or RECOVERED→DOWN).
 
     Args:
-        agent (ServerAgent): Initialized agent instance.
-        interval (int): Seconds between each health check iteration.
-        stop_event (threading.Event): Event to signal clean shutdown.
+        agent (ServerAgent): your agent instance, with .critical_processes.
+        interval (int): seconds between checks.
+        stop_event (threading.Event): set() to exit the loop cleanly.
     """
     logger = agent.logger
     last_status = {}
 
-    # Initial per-process check
+    # Initial sweep
     for proc in agent.critical_processes:
-        up = agent._is_process_running(proc_name=proc)
+        up = safe_is_running(agent, proc)
         last_status[proc] = up
         if up:
             logger.info('%s is RUNNING', proc)
         else:
             logger.warning('%s is DOWN', proc)
 
-    # Initial overall service health
-    last_health = agent.is_service_healthy()
-    if last_health:
-        logger.info('Service is HEALTHY')
-    else:
-        logger.warning('Service is UNHEALTHY. Attempting restart...')
-        agent.maybe_restart_service()
-
-    # Monitoring loop
+    # Periodic loop
     while not stop_event.is_set():
         time.sleep(interval)
-
-        # Check transitions for each process
         for proc in agent.critical_processes:
-            up = agent._is_process_running(proc_name=proc)
+            up = safe_is_running(agent, proc)
             prev = last_status.get(proc, False)
             if prev and not up:
                 logger.warning('%s is DOWN', proc)
             elif not prev and up:
                 logger.info('%s has RECOVERED', proc)
             last_status[proc] = up
-
-        # Check overall service transition
-        healthy = agent.is_service_healthy()
-        if healthy != last_health:
-            if healthy:
-                logger.info('Service has RECOVERED and is HEALTHY')
-            else:
-                logger.warning('Service is UNHEALTHY. Attempting restart...')
-                agent.maybe_restart_service()
-            last_health = healthy
 
     logger.info('Monitor thread exiting')
 

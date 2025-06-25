@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
@@ -7,6 +8,7 @@ from django.utils.timezone import is_naive, make_aware, now, utc
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
+from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
@@ -17,8 +19,8 @@ from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
-from .serializers import (CommandHistorySerializer, ServerStatusSerializer,
-                          TriggeredAlertSerializer)
+from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
+                          ServerStatusSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
         description='Receive and log server status data sent via POST request.'
 )
 @api_view(['POST'])
+@permission_required('monitoring.add_serverstatus', raise_exception=True)
 def receive_status(request):
     """
     Receive and log server status data sent via POST request.
@@ -126,7 +129,7 @@ def receive_status(request):
 class CommandHistoryViewSet(viewsets.ModelViewSet):
     queryset = CommandHistory.objects.all()
     serializer_class = CommandHistorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOrOperatorForWrite]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['hostname', 'status']
@@ -285,6 +288,7 @@ def submit_command_result(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@permission_required('monitoring.view_serverstatus', raise_exception=True)
 def dashboard_view(request):
     """
     Render the monitoring dashboard page.
@@ -297,6 +301,31 @@ def dashboard_view(request):
         template_name='monitoring/dashboard.html',
         context={'agents': agents}
     )
+
+
+@api_view(['POST'])
+def create_agent_metric(request):
+    hostname = request.query_params.get('hostname')
+
+    if not hostname:
+        return Response({'error': 'Hostname is required'}, status=400)
+
+    try:
+        server_status = ServerStatus.objects.get(hostname=hostname)
+    except ServerStatus.DoesNotExist:
+        return Response(
+            {'error': f'Server with hostname {hostname} not found'},
+            status=404
+        )
+
+    data = request.data.copy()
+    data['server_status'] = server_status.id  # replace hostname with FK ID
+
+    serializer = AgentMetricSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({'status': 'metric recorded'}, status=201)
+    return Response(serializer.errors, status=400)
 
 
 class TriggeredAlertViewSet(viewsets.ReadOnlyModelViewSet):

@@ -4,8 +4,9 @@ from unittest.mock import patch
 import pytest
 import requests
 from dateutil.parser import isoparse
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.cache import cache
+from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
@@ -18,6 +19,12 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 
+@pytest.fixture(scope='session', autouse=True)
+def setup_roles(django_db_setup, django_db_blocker):
+    with django_db_blocker.unblock():
+        call_command('init_roles')
+
+
 class ServerStatusAPITest(TestCase):
 
     @classmethod
@@ -26,6 +33,9 @@ class ServerStatusAPITest(TestCase):
             username='testuser',
             password='testpass'
         )
+        # add user to Operator group
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
         cls.url = '/api/v1/server/status/'
 
     def setUp(self):
@@ -168,8 +178,12 @@ class ReceiveStatusEndpointTests(APITestCase):
             username=cls.username, password=cls.password
         )
 
+        # add user to group Operator
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
+
     def setUp(self):
-        self.client.login(username=self.username, password=self.password)
+        self.client.force_authenticate(user=self.user)
 
     def _get_valid_status_data(self):
         return {
@@ -690,6 +704,98 @@ class TestEvaluateAgentAlerts:
 
         assert not mock_send.called
         assert 'Unknown alert destination unknown' in caplog.text
+
+
+class TestCreateAgentMetrics(APITestCase):
+
+    def setUp(self):
+        self.url = '/api/v1/agent/metrics/'
+        self.hostname = 'test-host'
+        self.ip = '192.168.56.11'
+        self.os_type = 'linux'
+        self.uptime = 123456
+        self.timestamp = timezone.now()
+
+        self.server = ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip=self.ip,
+            os=self.os_type,
+            uptime=self.uptime,
+            timestamp=self.timestamp,
+            server_name='Test Server'
+        )
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass'
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def get_cpu_usage(self):
+        return 45.0
+
+    def get_ram_usage(self):
+        return 70.5
+
+    def get_disk_usage(self):
+        return 55.0
+
+    def get_load_average(self):
+        return 1.23
+
+    def generate_report(self):
+        return {
+            'hostname': self.hostname,
+            'cpu': self.get_cpu_usage(),
+            'ram': self.get_ram_usage(),
+            'disk': self.get_disk_usage(),
+            'load_avg': self.get_load_average(),
+            'timestamp': timezone.now(),
+        }
+
+    def test_create_metric_successfully(self):
+        payload = self.generate_report()
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], 'metric recorded')
+        self.assertEqual(AgentMetric.objects.count(), 1)
+
+    def test_create_metric_missing_hostname(self):
+        payload = self.generate_report()
+        del payload['hostname']
+        response = self.client.post(self.url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('error', response.data)
+
+    def test_create_metric_with_unknown_hostname(self):
+        payload = self.generate_report()
+        response = self.client.post(
+            f'{self.url}?hostname=nonexistent-host',
+            payload,
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn('error', response.data)
+
+    def test_create_metric_invalid_data(self):
+        payload = self.generate_report()
+        payload['cpu'] = 'not-a-number'
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('cpu', response.data)
 
 
 class MetricsHistoryViewTests(APITestCase):

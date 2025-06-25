@@ -106,7 +106,7 @@ def main():
     )
     parser.add_argument(
         'agent_type',
-        choices=['ntp', 'dns', 'smtp'],
+        choices=['ntp', 'dns', 'smtp', 'web'],
         help='Which agent to monitor'
     )
     parser.add_argument(

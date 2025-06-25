@@ -1,8 +1,10 @@
 import logging
+import os
 
 import mock
+import pytest
 
-from agents.utils.helpers import restart_service
+from agents.utils.helpers import get_env_or_param, restart_service
 
 
 def test_restart_service_success_on_first_try():
@@ -239,3 +241,29 @@ def test_restart_service_raises_exception():
                     'Expected exactly 3 log messages: '
                     'starting, restarting, and exception.'
                 )
+
+
+def test_web_agent_get_env_or_param():
+    """Test environment variable handling in get_env_or_param fucntion."""
+    original_value = os.environ.get('TEST_VAR')
+
+    try:
+        os.environ['TEST_VAR'] = 'env_value'
+        assert get_env_or_param(None, 'TEST_VAR') == 'env_value', (
+            'Should return the environment variable value when param is None.'
+        )
+
+        assert get_env_or_param('mock_val', 'TEST_VAR') == 'mock_val', (
+            'Should return the provided param value when it is not None.'
+        )
+
+        del os.environ['TEST_VAR']
+        with pytest.raises(ValueError):
+            get_env_or_param(None, 'MISSING_VAR')
+
+    finally:
+        # Clean up
+        if original_value is not None:
+            os.environ['TEST_VAR'] = original_value
+        elif 'TEST_VAR' in os.environ:
+            del os.environ['TEST_VAR']

@@ -152,12 +152,6 @@ class ServerAgent(object):
             },
         )
 
-    @classmethod
-    def cmd(cls, method):
-        if method.__name__ not in cls.whitelist_commands:
-            cls.whitelist_commands.append(method.__name__)
-        return method
-
     @property
     def logger(self):
         if not self.server_name:
@@ -290,7 +284,6 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
-    @cmd
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
@@ -356,7 +349,6 @@ class ServerAgent(object):
             '%Y-%m-%d %H:%M:%S'
         )
 
-    @cmd
     def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
@@ -448,7 +440,6 @@ class ServerAgent(object):
 
             return False
 
-    @cmd
     def is_ssh_service_active(self):
         try:
             proc = subprocess.Popen(
@@ -474,7 +465,6 @@ class ServerAgent(object):
                 )
             return False
 
-    @cmd
     @abc.abstractmethod
     def is_service_healthy(self):
         """
@@ -483,7 +473,6 @@ class ServerAgent(object):
         """
         return self._is_process_running() and self.is_ssh_service_active()
 
-    @cmd
     @abc.abstractmethod
     def maybe_restart_service(self):
         pass
@@ -546,7 +535,6 @@ class ServerAgent(object):
                 fallback_logger=self.fallback_logger,
             )
 
-    @cmd
     def post_data(
         self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
     ):
@@ -800,6 +788,13 @@ class ServerAgent(object):
                     'Queue is full - could not append command',
                     logger=self.logger,
                 )
+        else:
+            maybe_log_message(
+                'Command %s not permitted' % command_history.command.tag,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.WARNING,
+            )
 
     def get_command_from_queue(self, block=False, timeout=None):
         try:
@@ -819,14 +814,10 @@ class ServerAgent(object):
 
         if command_history:
             try:
-                result = dispatch_command(command_history.command)
-
-                result = result[0]  # If everything went fine, get stdout
+                result = dispatch_command(command_history.command, self)
 
                 command_history.status = CommandStatus.DONE
             except BadProcessReturnCode as e:
-                result = result[1]  # Get stderr
-
                 maybe_log_message(
                     'Command failed due to error: %s.\nstderr: %s' % (
                         str(e), result

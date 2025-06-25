@@ -65,8 +65,7 @@ class AgentMetric(models.Model):
 class CommandHistory(models.Model):
     COMMAND_TYPE_CHOICES = [
         ('linux', 'Linux Command'),
-        ('health_check', 'Health Check Command'),
-        ('service_check', 'Service Check Command'),
+        ('agent', 'Agent Command'),
     ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -103,13 +102,11 @@ class CommandHistory(models.Model):
         # Validate command's params depending on its type
         if 'linux' in self.type:
             required = {'shell'}
-        elif 'service_check' in self.type:
-            required = {'service'}
 
-        if not required.issubset(self.params):
-            raise ValidationError(
-                {'params': f'{self.type} command required keys: {required}'}
-            )
+            if not required.issubset(self.params):
+                raise ValidationError({
+                    'params': f'{self.type} command required keys: {required}'
+                })
 
 
 class AlertRule(models.Model):

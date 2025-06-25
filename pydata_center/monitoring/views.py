@@ -319,7 +319,7 @@ def create_agent_metric(request):
         )
 
     data = request.data.copy()
-    data['server_status'] = server_status.id  # replace hostname with FK ID
+    data['server_status'] = server_status.id
 
     serializer = AgentMetricSerializer(data=data)
     if serializer.is_valid():
@@ -431,3 +431,14 @@ def metrics_graphing_page(request):
         'historical_metrics.html',
         {'hostnames': hostnames}
     )
+
+
+class ServerStatusViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet for ServerStatus.
+    Returns all ServerStatus records, including
+    prediction_flag and nested metrics.
+    """
+    queryset = ServerStatus.objects.all().order_by('-created_at')
+    serializer_class = ServerStatusSerializer
+    permission_classes = [IsAdminOrOperatorForWrite]

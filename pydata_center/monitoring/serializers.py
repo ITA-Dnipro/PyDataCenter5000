@@ -4,6 +4,11 @@ from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 
 
 class AgentMetricSerializer(serializers.ModelSerializer):
+    """
+    Serializer for AgentMetric.
+    Exposes a single metric record
+    (timestamp + resource usages).
+    """
     class Meta:
         model = AgentMetric
         fields = (
@@ -13,7 +18,8 @@ class AgentMetricSerializer(serializers.ModelSerializer):
             'ram',
             'disk',
             'load_avg',
-            'server_status',
+            'nginx_down_count',
+            'uptime',
         )
         read_only_fields = ('id', 'timestamp')
 
@@ -39,12 +45,34 @@ class AgentMetricSerializer(serializers.ModelSerializer):
 
 
 class ServerStatusSerializer(serializers.ModelSerializer):
+    """
+    Serializer for ServerStatus.
+    Includes nested AgentMetric records
+    and the prediction_flag field.
+    """
     metrics = AgentMetricSerializer(many=True, read_only=True)
 
     class Meta:
         model = ServerStatus
-        fields = '__all__'
-        read_only_fields = ('id', 'created_at')
+        fields = [
+            'id',
+            'hostname',
+            'ip',
+            'uptime',
+            'timestamp',
+            'os',
+            'healthy',
+            'server_name',
+            'created_at',
+            'prediction_flag',
+            'metrics',
+        ]
+        read_only_fields = (
+            'id',
+            'created_at',
+            'metrics',
+            'prediction_flag',
+        )
 
     def validate_hostname(self, value):
         if ' ' in value:

@@ -17,6 +17,17 @@ class ServerStatus(models.Model):
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+    prediction_flag = models.CharField(
+        max_length=20,
+        choices=[
+            ('At Risk', 'At Risk'),
+            ('Anomalous', 'Anomalous'),
+            ('No Heartbeat', 'No Heartbeat'),
+        ],
+        null=True,
+        blank=True,
+        help_text='Prognosis result: At Risk / Anomalous / No Heartbeat'
+    )
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
@@ -54,7 +65,7 @@ class AgentMetric(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     server_status = models.ForeignKey(
-        ServerStatus, on_delete=models.CASCADE, related_name='server_status'
+        ServerStatus, on_delete=models.CASCADE, related_name='metrics'
     )
 
     def __str__(self):

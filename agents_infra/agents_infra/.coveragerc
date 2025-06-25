@@ -1,8 +1,8 @@
 [run]
 omit =
-    agents_infra/dev/*
+    */agents_infra/dev/*
 
 [html]
 directory = agents_infra/htmlcov
 omit =
-    agents_infra/dev/*
+    */agents_infra/dev/*

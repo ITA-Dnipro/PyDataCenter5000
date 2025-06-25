@@ -22,7 +22,7 @@ from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
                           ServerStatusSerializer, TriggeredAlertSerializer)
-from .utils import extract_status_data, get_client_ip
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 

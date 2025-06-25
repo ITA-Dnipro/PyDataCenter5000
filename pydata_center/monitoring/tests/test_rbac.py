@@ -2,11 +2,9 @@ import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
-from django.utils.timezone import now
 from monitoring.admin import CommandHistoryAdmin
-from monitoring.models import CommandHistory, ServerStatus
+from monitoring.models import CommandHistory
 from monitoring.permissions import IsAdminOrOperatorForWrite
-from rest_framework.permissions import SAFE_METHODS
 from rest_framework.test import APIClient, APIRequestFactory
 
 

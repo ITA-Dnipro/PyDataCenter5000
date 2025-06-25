@@ -1,10 +1,8 @@
-import datetime
 import json
 import unittest
 
 import mock
 import StringIO
-from BaseHTTPServer import HTTPServer
 
 from agents.utils.health_http import HealthHandler
 from agents.utils.health_server_manager import HealthServerManager

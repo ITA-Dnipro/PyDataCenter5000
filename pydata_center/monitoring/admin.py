@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 

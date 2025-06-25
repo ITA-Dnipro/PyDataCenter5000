@@ -2,7 +2,7 @@ module VagrantCommon
   def self.configure_box(config, env)
     config.vm.box = env["OS"]
     config.vm.hostname = env["HOSTNAME"]
-    config.vm.synced_folder "agents", "/home/vagrant/agents"
+    config.vm.synced_folder "agents_infra/agents_infra", "/home/vagrant/agents_infra"
     if env["VM_ARCH"]
       config.vm.box_architecture = env["VM_ARCH"]
     end
@@ -15,10 +15,10 @@ module VagrantCommon
 
   def self.base_provision
     <<-SHELL
-      cd /vagrant/agents/scripts
+      cd /vagrant/agents_infra/scripts
       chmod +x setup-server.sh install-dependencies.sh
       ./setup-server.sh  && ./install-dependencies.sh
-      cp /vagrant/agents/.coveragerc /home/vagrant/.coveragerc
+      cp /vagrant/agents_infra/.coveragerc /home/vagrant/.coveragerc
     SHELL
   end
 end

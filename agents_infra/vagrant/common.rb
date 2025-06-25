@@ -13,7 +13,7 @@ module VagrantCommon
     end
   end
 
-  def self.base_provision 
+  def self.base_provision
     <<-SHELL
       cd /home/vagrant/agents_infra/scripts
       chmod +x setup-server.sh install-dependencies.sh

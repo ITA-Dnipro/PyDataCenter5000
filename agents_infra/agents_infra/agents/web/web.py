@@ -2,9 +2,8 @@ import json
 import logging
 
 import urllib2
-
 from agents_infra.agents.base import ServerAgent
-from agents_infra.utils.helpers import restart_service, get_env_or_param
+from agents_infra.utils.helpers import get_env_or_param, restart_service
 from agents_infra.utils.logtools import maybe_log_message
 
 

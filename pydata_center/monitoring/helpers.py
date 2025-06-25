@@ -9,12 +9,27 @@ from .models import ServerStatus
 def get_latest_agents(query_params=None, cutoff_seconds=60):
     cutoff_time = now() - timedelta(seconds=cutoff_seconds)
 
-    tag_filters = {}
+    filters = {}
     if query_params:
         for key, value in query_params.items():
-            if key.startswith('tag_') and value:
+            cleaned_value = value.strip()
+
+            if not cleaned_value:
+                continue
+
+            if key.startswith('tag_'):
                 filter_key = f'tags__{key[4:]}__icontains'
-                tag_filters[filter_key] = value
+                filters[filter_key] = cleaned_value
+            elif key in {'hostname', 'ip'}:
+                filter_key = f'{key}__icontains'
+                filters[filter_key] = cleaned_value
+            elif key == 'healthy' and cleaned_value in {'true', 'false'}:
+                filters['healthy'] = (cleaned_value == 'true')
+            elif key == 'status':
+                if cleaned_value == 'online':
+                    filters['timestamp__gte'] = cutoff_time
+                elif cleaned_value == 'offline':
+                    filters['timestamp__lt'] = cutoff_time
 
     latest_subquery = ServerStatus.objects.filter(
         hostname=OuterRef('hostname')
@@ -22,7 +37,7 @@ def get_latest_agents(query_params=None, cutoff_seconds=60):
 
     latest_statuses = ServerStatus.objects.filter(
         pk=Subquery(latest_subquery),
-        **tag_filters
+        **filters
     ).order_by('hostname')
 
     return [

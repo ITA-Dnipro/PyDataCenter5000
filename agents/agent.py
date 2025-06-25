@@ -185,6 +185,14 @@ class ServerAgent(object):
 
         config = ConfigParser.ConfigParser()
         config.read(filename)
+        con = {}
+        for section in config.sections():
+            # print('[%s]' % section)
+            for key, value in config.items(section):
+                # print('%s = %s' % (key, value))
+                con['%s' % key] = value
+            # print('')
+        print(con)
 
         if config.sections():
             self.server_name = get_config_option(
@@ -512,86 +520,87 @@ class ServerAgent(object):
                         'POST failed after %d attempts' % max_retries
                     )
 
-    def fetch_command_from_controller(
-        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+    def get_data(
+        self, url, api_key=None, max_retries=3, delay=5, timeout=5
     ):
         """
-        Send GET request to controller to fetch the first pending
-        command for a given server.
+        Sends a GET request to the specified URL with retry logic.
+        Retries up to `max_retries` times with `delay` seconds between
+        attempts. Logs all attempts and failures.
+
+        Returns:
+            str: The response content on success.
+
+        Raises:
+            RuntimeError: If all attempts fail.
         """
-        if not self.controller_url or not self.hostname:
-            maybe_log_message(
-                (
-                    "Couldn't fetch controller command: controller URL or "
-                    'hostname not set'
-                ),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return
-
-        base_api_url = urljoin(self.controller_url, self.api_prefix)
-        fetch_api_url = urljoin(base_api_url, suffix)
-        url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
-
-        headers = {'Accept': 'application/json'}
+        headers = {}
         if api_key:
-            headers.update(
-                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
-            )
-        if kwargs:
-            headers.update(kwargs)
-
-        request = urllib2.Request(url, headers=headers)
-
-        try:
-            response = urllib2.urlopen(request, timeout=timeout)
-
-            data = response.read()
-            response.close()
-
-            status_code = response.getcode()
-
-            maybe_log_message(
-                (
-                    'GET request to controller succeded with '
-                    'status: %s' % status_code
-                ),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO,
+            headers['Authorization'] = '%s %s' % (
+                self.auth_token_type, api_key
             )
 
-            if status_code == 204 or not data.strip():
+        for attempt in range(1, max_retries + 1):
+            try:
                 maybe_log_message(
-                    'No pending commands for server %s' % self.hostname,
+                    '[Attempt %d] Sending GET request to %s' % (attempt, url),
                     logger=self.logger,
                     fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
+                    level=logging.INFO
                 )
 
-                return
+                request = urllib2.Request(url, headers=headers)
 
-            data = json.loads(data)
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
 
-            return data
-        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
-            maybe_log_message(
-                (
-                    'Failed to fetch command - GET request failed '
-                    'due to error: %s' % str(e)
-                ),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
-        except Exception as e:
-            maybe_log_message(
-                'GET request failed due to unexpected error: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
+                maybe_log_message(
+                    'GET request status: %d' % status_code,
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+
+                response.close()
+
+                maybe_log_message(
+                    'Success on attempt %d: %s' % (attempt, result),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.INFO
+                )
+
+                return result
+
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    fallback_logger=self.fallback_logger,
+                    level=logging.ERROR
+                )
+
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.WARNING
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not received. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        fallback_logger=self.fallback_logger,
+                        level=logging.CRITICAL
+                    )
+
+                    raise RuntimeError(
+                        'GET failed after %d attempts' % max_retries
+                    )
 
     def maybe_add_to_queue(self, data):
         """
@@ -611,59 +620,3 @@ class ServerAgent(object):
 
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
-
-    def send_metrics_to_controller(
-        self,
-        suffix='agent/metrics/',
-        api_key=None,
-        max_retries=3,
-        delay=5,
-        timeout=5,
-    ):
-        """
-        Sends a POST request with JSON data to the controller URL,
-        including authentication, and built-in retry logic.
-        """
-        if not self.controller_url:
-            maybe_log_message(
-                "Couldn't send status update: controller URL is not set",
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return
-        base_api_url = urljoin(self.controller_url, self.api_prefix)
-        metrics_api_url = urljoin(base_api_url, suffix)
-        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
-
-        payload = generate_report(self.logger, self.fallback_logger)
-        try:
-            result = self.post_data(
-                url,
-                payload,
-                api_key,
-                max_retries,
-                delay,
-                timeout
-            )
-
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )

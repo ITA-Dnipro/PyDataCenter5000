@@ -115,5 +115,11 @@ def is_process_active(process):
         stdout = stdout.decode('utf-8')
 
     stdout = stdout.strip().lower()
+    if proc.returncode not in (0, 3):  # 0=active, 3=not active/inactive/failed
+        raise Exception(
+            "Failed to check service status for '%s': %s (code %s)" % (
+                process, stderr or stdout, proc.returncode
+            )
+        )
 
     return stdout == 'active'

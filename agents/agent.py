@@ -3,13 +3,9 @@ import datetime
 import json
 import logging
 import logging.config
-import os
 import platform
-import re
 import socket
-import subprocess
 import time
-from collections import Sequence
 
 import attr
 import ConfigParser
@@ -22,7 +18,8 @@ from urlparse import urljoin
 from .utils.configtools import get_config_option, parse_csv_list
 from .utils.helpers import is_process_active, restart_service
 from .utils.logtools import maybe_log_message
-from .utils.networking import get_ip_from_interface, get_linux_uptime
+from .utils.sysinfo import (generate_report, get_ip_from_interface,
+                            get_linux_uptime)
 
 log_config_path = pkg_resources.resource_filename(
     'agents.utils.logtools', 'logconfig.ini'
@@ -381,7 +378,7 @@ class ServerAgent(object):
         finally:
             s.close()
 
-    def _are_all_critical_processes_active(self):
+    def _are_all_critical_processes_active(self, restart=False):
         inactive_processes = 0
 
         try:
@@ -395,15 +392,29 @@ class ServerAgent(object):
                         fallback_logger=self.fallback_logger,
                         exc_info=True
                     )
+                    if restart:
+                        restart_service(
+                            self.logger, self.fallback_logger, proc
+                        )
+
             return inactive_processes == 0
 
         except OSError as e:
             maybe_log_message(
-                'SSH service check failed: %s' % e,
+                'Critical processes check failed: %s' % e,
                 self.logger,
                 fallback_logger=self.fallback_logger,
                 exc_info=True
                 )
+            return False
+
+        except Exception as e:
+            maybe_log_message(
+                'Critical processes check failed: %s' % e,
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                exc_info=True
+            )
             return False
 
     @abc.abstractmethod
@@ -413,33 +424,6 @@ class ServerAgent(object):
         healthy.
         """
         return self._are_all_critical_processes_active()
-
-    def maybe_restart_service(self):
-        inactive_services = []
-
-        for proc in self.critical_processes:
-            if not is_process_active(proc):
-                inactive_services.append(proc)
-
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
-
-            maybe_log_message(
-                'Finished attempts to restart services',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
-            return False
-
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
-        return True
 
     def status_to_dict(self):
         return {
@@ -628,76 +612,6 @@ class ServerAgent(object):
         if command_history.command in self.whitelist_commands:
             self.queue.put(command_history)
 
-    def get_cpu_usage(self, interval=60):
-        """
-        Get the average CPU usage percentage over the last minute.
-        """
-        try:
-            return psutil.cpu_percent(interval=interval)
-        except (psutil.Error, ValueError) as e:
-            maybe_log_message(
-                'Error getting CPU usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return -1.0
-
-    def get_ram_usage(self):
-        """
-        Get the current RAM usage percentage.
-        """
-        try:
-            mem = psutil.virtual_memory()
-            return mem.percent
-        except psutil.Error as e:
-            maybe_log_message(
-                'Error getting RAM usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return -1.0
-
-    def get_load_average(self):
-        """
-        Get the system load average over the last 1 minute.
-        """
-        try:
-            return os.getloadavg()[0]
-        except (OSError, AttributeError) as e:
-            maybe_log_message(
-                'Error getting load average: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return -1.0
-
-    def get_disk_usage(self):
-        """
-        Get the current disk usage percentage for the root filesystem.
-        """
-        try:
-            usage = psutil.disk_usage('/')
-            return usage.percent
-        except psutil.Error as e:
-            maybe_log_message(
-                'Error getting disk usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return -1.0
-
-    def generate_report(self):
-        """
-        Generate a report containing server resource usage.
-        """
-        return {
-            'cpu': self.get_cpu_usage(),
-            'ram': self.get_ram_usage(),
-            'disk': self.get_disk_usage(),
-            'load_avg': self.get_load_average(),
-            'timestamp': datetime.datetime.now().isoformat(),
-        }
-
     def send_metrics_to_controller(
         self,
         suffix='agent/metrics/',
@@ -721,7 +635,7 @@ class ServerAgent(object):
         metrics_api_url = urljoin(base_api_url, suffix)
         url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
 
-        payload = self.generate_report()
+        payload = generate_report(self.logger, self.fallback_logger)
         try:
             result = self.post_data(
                 url,

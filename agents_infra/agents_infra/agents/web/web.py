@@ -1,52 +1,143 @@
+import json
 import logging
-import os
+
+import urllib2
 
 from agents_infra.agents.base import ServerAgent
-from agents_infra.utils.helpers import restart_service
+from agents_infra.utils.helpers import restart_service, get_env_or_param
 from agents_infra.utils.logtools import maybe_log_message
 
 
 class WebAgent(ServerAgent):
+    """
+    Agent for monitoring web server health and status.
+    """
 
     def __init__(
         self,
         server_name='web',
-        port=8000,
+        port=None,
         processes=None,
         critical_processes=None,
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
+        web_server_host=None,
+        web_server_name=None,
     ):
-        if port is None and 'PORT' not in os.environ:
-            raise ValueError('WEB port environment variable is not set.')
-
-        port = port or int(os.environ['PORT'])
+        port = int(get_env_or_param(port, 'PORT'))
 
         super(WebAgent, self).__init__(
             server_name=server_name,
             port=port,
-            processes=processes or ['uvicorn'],
+            processes=processes or ['gunicorn', 'uvicorn', 'nginx'],
             critical_processes=critical_processes,
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
         )
 
+        self.web_server_host = get_env_or_param(web_server_host,
+                                                'WEB_SERVER_HOST')
+        self.web_server_name = get_env_or_param(web_server_name,
+                                                'WEB_SERVER_NAME')
+        self.health_url = self._build_url('health')
+
     def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
-        # TODO: extend health check.
-        status = super(WebAgent, self).is_service_healthy()
-        return status and self.is_port_open(
-            timeout=timeout, payload=payload, packet_size=packet_size
-        )
+        """
+        Check if the web service is healthy.
+
+        Returns:
+            bool: True if the service is healthy, False otherwise.
+        """
+        try:
+            if not self._check_http_health(timeout):
+                return False
+
+            status = super(WebAgent, self).is_service_healthy()
+            return status and self.is_port_open(
+                timeout=timeout, payload=payload, packet_size=packet_size
+            )
+        except Exception as e:
+            maybe_log_message(
+                'Health check failed with error: %s' % str(e),
+                self.logger,
+                self.fallback_logger
+            )
+            return False
+
+    def _check_http_health(self, timeout=2):
+        """
+        Make an HTTP request to the health endpoint and check the response.
+
+        Returns:
+            bool: True if the HTTP health check passes, False otherwise.
+        """
+        try:
+            request = urllib2.Request(self.health_url)
+            response = urllib2.urlopen(request, timeout=timeout)
+
+            if not (200 <= response.getcode() < 300):
+                maybe_log_message(
+                    'Server responded with status code %d' % (
+                        response.getcode()
+                    ),
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            response_data = json.loads(response.read())
+            if 'status' not in response_data:
+                maybe_log_message(
+                    'Health check failed: Response missing status key',
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            server_health_status = response_data['status']
+            if server_health_status != 'ok':
+                maybe_log_message(
+                    'Health check failed: Server status is %s' % (
+                        server_health_status
+                    ),
+                    self.logger,
+                    self.fallback_logger
+                )
+                return False
+
+            return True
+        except Exception as e:
+            maybe_log_message(
+                'HTTP health check failed with error: %s' % str(e),
+                self.logger,
+                self.fallback_logger
+            )
+            return False
+
+    def _build_url(self, endpoint):
+        """
+        Build the full URL for a given endpoint.
+
+        Args:
+            endpoint (str): The API endpoint to call
+
+        Returns:
+            str: The complete URL including host, port and endpoint
+        """
+        return 'http://%s:%d/%s' % (self.web_server_host, self.port, endpoint)
 
     def maybe_restart_service(self):
         inactive_services = []
 
         if not self.is_ssh_service_active():
             inactive_services.append('ssh')
+
+        if not self._check_http_health():
+            inactive_services.append(self.web_server_name)
 
         if inactive_services:
             for service in inactive_services:
@@ -61,7 +152,7 @@ class WebAgent(ServerAgent):
             return False
 
         maybe_log_message(
-            'All services are heathy and running',
+            'All services are healthy and running',
             self.logger,
             fallback_logger=self.fallback_logger,
             level=logging.INFO

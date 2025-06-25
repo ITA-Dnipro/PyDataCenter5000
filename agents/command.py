@@ -66,7 +66,7 @@ class AgentCommand(Command):
 
     @property
     def tag(self):
-        return '-'.join(['agent', self.method])
+        return self.method
 
 
 @attr.attributes

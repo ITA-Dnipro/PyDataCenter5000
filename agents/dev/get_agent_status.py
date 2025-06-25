@@ -35,7 +35,8 @@ def main():
 
     try:
         # Dynamically import agents.<agent_name>.<agent_name>
-        module = __import__('agents.{0}.{0}'.format(agent_name), fromlist=[''])
+        module = __import__('agents.%s.%s' % (agent_name, agent_name),
+                            fromlist=[''])
         # Pick the right class name (e.g. ntp -> NTPAgent, web -> WebAgent)
         if agent_name.lower() == 'web':
             agent_class = getattr(module, 'WebAgent')
@@ -50,7 +51,7 @@ def main():
         )
 
         if os.path.exists(config_path):
-            print('Loading agent from config file: {}'.format(config_path))
+            print('Loading agent from config file: %s' % config_path)
             agent = agent_class.from_config_file(filename=config_path)
         else:
             print('No config file found; using default constructor.')
@@ -76,7 +77,7 @@ def main():
         print('Status dumped to log file successfully.')
 
     except Exception as e:
-        print('Error: {}'.format(e))
+        print('Error: %s' % e)
         sys.exit(1)
 
 

@@ -1,6 +1,7 @@
 [run]
 omit =
     */dev/*
+    */tests/integration/*
 
 [html]
 directory = agents/htmlcov

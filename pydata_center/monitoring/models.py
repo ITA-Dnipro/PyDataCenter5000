@@ -185,3 +185,13 @@ class TriggeredAlert(models.Model):
             f'{self.rule} triggered at {self.triggered_at} '
             f'with message {self.message}'
         )
+
+
+class Webhook(models.Model):
+    url = models.URLField()
+    enabled = models.BooleanField(default=True)
+    description = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Webhook: {self.description or self.url[:30]}'

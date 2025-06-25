@@ -3,6 +3,16 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
+import pkg_resources
+
+LOG_CONFIG_PATH = pkg_resources.resource_filename(
+    'agents.config', 'logging.ini'
+)
+
+
+def get_fallback_logger():
+    return logging.getLogger('fallback')
+
 
 def maybe_log_message(
     message, logger, fallback_logger=None, level=logging.ERROR, **kwargs
@@ -23,8 +33,10 @@ def maybe_log_message(
         try:
             logger.log(level, message, **kwargs)
         except Exception:
-            if fallback_logger:
-                fallback_logger.log(level, message, **kwargs)
+            if not fallback_logger:
+                fallback_logger = get_fallback_logger()
+
+            fallback_logger.log(level, message, **kwargs)
 
 
 def maybe_make_dir(path):

@@ -13,12 +13,12 @@ module VagrantCommon
     end
   end
 
-  def self.base_provision
+  def self.base_provision 
     <<-SHELL
-      cd /vagrant/agents_infra/scripts
+      cd /home/vagrant/agents_infra/scripts
       chmod +x setup-server.sh install-dependencies.sh
       ./setup-server.sh  && ./install-dependencies.sh
-      cp /vagrant/agents_infra/.coveragerc /home/vagrant/.coveragerc
+      cp /home/vagrant/agents_infra/.coveragerc /home/vagrant/.coveragerc
     SHELL
   end
 end

@@ -3,12 +3,12 @@ name: agents tests
 on:
   pull_request:
     paths:
-      - agents/**
+      - agents_infra/**
       - .github/**
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     paths:
-      - agents/**
+      - agents_infra/**
       - .github/**
     branches:
       - main
@@ -33,7 +33,7 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m pytest agents --cov=agents --cov-report=xml --cov-config=agents/.coveragerc
+              python -m pytest agents_infra --cov=agents_infra --cov-report=xml --cov-config=agents_infra/agents_infra/.coveragerc
             "
 
       - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
@@ -44,9 +44,9 @@ jobs:
             python:2.7 \
             bash -c "
               cd /pydata && \
-              pip install -r agents/requirements.txt && \
+              pip install -r agents_infra/requirements.txt && \
               pip install pytest && \
-              python -m pytest agents
+              python -m pytest agents_infra
             "
 
       - name: Upload Coverage Report to Codecov
@@ -55,5 +55,5 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
-          flags: agents
+          flags: agents_infra
           verbose: true

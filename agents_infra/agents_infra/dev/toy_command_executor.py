@@ -9,8 +9,7 @@ import time
 
 import dotenv
 import Queue
-
-from agents.smtp.smtp import SMTPAgent
+from agents_infra.agents.smtp.smtp import SMTPAgent
 
 
 def fetch(agent, credentials, interval=5, stop=None):

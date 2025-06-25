@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 
-from ..smtp.smtp import SMTPAgent
+from agents_infra.agents.smtp.smtp import SMTPAgent
 
 # Add the root directory to sys.path
 sys.path.insert(

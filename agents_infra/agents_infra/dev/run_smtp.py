@@ -3,7 +3,7 @@ from __future__ import print_function
 import argparse
 import json
 
-from agents.smtp.smtp import SMTPAgent
+from agents_infra.agents.smtp.smtp import SMTPAgent
 
 
 def main():

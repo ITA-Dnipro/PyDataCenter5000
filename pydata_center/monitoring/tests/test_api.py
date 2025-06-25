@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-from dateutil.parser import isoparse
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.core.management import call_command

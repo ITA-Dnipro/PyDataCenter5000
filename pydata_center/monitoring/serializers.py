@@ -59,6 +59,13 @@ class ServerStatusSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Invalid server name format.')
         return value
 
+    def validate_tags(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(
+                'Invalid data. Expected a dictionary object.'
+            )
+        return value
+
 
 class CommandHistorySerializer(serializers.ModelSerializer):
     class Meta:

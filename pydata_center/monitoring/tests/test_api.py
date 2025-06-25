@@ -746,7 +746,6 @@ class TestCreateAgentMetrics(APITestCase):
 
     def generate_report(self):
         return {
-            'hostname': self.hostname,
             'cpu': self.get_cpu_usage(),
             'ram': self.get_ram_usage(),
             'disk': self.get_disk_usage(),
@@ -769,7 +768,6 @@ class TestCreateAgentMetrics(APITestCase):
 
     def test_create_metric_missing_hostname(self):
         payload = self.generate_report()
-        del payload['hostname']
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('error', response.data)

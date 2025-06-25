@@ -20,6 +20,7 @@ class AgentMetricSerializer(serializers.ModelSerializer):
             'load_avg',
             'nginx_down_count',
             'uptime',
+            'server_status'
         )
         read_only_fields = ('id', 'timestamp')
 

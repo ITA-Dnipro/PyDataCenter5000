@@ -12,7 +12,8 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from monitoring.email import send_async_email
-from monitoring.models import AgentMetric, AlertRule, ServerStatus
+from monitoring.models import (AgentLogEntry, AgentMetric, AlertRule,
+                               ServerStatus)
 from monitoring.tasks import evaluate_agent_alerts
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
 from rest_framework import status
@@ -1028,4 +1029,91 @@ class MetricsHistoryViewTests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
             f'Expected 200 OK for naive datetime, got {response.status_code}'
+        )
+
+
+class ReceiveLogEndpointTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.operator_group, _ = Group.objects.get_or_create(name='Operator')
+
+        self.operator_user = User.objects.create_user(
+            username='operator', password='pass123'
+        )
+        self.operator_user.groups.add(self.operator_group)
+
+        self.viewer_user = User.objects.create_user(
+            username='viewer', password='pass123'
+        )
+
+        self.valid_payload = {
+            'agent_name': 'agent-01',
+            'timestamp': '2025-06-25T12:30:00Z',
+            'level': 'ERROR',
+            'message': 'Failed to restart ssh service',
+            'context': {'uptime': 123.45, 'ip': '192.168.1.100'}
+        }
+
+        self.invalid_payload = {
+            'agent_name': 'agent-01',
+            # timestamp missing
+            'level': 'ERROR',
+            'message': 'Missing timestamp'
+        }
+
+        self.url = reverse('monitoring:receive_log')
+
+    def test_successful_log_post_by_operator(self):
+        """Operator user can successfully post a valid log."""
+        self.client.force_authenticate(user=self.operator_user)
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED,
+            msg=f'Expected 201 CREATED but got {response.status_code}'
+        )
+        self.assertEqual(
+            AgentLogEntry.objects.count(), 1,
+            msg='Log entry was not created in the database'
+        )
+        self.assertEqual(
+            response.data['agent_name'], 'agent-01',
+            msg='Response data does not contain the correct agent_name'
+        )
+
+    def test_log_post_by_unauthorized_user(self):
+        """Viewer user cannot post logs (permission denied)."""
+        self.client.force_authenticate(user=self.viewer_user)
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_403_FORBIDDEN,
+            msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
+        )
+
+    def test_log_post_by_unauthenticated_user(self):
+        """Unauthenticated users cannot post logs."""
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_403_FORBIDDEN,
+            msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
+        )
+
+    def test_log_post_with_invalid_payload(self):
+        """Posting log with invalid payload returns 400 Bad Request."""
+        self.client.force_authenticate(user=self.operator_user)
+        response = self.client.post(
+            self.url, self.invalid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST,
+            msg=f'Expected 400 BAD REQUEST but got {response.status_code}'
+        )
+        self.assertIn(
+            'timestamp', response.data,
+            msg="Response data does not contain error missing 'timestamp'"
         )

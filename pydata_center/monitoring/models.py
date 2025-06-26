@@ -173,3 +173,32 @@ class Webhook(models.Model):
 
     def __str__(self):
         return f'Webhook: {self.description or self.url[:30]}'
+
+
+class AgentLogEntry(models.Model):
+    """Log entry from the agent."""
+    LEVEL_CHOICES = [
+        ('DEBUG', 'Debug'),
+        ('INFO', 'Info'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+        ('CRITICAL', 'Critical'),
+    ]
+
+    agent_name = models.CharField(max_length=255)
+    timestamp = models.DateTimeField()
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
+    message = models.TextField()
+    context = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return (
+            f'[{self.timestamp}] {self.level} '
+            f'{self.agent_name} - {self.message[:50]}'
+        )

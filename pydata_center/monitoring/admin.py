@@ -3,8 +3,8 @@ from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (AgentMetric, AlertRule, CommandHistory, ServerStatus,
-                     Webhook)
+from .models import (AgentLogEntry, AgentMetric, AlertRule, CommandHistory,
+                     ServerStatus, Webhook)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -98,3 +98,10 @@ class AlertRuleAdmin(admin.ModelAdmin):
 @admin.register(Webhook)
 class WebhookAdmin(admin.ModelAdmin):
     list_display = ('url', 'enabled')
+
+
+@admin.register(AgentLogEntry)
+class AgentLogEntryAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'agent_name', 'level', 'message')
+    list_filter = ('level', 'agent_name', 'timestamp')
+    search_fields = ('message', 'agent_name')

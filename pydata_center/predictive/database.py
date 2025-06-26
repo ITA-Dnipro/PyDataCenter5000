@@ -1,5 +1,9 @@
+import logging
+
 from django.db.models import Prefetch
 from monitoring.models import AgentMetric, ServerStatus
+
+logger = logging.getLogger(__name__)
 
 
 def get_all_server_metrics(window: int = 5):
@@ -55,7 +59,9 @@ def mark_status(server_id: int, status: str):
     )
     if status not in valid_choices:
         raise ValueError(f'Invalid prediction_flag: {status}')
-
-    srv = ServerStatus.objects.get(id=server_id)
-    srv.prediction_flag = status
-    srv.save(update_fields=['prediction_flag'])
+    try:
+        srv = ServerStatus.objects.get(id=server_id)
+        srv.prediction_flag = status
+        srv.save(update_fields=['prediction_flag'])
+    except ServerStatus.DoesNotExist:
+        logger.error(f'ServerStatus with id={server_id} not found.')

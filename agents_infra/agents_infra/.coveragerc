@@ -2,9 +2,3 @@
 omit =
     */agents_infra/dev/*
     */agents_infra/tests/*
-
-[html]
-directory = agents_infra/htmlcov
-omit =
-    */agents_infra/dev/*
-    */agents_infra/tests/*

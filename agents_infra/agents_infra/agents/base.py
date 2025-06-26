@@ -18,7 +18,7 @@ import psutil
 import Queue
 import urllib2
 from dateutil import parser
-from urlparse import urljoin
+from urlparse import urljoin, urlparse
 
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import get_config_option, parse_csv_list
@@ -82,22 +82,25 @@ class ServerAgent(object):
 
     __metaclass__ = abc.ABCMeta
 
-    controller_url = None
+    controller_urls = []
+    current_controller = None
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
     critical_processes = None
+    revert_interval = 900
+    last_success_time = 0
 
     def __init__(
-        self,
-        server_name=None,
-        port=None,
-        processes=None,
-        critical_processes=None,
-        interface=None,
-        protocol=None,
-        whitelist_commands=None,
-        command_queue_size=0,
+            self,
+            server_name=None,
+            port=None,
+            processes=None,
+            critical_processes=None,
+            interface=None,
+            protocol=None,
+            whitelist_commands=None,
+            command_queue_size=0,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -218,6 +221,127 @@ class ServerAgent(object):
 
         self._protocol = value
 
+    def _ping_controller(self, url, api_key, timeout=3, ):
+        """
+            Check if a controller is reachable and healthy.
+        """
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+            sock = socket.create_connection((host, port), timeout)
+            sock.close()
+        except socket.error:
+            self.logger.warning(
+                'Controller unreachable at TCP level: %s' % url
+            )
+            return False
+
+        try:
+            headers = {'Content-Type': 'application/json'}
+            if api_key:
+                headers.update(
+                    {
+                        'Authorization': '%s %s' % (
+                            self.auth_token_type,
+                            api_key
+                        )
+                    }
+                )
+            health_url = url.rstrip('/') + '/health'
+
+            req = urllib2.Request(health_url, headers=headers)
+            response = urllib2.urlopen(req, timeout=timeout)
+
+            body = response.read()
+            data = json.loads(body)
+
+            return data.get('status') == 'healthy'
+        except (
+                urllib2.URLError,
+                urllib2.HTTPError,
+                socket.timeout,
+                ValueError
+        ):
+            self.logger.warning(
+                'Health check failed for controller: %s' % url
+            )
+            return False
+
+    def set_controller_urls(self, urls):
+        """
+            Set the list of controller URLs and initialize current controller.
+
+            The first URL in the list is set as the current controller.
+            Also updates the `last_success_time` to the current time.
+        """
+
+        self.controller_urls = urls
+        if urls:
+            self.current_controller = urls[0]
+            self.last_success_time = time.time()
+
+    def ensure_active_controller(self, api_key):
+        """
+           Ensure there is a healthy active controller.
+           First trying to revert to high priority url.
+        """
+        reverted_controller = self.try_revert_primary_controller(
+            api_key=api_key
+        )
+        if reverted_controller != self.current_controller:
+            return reverted_controller
+
+        if self._ping_controller(self.current_controller, api_key=api_key):
+            return self.current_controller
+
+        current_index = self.controller_urls.index(self.current_controller)
+        for url in self.controller_urls[current_index + 1:]:
+            if self._ping_controller(url, api_key=api_key):
+                self.logger.warning('Controller switched: %s -> %s' % (
+                    self.current_controller, url))
+                self.current_controller = url
+                self.last_success_time = time.time()
+                return url
+
+        self.logger.error('No available controller. All health checks failed.')
+        return None
+
+    def try_revert_primary_controller(self, api_key):
+        """
+           Attempt to revert to the primary (highest-priority) controller.
+
+           Reversion is only attempted if enough time has passed since the last
+           successful use of the current controller (`revert_interval` seconds)
+        """
+        # If already on the primary controller, nothing to do
+        if self.current_controller == self.controller_urls[0]:
+            return self.current_controller
+
+        # Only attempt revert if enough time has passed
+        elapsed = time.time() - self.last_success_time
+        if elapsed < self.revert_interval:
+            return self.current_controller
+
+        # Try controllers with higher priority than current_controller
+        current_index = self.controller_urls.index(self.current_controller)
+        higher_priority_urls = self.controller_urls[:current_index]
+
+        for url in higher_priority_urls:
+            if self._ping_controller(url, api_key=api_key):
+                self.logger.info(
+                    'Reverting controller: %s -> %s' % (
+                        self.current_controller, url
+                    )
+                )
+                self.current_controller = url
+                self.last_success_time = time.time()
+                return url
+
+        # No higher-priority controllers available, keep current
+        return self.current_controller
+
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""
         filename = filename or pkg_resources.resource_filename(
@@ -316,8 +440,8 @@ class ServerAgent(object):
             except (KeyError, AttributeError) as e:
                 maybe_log_message(
                     (
-                        'Could not deduce IP address from interface '
-                        '%s: %s' % (self.interface, str(e))
+                            'Could not deduce IP address from interface '
+                            '%s: %s' % (self.interface, str(e))
                     ),
                     logger=self.logger,
                 )
@@ -422,7 +546,7 @@ class ServerAgent(object):
                 re.search(r'\b{0}\b'.format(re.escape(proc)), line)
                 for proc in self.processes
                 for line in normalized_lines
-                )
+            )
 
         except OSError as e:
             maybe_log_message(
@@ -522,16 +646,16 @@ class ServerAgent(object):
             )
 
     def post_data(
-        self,
-        url,
-        payload,
-        to_controller=True,
-        api_key=None,
-        max_retries=3,
-        delay=5,
-        timeout=5,
-        fail_silently=True,
-        **kwargs
+            self,
+            url,
+            payload,
+            to_controller=True,
+            api_key=None,
+            max_retries=3,
+            delay=5,
+            timeout=5,
+            fail_silently=True,
+            **kwargs
     ):
         """
         Sends a POST request with JSON data to the specified URL with
@@ -557,18 +681,16 @@ class ServerAgent(object):
             **kwargs: Key-value pairs to be appended to the header.
         """
         if to_controller:
-            if not self.controller_url:
+            if not self.current_controller:
                 maybe_log_message(
-                    (
-                        "Couldn't send POST request to controller: "
-                        'controller URL is not set'
-                    ),
+                    "Couldn't send POST request to controller: "
+                    'controller URL is not set',
                     logger=self.logger,
                 )
                 return
 
-            base_api_url = urljoin(self.controller_url, self.api_prefix)
-            url = urljoin(base_api_url, url)
+        base_api_url = urljoin(self.current_controller, self.api_prefix)
+        url = urljoin(base_api_url, url)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:
@@ -640,23 +762,25 @@ class ServerAgent(object):
                         )
 
     def fetch_command_from_controller(
-        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+            self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
     ):
         """
         Send GET request to controller to fetch the first pending
         command for a given server.
         """
-        if not self.controller_url or not self.hostname:
+        if (not self.ensure_active_controller(
+                api_key=api_key
+        ) or not self.hostname):
             maybe_log_message(
                 (
-                    "Couldn't fetch controller command: controller URL or "
+                    "Couldn't fetch controller command: controllers URLs or "
                     'hostname not set'
                 ),
                 logger=self.logger,
             )
             return
 
-        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        base_api_url = urljoin(self.current_controller, self.api_prefix)
         fetch_api_url = urljoin(base_api_url, suffix)
         url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
 
@@ -680,8 +804,8 @@ class ServerAgent(object):
 
             maybe_log_message(
                 (
-                    'GET request to controller succeded with '
-                    'status: %s' % status_code
+                        'GET request to controller succeded with '
+                        'status: %s' % status_code
                 ),
                 logger=self.logger,
                 level=logging.INFO,
@@ -702,8 +826,8 @@ class ServerAgent(object):
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
                 (
-                    'Failed to fetch command - GET request failed '
-                    'due to error: %s' % str(e)
+                        'Failed to fetch command - GET request failed '
+                        'due to error: %s' % str(e)
                 ),
                 logger=self.logger,
                 exc_info=True,
@@ -810,3 +934,55 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
+
+    def send_metrics_to_controller(
+            self,
+            suffix='agent/metrics/',
+            api_key=None,
+            max_retries=3,
+            delay=5,
+            timeout=5,
+    ):
+        """
+        Sends a POST request with JSON data to the controller URL,
+        including authentication, and built-in retry logic.
+        """
+        if not self.ensure_active_controller(api_key=api_key):
+            maybe_log_message(
+                "Couldn't send status update:"
+                ' controllers URLS are not available',
+                logger=self.logger,
+            )
+            return
+        base_api_url = urljoin(self.current_controller, self.api_prefix)
+        metrics_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
+
+        payload = self.generate_report()
+        try:
+            result = self.post_data(
+                url=url,
+                payload=payload,
+                api_key=api_key,
+                max_retries=max_retries,
+                delay=delay,
+                timeout=timeout
+            )
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                exc_info=True,
+            )

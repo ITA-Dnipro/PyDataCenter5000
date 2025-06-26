@@ -1,3 +1,5 @@
+import time
+
 from .agents import base as agent
 from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
@@ -5,14 +7,25 @@ from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
 from .utils import configtools
 
-# Make sure all global configurations (from agents/config.ini) are
-# parsed before any concrete child is instantiated.
 cfg = configtools.load_global_config()
 
 if cfg:
-    agent.ServerAgent.controller_url = configtools.get_config_option(
-        cfg, 'controller', 'url'
-    )
+    urls = configtools.get_config_option(cfg, 'controller', 'urls')
+
+    if isinstance(urls, str):
+        controller_urls = [
+            url.strip() for url in urls.split(',') if url.strip()
+        ]
+    else:
+        controller_urls = []
+
+    agent.ServerAgent.controller_urls = controller_urls
+
+    # Default current controller is the first one
+    if controller_urls:
+        agent.ServerAgent.current_controller = controller_urls[0]
+        agent.ServerAgent.last_success_time = time.time()
+
     agent.ServerAgent.api_prefix = configtools.get_config_option(
         cfg,
         'controller',

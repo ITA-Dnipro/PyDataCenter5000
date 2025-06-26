@@ -80,8 +80,7 @@ class CommandHistory(object):
 
     hostname = attr.attr(validator=attr.validators.instance_of(basestring))
     timestamp = attr.attr(
-        converter=parser.parse,
-        validator=attr.validators.instance_of(datetime.datetime),
+        validator=lambda instance, attribute, value: parser.parse,
     )
     status = attr.attr(
         validator=attr.validators.instance_of(CommandStatus),

@@ -8,6 +8,7 @@ from mock import MagicMock, patch
 from ...agents.base import ServerAgent
 from ...agents.smtp.smtp import SMTPAgent
 
+
 class DummySMTPAgent(SMTPAgent):
 
     def maybe_restart_service(self, *args, **kwargs):

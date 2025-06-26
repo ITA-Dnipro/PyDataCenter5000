@@ -6,3 +6,14 @@ mock==1.0.1
 psutil==5.7.0
 attrs==15.2.0
 python-dateutil==2.6.1
+coverage==3.7.1
+pytest_cov==2.2.0
+cython==0.24
+distribute==0.6.26
+pycrypto==2.6.1
+# pytest-xdist dependencies (for coro integration tests).
+# Not needed for CI.
+setuptools-scm==1.15.7
+apipkg==1.4
+execnet==1.4.1
+pytest-xdist==1.15.0

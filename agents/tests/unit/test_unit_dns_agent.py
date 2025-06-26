@@ -6,7 +6,7 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
-from agents.dns.dns import DNSAgent
+from agents import DNSAgent
 
 
 @pytest.yield_fixture
@@ -145,8 +145,7 @@ def test_maybe_restart_service_when_all_services_active(dns_agent):
             mock_log.assert_called_with(
                 'All services are heathy and running',
                 dns_agent.logger,
-                fallback_logger=dns_agent.fallback_logger,
-                level=logging.INFO
+                level=logging.INFO,
             )
 
 
@@ -164,14 +163,13 @@ def test_maybe_restart_service_when_dns_inactive(dns_agent):
 
             assert result is False
             mock_restart.assert_called_once_with(
-                dns_agent.logger, dns_agent.fallback_logger, 'named'
+                'named', logger=dns_agent.logger
             )
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
                 dns_agent.logger,
-                fallback_logger=dns_agent.fallback_logger,
-                level=logging.INFO
+                level=logging.INFO,
             )
 
 
@@ -189,14 +187,13 @@ def test_maybe_restart_service_when_ssh_inactive(dns_agent):
 
             assert result is False
             mock_restart.assert_called_once_with(
-                dns_agent.logger, dns_agent.fallback_logger, 'ssh'
+                'ssh', logger=dns_agent.logger
             )
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
                 dns_agent.logger,
-                fallback_logger=dns_agent.fallback_logger,
-                level=logging.INFO
+                level=logging.INFO,
             )
 
 
@@ -214,16 +211,12 @@ def test_maybe_restart_service_when_both_services_inactive(dns_agent):
 
             assert result is False
             assert mock_restart.call_count == 2
-            mock_restart.assert_any_call(
-                dns_agent.logger, dns_agent.fallback_logger, 'named'
-            )
-            mock_restart.assert_any_call(
-                dns_agent.logger, dns_agent.fallback_logger, 'ssh'
-            )
+
+            mock_restart.assert_any_call('named', logger=dns_agent.logger)
+            mock_restart.assert_any_call('ssh', logger=dns_agent.logger)
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
                 dns_agent.logger,
-                fallback_logger=dns_agent.fallback_logger,
-                level=logging.INFO
+                level=logging.INFO,
             )

@@ -19,6 +19,7 @@ class NTPAgent(ServerAgent):
         interface='enp0s3',
         protocol='udp',
         whitelist_commands=None,
+        command_queue_size=0,
     ):
         super(NTPAgent, self).__init__(
             server_name=server_name,
@@ -28,6 +29,7 @@ class NTPAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
+            command_queue_size=command_queue_size,
         )
 
     def is_service_healthy(

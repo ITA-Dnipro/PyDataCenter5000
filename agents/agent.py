@@ -150,7 +150,6 @@ class ServerAgent(object):
             maybe_log_message(
                 'Health server initialization failed: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
 
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -368,7 +367,6 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
                 )
 
         self.uptime = -1
@@ -596,6 +594,20 @@ class ServerAgent(object):
                 to controller. Default is False.
             **kwargs: Key-value pairs to be appended to the header.
         """
+        if to_controller:
+            if not self.controller_url:
+                maybe_log_message(
+                    (
+                        "Couldn't send POST request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
+
+            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            url = urljoin(base_api_url, url)
+
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(

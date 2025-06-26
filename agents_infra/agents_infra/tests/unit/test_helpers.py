@@ -4,12 +4,11 @@ import os
 import mock
 import pytest
 
-from ..utils.helpers import get_env_or_param, restart_service
+from ...utils.helpers import get_env_or_param, restart_service
 
 
 def test_restart_service_success_on_first_try():
     logger = mock.Mock()
-    fallback_logger = mock.Mock()
 
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
@@ -19,7 +18,7 @@ def test_restart_service_success_on_first_try():
 
                 mock_call.return_value = 0  # Success on first try
 
-                result = restart_service(logger, fallback_logger, 'named')
+                result = restart_service('named', logger=logger)
 
                 assert result is True, (
                     'Expected restart_service to return True when '
@@ -42,19 +41,16 @@ def test_restart_service_success_on_first_try():
                 expected_logs = [
                     mock.call(
                         'named not active. Attempting restart...',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 1: Restarting named '
                         '(delay before restart: 2).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'named service restarted successfully.',
-                        logger,
-                        fallback_logger=fallback_logger,
+                        logger=logger,
                         level=logging.INFO
                     ),
                 ]
@@ -67,7 +63,6 @@ def test_restart_service_success_on_first_try():
 
 def test_restart_service_success_on_third_try():
     logger = mock.Mock()
-    fallback_logger = mock.Mock()
 
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
@@ -79,7 +74,7 @@ def test_restart_service_success_on_third_try():
                 # third succeeds (return code 0)
                 mock_call.side_effect = [1, 1, 0]
 
-                result = restart_service(logger, fallback_logger, 'ssh')
+                result = restart_service('ssh', logger=logger)
 
                 assert result is True, (
                     'Expected restart_service to return True when '
@@ -105,38 +100,31 @@ def test_restart_service_success_on_third_try():
                 expected_log_messages = [
                     mock.call(
                         'ssh not active. Attempting restart...',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 1: Restarting ssh (delay before restart: 2).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh restart failed with code 1.',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 2: Restarting ssh (delay before restart: 4).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh restart failed with code 1.',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 3: Restarting ssh (delay before restart: 8).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh service restarted successfully.',
-                        logger,
-                        fallback_logger=fallback_logger,
+                        logger=logger,
                         level=logging.INFO),
                     ]
                 mock_log.assert_has_calls(
@@ -150,7 +138,6 @@ def test_restart_service_success_on_third_try():
 
 def test_restart_service_fails_all_attempts():
     logger = mock.Mock()
-    fallback_logger = mock.Mock()
 
     with mock.patch('subprocess.call') as mock_call:
         with mock.patch('time.sleep') as mock_sleep:
@@ -160,7 +147,7 @@ def test_restart_service_fails_all_attempts():
 
                 mock_call.return_value = 1  # Always fails
 
-                result = restart_service(logger, fallback_logger, 'ssh')
+                result = restart_service('ssh', logger=logger)
 
                 assert result is False, (
                     'Expected restart_service to return False when '
@@ -177,38 +164,31 @@ def test_restart_service_fails_all_attempts():
                 expected_logs = [
                     mock.call(
                         'ssh not active. Attempting restart...',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 1: Restarting ssh (delay before restart: 2).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh restart failed with code 1.',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 2: Restarting ssh (delay before restart: 4).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh restart failed with code 1.',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 3: Restarting ssh (delay before restart: 8).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'ssh restart failed with code 1.',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                 ]
 
@@ -221,7 +201,6 @@ def test_restart_service_fails_all_attempts():
 
 def test_restart_service_raises_exception():
     logger = mock.Mock()
-    fallback_logger = mock.Mock()
 
     with mock.patch(
         'agents_infra.utils.helpers.subprocess.call',
@@ -232,7 +211,7 @@ def test_restart_service_raises_exception():
                 'agents_infra.utils.helpers.maybe_log_message'
             ) as mock_log:
 
-                result = restart_service(logger, fallback_logger, 'named')
+                result = restart_service('named', logger=logger)
 
                 assert result is False, (
                     'Expected restart_service to return False when an '
@@ -243,19 +222,16 @@ def test_restart_service_raises_exception():
                 expected_logs = [
                     mock.call(
                         'named not active. Attempting restart...',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Attempt 1: Restarting named '
                         '(delay before restart: 2).',
-                        logger,
-                        fallback_logger=fallback_logger
+                        logger=logger,
                     ),
                     mock.call(
                         'Error during named service restart: boom',
-                        logger,
-                        fallback_logger=fallback_logger,
+                        logger=logger,
                         exc_info=True
                     )
                 ]

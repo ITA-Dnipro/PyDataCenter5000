@@ -22,6 +22,7 @@ class WebAgent(ServerAgent):
         interface=None,
         protocol='tcp',
         whitelist_commands=None,
+        command_queue_size=0,
         web_server_host=None,
         web_server_name=None,
     ):
@@ -35,7 +36,14 @@ class WebAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
+            command_queue_size=command_queue_size,
         )
+
+        self.web_server_host = get_env_or_param(web_server_host,
+                                                'WEB_SERVER_HOST')
+        self.web_server_name = get_env_or_param(web_server_name,
+                                                'WEB_SERVER_NAME')
+        self.health_url = self._build_url('health')
 
         self.web_server_host = get_env_or_param(web_server_host,
                                                 'WEB_SERVER_HOST')
@@ -63,8 +71,7 @@ class WebAgent(ServerAgent):
         except Exception as e:
             maybe_log_message(
                 'Health check failed with error: %s' % str(e),
-                self.logger,
-                self.fallback_logger
+                logger=self.logger,
             )
             return False
 
@@ -84,8 +91,7 @@ class WebAgent(ServerAgent):
                     'Server responded with status code %d' % (
                         response.getcode()
                     ),
-                    self.logger,
-                    self.fallback_logger
+                    logger=self.logger,
                 )
                 return False
 
@@ -94,7 +100,6 @@ class WebAgent(ServerAgent):
                 maybe_log_message(
                     'Health check failed: Response missing status key',
                     self.logger,
-                    self.fallback_logger
                 )
                 return False
 
@@ -105,7 +110,6 @@ class WebAgent(ServerAgent):
                         server_health_status
                     ),
                     self.logger,
-                    self.fallback_logger
                 )
                 return False
 
@@ -114,7 +118,6 @@ class WebAgent(ServerAgent):
             maybe_log_message(
                 'HTTP health check failed with error: %s' % str(e),
                 self.logger,
-                self.fallback_logger
             )
             return False
 
@@ -141,20 +144,18 @@ class WebAgent(ServerAgent):
 
         if inactive_services:
             for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
+                restart_service(service, logger=self.logger)
 
             maybe_log_message(
                 'Finished attempts to restart services',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
+                logger=self.logger,
+                level=logging.INFO,
+            )
             return False
 
         maybe_log_message(
             'All services are healthy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
+            logger=self.logger,
+            level=logging.INFO,
+        )
         return True

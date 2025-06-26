@@ -1,5 +1,12 @@
 from .agents import base as agent
+
+from .agents.dns.dns import DNSAgent
+from .agents.ntp.ntp import NTPAgent
+from .agents.smtp.smtp import SMTPAgent
+from .agents.web.web import WebAgent
+
 from .utils import configtools
+
 
 # Make sure all global configurations (from agents/config.ini) are
 # parsed before any concrete child is instantiated.

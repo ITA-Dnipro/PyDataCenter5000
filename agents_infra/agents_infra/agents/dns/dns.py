@@ -17,6 +17,7 @@ class DNSAgent(ServerAgent):
         interface=None,
         protocol='udp',
         whitelist_commands=None,
+        command_queue_size=0,
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
@@ -26,6 +27,7 @@ class DNSAgent(ServerAgent):
             interface=interface,
             protocol=protocol,
             whitelist_commands=whitelist_commands,
+            command_queue_size=command_queue_size,
         )
 
     def run_dig(self, query_domain):
@@ -61,10 +63,7 @@ class DNSAgent(ServerAgent):
         except OSError as e:
             # Command not found or failed to execute
             maybe_log_message(
-                'DNS check failed: %s' % e,
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
+                'DNS check failed: %s' % e, self.logger, exc_info=True
             )
             return False
 
@@ -87,20 +86,18 @@ class DNSAgent(ServerAgent):
 
         if inactive_services:
             for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
+                restart_service(service, logger=self.logger)
 
             maybe_log_message(
                 'Finished attempts to restart services',
                 self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
+                level=logging.INFO,
+            )
             return False
 
         maybe_log_message(
             'All services are heathy and running',
             self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
+            level=logging.INFO,
+        )
         return True

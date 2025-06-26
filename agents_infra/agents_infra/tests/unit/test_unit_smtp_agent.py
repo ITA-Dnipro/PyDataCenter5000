@@ -1,4 +1,3 @@
-import logging
 import os
 import socket
 import tempfile
@@ -6,9 +5,8 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
-from ..agents.base import ServerAgent
-from ..agents.smtp.smtp import SMTPAgent
-
+from ...agents.base import ServerAgent
+from ...agents.smtp.smtp import SMTPAgent
 
 class DummySMTPAgent(SMTPAgent):
 

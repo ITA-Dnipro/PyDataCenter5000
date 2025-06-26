@@ -2,3 +2,4 @@
 omit =
     */agents_infra/dev/*
     */agents_infra/tests/*
+    */agents_infra/tests/integration/*

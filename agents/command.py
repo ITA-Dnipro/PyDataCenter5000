@@ -65,8 +65,8 @@ class LinuxCommand(Command):
 class AgentCommand(Command):
     """Command for executing agent's method."""
     method = attr.attr(validator=attr.validators.instance_of(basestring))
-    args = attr.attr(factory=tuple)
-    kwargs = attr.attr(factory=dict)
+    args = attr.attr(default=lambda: ())
+    kwargs = attr.attr(default=lambda: {})
 
     @property
     def tag(self):

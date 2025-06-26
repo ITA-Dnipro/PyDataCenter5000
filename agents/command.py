@@ -26,6 +26,10 @@ COMMAND_REGISTRY = {}  # Dynamic command registry
 
 
 def register_command(name):
+    """
+    Decorator function for flexible mapping of command names to
+    corresponding classes.
+    """
     def wrapped(cls):
         COMMAND_REGISTRY[name] = cls
         return cls
@@ -98,7 +102,7 @@ class CommandHistory(object):
         command_factory = COMMAND_REGISTRY.get(command_type)
         if not command_factory:
             raise ValueError(
-                'Unknown command type: %s' % str(command_factory)
+                'Unknown command type: %s' % str(command_type)
             )
 
         params = data.pop('params', None)
@@ -168,7 +172,7 @@ def _(command, agent, **kwargs):
 
 @dispatch_command.register(AgentCommand)
 def _(command, agent, **kwargs):
-    method = getattr(agent, command.method)
+    method = getattr(agent, command.method, None)
     if not method:
         raise AttributeError('Agent does not have method %s' % command.method)
 

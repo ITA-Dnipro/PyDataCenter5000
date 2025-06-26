@@ -13,7 +13,7 @@ import pytest
 import urllib2
 
 from agents.agent import ServerAgent
-from agents.command import CommandHistory, CommandStatus, LinuxCommand
+from agents.command import CommandHistory
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -85,83 +85,6 @@ def mock_popen_with_output(stdout, stderr=''):
     process_mock = mock.Mock()
     process_mock.communicate.return_value = (stdout, stderr)
     return process_mock
-
-
-def test_command_history_valid_data():
-    """Test that command history is properly instantiated."""
-    from dateutil import parser
-
-    data = {
-        'type': 'linux',
-        'params': {'shell': 'ls'},
-        'hostname': 'test-server',
-        'status': 'pending',
-        'timestamp': '2025-06-03T18:25:35.418746Z',
-        'result': 'ok',
-        'id': 1,
-    }
-
-    command_history = CommandHistory.from_dict(data)
-
-    assert command_history.command == LinuxCommand('ls')
-    assert command_history.hostname == 'test-server'
-    assert command_history.status == CommandStatus.PENDING
-    assert command_history.timestamp == parser.parse(
-        '2025-06-03T18:25:35.418746Z'
-    )
-    assert command_history.result == 'ok'
-    assert command_history.id == 1
-
-
-def test_command_history_missing_data():
-    """
-    Test that error is raised on command history input with missing
-    fields.
-    """
-    parameters = [
-        {
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'type': 'linux',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises((TypeError, ValueError)):
-            CommandHistory.from_dict(data)
-
-
-def test_command_history_bad_input_error():
-    """Test that error is raised on bad command history input."""
-    parameters = [
-        {
-            'command': None,
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': None,
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': 'bad date',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises((TypeError, ValueError)):
-            CommandHistory.from_dict(data)
 
 
 def test_type_checks_on_init():

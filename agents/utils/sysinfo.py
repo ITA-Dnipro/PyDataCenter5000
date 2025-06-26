@@ -1,7 +1,6 @@
 import datetime
 import os
 import socket
-from collections import Sequence
 
 import psutil
 
@@ -39,7 +38,7 @@ def get_linux_uptime():
         return float(f.readline().split()[0])
 
 
-def get_ram_usage(logger, fallback_logger):
+def get_ram_usage(logger):
     """
     Get the current RAM usage percentage.
     """
@@ -49,13 +48,12 @@ def get_ram_usage(logger, fallback_logger):
     except psutil.Error as e:
         maybe_log_message(
             'Error getting RAM usage: %s' % str(e),
-            logger=logger,
-            fallback_logger=fallback_logger,
+            logger=logger
         )
         return -1.0
 
 
-def get_cpu_usage(logger, fallback_logger, interval=60):
+def get_cpu_usage(logger, interval=60):
     """
     Get the average CPU usage percentage over the last minute.
     """
@@ -64,13 +62,12 @@ def get_cpu_usage(logger, fallback_logger, interval=60):
     except (psutil.Error, ValueError) as e:
         maybe_log_message(
             'Error getting CPU usage: %s' % str(e),
-            logger=logger,
-            fallback_logger=fallback_logger,
+            logger=logger
         )
         return -1.0
 
 
-def get_load_average(logger, fallback_logger):
+def get_load_average(logger):
     """
     Get the system load average over the last 1 minute.
     """
@@ -79,13 +76,12 @@ def get_load_average(logger, fallback_logger):
     except (OSError, AttributeError) as e:
         maybe_log_message(
             'Error getting load average: %s' % str(e),
-            logger=logger,
-            fallback_logger=fallback_logger,
+            logger=logger
         )
         return -1.0
 
 
-def get_disk_usage(logger, fallback_logger):
+def get_disk_usage(logger):
     """
     Get the current disk usage percentage for the root filesystem.
     """
@@ -95,20 +91,19 @@ def get_disk_usage(logger, fallback_logger):
     except psutil.Error as e:
         maybe_log_message(
             'Error getting disk usage: %s' % str(e),
-            logger=logger,
-            fallback_logger=fallback_logger,
+            logger=logger
         )
         return -1.0
 
 
-def generate_report(logger, fallback_logger):
+def generate_report(logger):
     """
     Generate a report containing server resource usage.
     """
     return {
-        'cpu': get_cpu_usage(logger, fallback_logger),
-        'ram': get_ram_usage(logger, fallback_logger),
-        'disk': get_disk_usage(logger, fallback_logger),
-        'load_avg': get_load_average(logger, fallback_logger),
+        'cpu': get_cpu_usage(logger),
+        'ram': get_ram_usage(logger),
+        'disk': get_disk_usage(logger),
+        'load_avg': get_load_average(logger),
         'timestamp': datetime.datetime.now().isoformat(),
     }

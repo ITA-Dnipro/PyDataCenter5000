@@ -15,6 +15,6 @@ agent.collect_server_metadata()
 status = agent.status_to_dict()
 print(status)
 
-# print(agent.critical_processes)
+print(agent.critical_processes)
 # print(is_process_active('ssh'))
 agent._parse_config_file()

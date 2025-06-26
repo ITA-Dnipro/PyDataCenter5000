@@ -4,7 +4,10 @@ import os
 import mock
 import pytest
 
-from agents.utils.helpers import get_env_or_param, restart_service
+from agents.utils.helpers import (get_env_or_param, is_process_active,
+                                  is_valid_ip, restart_service)
+
+# TESTS FOR restart_service()
 
 
 def test_restart_service_success_on_first_try():
@@ -243,6 +246,8 @@ def test_restart_service_raises_exception():
                 )
 
 
+# TESTS FOR get_env_or_param()
+
 def test_web_agent_get_env_or_param():
     """Test environment variable handling in get_env_or_param fucntion."""
     original_value = os.environ.get('TEST_VAR')
@@ -267,3 +272,84 @@ def test_web_agent_get_env_or_param():
             os.environ['TEST_VAR'] = original_value
         elif 'TEST_VAR' in os.environ:
             del os.environ['TEST_VAR']
+
+
+# TESTS FOR is_valid_ip()
+
+def test_valid_ipv4():
+    assert is_valid_ip('192.168.1.1'), "Expected '192.168.1.1' to be valid"
+    assert is_valid_ip('8.8.8.8'), "Expected '8.8.8.8' to be valid"
+    assert is_valid_ip(' 10.0.0.1 '), (
+        "Expected ' 10.0.0.1 ' (with spaces) to be valid"
+        )
+
+
+def test_invalid_ipv4():
+    assert not is_valid_ip('999.999.999.999'), (
+        "Expected '999.999.999.999' to be invalid"
+        )
+    assert not is_valid_ip('256.0.0.1'), "Expected '256.0.0.1' to be invalid"
+    assert not is_valid_ip('abcd'), "Expected 'abcd' to be invalid"
+    assert not is_valid_ip('1234'), "Expected '1234' to be invalid"
+    assert not is_valid_ip(''), 'Expected empty string to be invalid'
+    assert not is_valid_ip('192.168.1.'), "Expected '192.168.1.' to be invalid"
+
+
+def test_ipv6_not_supported():
+    assert not is_valid_ip('::1'), "Expected IPv6 address '::1' to be invalid"
+    assert not is_valid_ip('2001:db8::1'), (
+        "Expected IPv6 address '2001:db8::1' to be invalid"
+        )
+
+# TESTS FOR is_process_active()
+
+
+@mock.patch('subprocess.Popen')
+def test_service_active(mock_popen):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = ('active\n', '')
+    process_mock.returncode = 0
+    mock_popen.return_value = process_mock
+
+    assert is_process_active('ssh') is True, (
+        'Expected True for active service "ssh"'
+        )
+
+
+@mock.patch('subprocess.Popen')
+def test_service_inactive(mock_popen):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = ('inactive\n', '')
+    process_mock.returncode = 3
+    mock_popen.return_value = process_mock
+
+    assert is_process_active('cron') is False, (
+        'Expected False for inactive service "cron"'
+    )
+
+
+@mock.patch('subprocess.Popen')
+def test_service_failed_status(mock_popen):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = ('unknown\n', 'some error')
+    process_mock.returncode = 1  # unexpected return code
+    mock_popen.return_value = process_mock
+
+    with pytest.raises(Exception) as exc:
+        is_process_active('nginx')
+
+    assert "Failed to check service status for 'nginx'" in str(exc.value), (
+        'Expected exception with service name in error message'
+    )
+
+
+@mock.patch('subprocess.Popen')
+def test_service_decodes_output(mock_popen):
+    process_mock = mock.Mock()
+    process_mock.communicate.return_value = (b'active\n', b'')
+    process_mock.returncode = 0
+    mock_popen.return_value = process_mock
+
+    assert is_process_active('networking') is True, (
+        'Expected True after decoding  output for active service "networking"'
+    )

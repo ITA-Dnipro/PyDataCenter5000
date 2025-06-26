@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import socket
 import subprocess
 import time
@@ -78,14 +77,6 @@ def restart_service(service, attempts=3, logger=None):
     return False  # If restarting failed
 
 
-def is_valid_ip(output):
-    try:
-        socket.inet_aton(output.strip())
-        return True
-    except socket.error:
-        return False
-
-
 def get_env_or_param(param_value, env_name):
     """
     Get value from parameter or environment variable.
@@ -103,6 +94,20 @@ def get_env_or_param(param_value, env_name):
     if param_value is None and env_name not in os.environ:
         raise ValueError('%s environment variable is not set.' % env_name)
     return param_value or os.environ[env_name]
+
+
+def is_valid_ip(output):
+    try:
+        output = output.strip()
+        parts = output.split('.')
+        if len(parts) != 4:
+            return False
+        if not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            return False
+        socket.inet_aton(output)
+        return True
+    except Exception:
+        return False
 
 
 def is_process_active(process):

@@ -16,7 +16,7 @@ from dateutil import parser
 from urlparse import urljoin
 
 from .utils import LOG_CONFIG_PATH, maybe_log_message
-from .utils.configtools import get_config_option, parse_csv_list
+from .utils.configtools import parse_csv_list
 from .utils.helpers import is_process_active, restart_service
 from .utils.sysinfo import get_ip_from_interface, get_linux_uptime
 
@@ -76,9 +76,6 @@ class ServerAgent(object):
 
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
-
-        # Init config atribute(to save data from config file)
-        self.config = None
 
         # Extend the list of global critical processes with those that
         # are server-specific.
@@ -178,66 +175,43 @@ class ServerAgent(object):
 
         config = ConfigParser.ConfigParser()
         config.read(filename)
-        con = {}
+
+        type_casts = {
+            'port': int,
+            'critical_processes': parse_csv_list,
+            'whitelist_commands': parse_csv_list,
+        }
+
+        config_dict = {}
+
         for section in config.sections():
-            # print('[%s]' % section)
             for key, value in config.items(section):
-                # print('%s = %s' % (key, value))
-                con['%s' % key] = value
-            # print('')
-        print(con)
+                cast = type_casts.get(key, str)
+                try:
+                    config_dict[key] = cast(value)
+                except Exception as e:
+                    maybe_log_message(
+                        "Failed to parse config '%s' in section [%s]: %s" %
+                        (key, section, e),
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
 
-        if config.sections():
-            self.server_name = get_config_option(
-                config,
-                'server',
-                'name',
-                default=self.server_name,
-                logger=self.logger,
-            )
+        self.server_name = config_dict.get('name', self.server_name)
+        self.port = config_dict.get('port', self.port)
+        self.interface = config_dict.get('interface', self.interface)
 
-            self.port = get_config_option(
-                config,
-                'server',
-                'port',
-                default=self.port,
-                logger=self.logger,
-                cast=int,
-            )
+        if 'critical_processes' in config_dict:
+            self.critical_processes.extend([
+                proc for proc in config_dict['critical_processes']
+                if proc not in self.critical_processes
+            ])
 
-            # Append server-specific critical_processes
-            critical_processes = get_config_option(
-                config,
-                'server',
-                'critical_processes',
-                logger=self.logger,
-                cast=parse_csv_list,
-            )
-
-            # Extend avoiding duplicates
-            if critical_processes:
-                self.critical_processes.extend(
-                    proc for proc in critical_processes
-                    if proc not in self.critical_processes
-                )
-
-            self.interface = get_config_option(
-                config, 'server', 'interface', logger=self.logger
-            )
-
-            whitelist_commands = get_config_option(
-                config,
-                'controller',
-                'whitelist_commands',
-                logger=self.logger,
-                cast=parse_csv_list,
-            )
-            # Add commands to the list of globally allowed commands.
-            if whitelist_commands:
-                self.whitelist_commands.extend(
-                    cmd for cmd in whitelist_commands
-                    if cmd not in self.whitelist_commands
-                )
+        if 'whitelist_commands' in config_dict:
+            self.whitelist_commands.extend([
+                cmd for cmd in config_dict['whitelist_commands']
+                if cmd not in self.whitelist_commands
+            ])
 
     def collect_server_metadata(self):
         """
@@ -536,54 +510,89 @@ class ServerAgent(object):
                         )
 
     def get_data(
-        self, url, api_key=None, max_retries=3, delay=5, timeout=5
+        self,
+        url,
+        to_controller=True,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **kwargs
     ):
         """
         Sends a GET request to the specified URL with retry logic.
         Retries up to `max_retries` times with `delay` seconds between
         attempts. Logs all attempts and failures.
 
+        Parameters:
+            url (str): Endpoint URL or, if `to_controller=True`, suffix
+                of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            to_controller (bool, optional): Whether URL is relative to
+                controller. Default is True.
+            api_key (str, optional): API key for authorization. Default None.
+            max_retries (int, optional): Maximum number of retry attempts.
+            delay (int, optional): Delay between retries in seconds.
+            timeout (int, optional): Timeout for GET request.
+            fail_silently (bool, optional): Whether to suppress exceptions
+                after final failure.
+            **kwargs: Optional headers to include in the request.
+
         Returns:
             str: The response content on success.
 
         Raises:
-            RuntimeError: If all attempts fail.
+            RuntimeError: If all attempts fail and `fail_silently` is False.
         """
-        headers = {}
+        if to_controller:
+            if not self.controller_url:
+                maybe_log_message(
+                    (
+                        "Couldn't send GET request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
+
+            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            url = urljoin(base_api_url, url)
+
+        headers = {'Accept': 'application/json'}
         if api_key:
             headers['Authorization'] = '%s %s' % (
                 self.auth_token_type, api_key
             )
+        if kwargs:
+            headers.update(kwargs)
 
         for attempt in range(1, max_retries + 1):
             try:
                 maybe_log_message(
                     '[Attempt %d] Sending GET request to %s' % (attempt, url),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
 
                 request = urllib2.Request(url, headers=headers)
-
                 response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
+                response.close()
 
                 maybe_log_message(
                     'GET request status: %d' % status_code,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
 
-                response.close()
-
                 maybe_log_message(
-                    'Success on attempt %d: %s' % (attempt, result),
+                    'GET request succeeded on attempt %d: %s' % (
+                        attempt, result
+                    ),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO
+                    level=logging.INFO,
                 )
 
                 return result
@@ -592,15 +601,14 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
                     logger=self.logger,
-                    level=logging.INFO,
+                    level=logging.ERROR,
                 )
 
                 if attempt < max_retries:
                     maybe_log_message(
                         'Retrying in %d seconds...' % delay,
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
-                        level=logging.WARNING
+                        level=logging.WARNING,
                     )
                     time.sleep(delay * attempt)
                 else:
@@ -608,13 +616,13 @@ class ServerAgent(object):
                         'All %d attempts failed. Data not received. '
                         'Last error: %s' % (max_retries, e),
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
-                        level=logging.CRITICAL
+                        level=logging.CRITICAL,
                     )
 
-                    raise RuntimeError(
-                        'GET failed after %d attempts' % max_retries
-                    )
+                    if not fail_silently:
+                        raise RuntimeError(
+                            'GET failed after %d attempts' % max_retries
+                        )
 
     def maybe_add_command_to_queue(self, data, block=False, timeout=None):
         """

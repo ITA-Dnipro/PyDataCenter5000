@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from monitoring.models import AgentMetric, ServerStatus
 
 
@@ -13,14 +14,18 @@ def get_all_server_metrics(window: int = 5):
           - 'last_heartbeat': timestamp from ServerStatus.timestamp
     """
     data = []
-    for srv in ServerStatus.objects.all():
-        # take the last `window` AgentMetric entries
-        qs = (
-            AgentMetric.objects
-            .filter(server_status=srv)
-            .order_by('-timestamp')[:window]
+
+    servers = ServerStatus.objects.prefetch_related(
+        Prefetch(
+            'metrics',
+            queryset=AgentMetric.objects.order_by('-timestamp'),
+            to_attr='cached_metrics'
         )
-        metrics = list(qs)[::-1]  # reverse → oldest first
+    )
+
+    for srv in servers:
+        metrics = srv.cached_metrics[:window][::-1]
+
         data.append({
             'id': srv.id,
             'cpu': [m.cpu for m in metrics],
@@ -31,6 +36,7 @@ def get_all_server_metrics(window: int = 5):
             'uptime': [m.uptime for m in metrics],
             'last_heartbeat': srv.timestamp,
         })
+
     return data
 
 

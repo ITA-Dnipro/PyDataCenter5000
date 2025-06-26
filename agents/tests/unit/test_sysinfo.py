@@ -1,7 +1,8 @@
-import logging
-import os
+import datetime
+import socket
 
 import mock
+import psutil
 import pytest
 
 from agents.utils.sysinfo import (generate_report, get_cpu_usage,

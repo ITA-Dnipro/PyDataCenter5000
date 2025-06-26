@@ -6,6 +6,9 @@ from ..base import ServerAgent
 
 
 class NTPAgent(ServerAgent):
+    """
+    Agent subclass for monitoring and managing an NTP daemon.
+    """
 
     def __init__(
         self,
@@ -29,36 +32,69 @@ class NTPAgent(ServerAgent):
             command_queue_size=command_queue_size,
         )
 
-    def service_healthy(
+    def is_service_healthy(
         self, timeout=2, payload=b'\x1b' + 47 * b'\0', packet_size=48
     ):
-        status = super(NTPAgent, self).is_service_healthy()
-        return status and self.is_port_open(
-            timeout=timeout, payload=payload, packet_size=packet_size
-        )
+        """
+        Check both the NTP process health and UDP port responsiveness.
+        Returns True only if both are OK.
+        """
+        base_ok = super(NTPAgent, self).is_service_healthy()
+        port_ok = self.is_port_open(
+                timeout=timeout, payload=payload, packet_size=packet_size
+            )
+        return base_ok and port_ok
 
     def maybe_restart_service(self):
+        """
+        Check NTP and SSH services; if any are inactive, attempt restart.
+        Returns True if all services are healthy (or successfully restarted),
+        False if one failed to restart.
+        """
         inactive_services = []
 
+        # SSH health
         if not self.is_ssh_service_active():
             inactive_services.append('ssh')
 
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
+        # NTP health
+        ntp_running = any(
+            self._is_process_running(proc_name=proc)
+            for proc in self.critical_processes or []
+        )
+        if not ntp_running:
+            inactive_services.append('ntp')
 
+        if not inactive_services:
             maybe_log_message(
-                'Finished attempts to restart services',
+                'All services are healthy and running',
                 self.logger,
                 fallback_logger=self.fallback_logger,
                 level=logging.INFO
-                )
-            return False
-
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
             )
-        return True
+            return True
+
+        # Attempt restarts
+        ssh_ok = self.is_ssh_service_active()
+        ntp_ok = any(
+            self._is_process_running(proc_name=proc)
+            for proc in self.critical_processes or []
+        )
+        services_str = ', '.join(inactive_services)
+        if ssh_ok and ntp_ok:
+            maybe_log_message(
+                'Services recovered after restart: {}'.format(services_str),
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.INFO
+            )
+            return True
+        else:
+            maybe_log_message(
+                'Restart attempts finished but some services still down: {}'
+                .format(services_str),
+                self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.ERROR
+            )
+            return False

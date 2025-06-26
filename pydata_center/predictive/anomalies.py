@@ -35,14 +35,11 @@ def is_heartbeat_missing(
     """
     Check if the heartbeat timestamp is older than a timeout.
     """
-    # No heartbeat at all, so treat as missing
     if not last_heartbeat:
         return True
 
-    # Ensure both are timezone-aware
-    now = timezone.now()
+    now = now or timezone.now()
 
-    # If last_heartbeat is naive, assume UTC
     if timezone.is_naive(last_heartbeat):
         last_heartbeat = timezone.make_aware(last_heartbeat, timezone.utc)
 

@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
 from django.utils.timezone import now
 from monitoring.models import ServerStatus
@@ -11,6 +11,8 @@ from monitoring.models import ServerStatus
 def authenticated_client(client, db):
     user = User.objects.create_user(username='testuser', password='pass')
     operator_group, _ = Group.objects.get_or_create(name='Operator')
+    permission = Permission.objects.get(codename='view_serverstatus')
+    operator_group.permissions.add(permission)
     user.groups.add(operator_group)
     client.force_login(user)
     return client

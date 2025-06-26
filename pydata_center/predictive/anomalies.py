@@ -13,6 +13,8 @@ def is_latency_anomalous(
     Determine whether the most recent latency value
     is an outlier based on a Z-score threshold.
     """
+    latency_series = latency_series[~np.isnan(latency_series)]
+
     if latency_series.size < 2:
         return False
 

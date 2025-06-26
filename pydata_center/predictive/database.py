@@ -50,6 +50,12 @@ def mark_status(server_id: int, status: str):
         status (str): new value for prediction_flag
         ('At Risk', 'Anomalous', etc.).
     """
+    valid_choices = dict(
+        ServerStatus._meta.get_field('prediction_flag').choices
+    )
+    if status not in valid_choices:
+        raise ValueError(f'Invalid prediction_flag: {status}')
+
     srv = ServerStatus.objects.get(id=server_id)
     srv.prediction_flag = status
     srv.save(update_fields=['prediction_flag'])

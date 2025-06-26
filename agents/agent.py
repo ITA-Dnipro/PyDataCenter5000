@@ -20,6 +20,7 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
+from .plugins.plugin import register_plugin
 from .utils import LOG_CONFIG_PATH, maybe_log_message
 from .utils.configtools import get_config_option, parse_csv_list
 

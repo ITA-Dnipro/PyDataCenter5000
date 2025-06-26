@@ -1,9 +1,13 @@
 from . import agent
 from .dns.dns import DNSAgent
 from .ntp.ntp import NTPAgent
+from .plugins import execute_cpu_check
+from .plugins.plugin import register_plugin
 from .smtp.smtp import SMTPAgent
 from .utils import configtools
 from .web.web import WebAgent
+
+register_plugin(agent.ServerAgent, execute_cpu_check)
 
 # Make sure all global configurations (from agents/config.ini) are
 # parsed before any concrete child is instantiated.

@@ -3,7 +3,8 @@ import os
 
 import mock
 import pytest
-from agents_infra.utils.helpers import get_env_or_param, restart_service
+
+from ..utils.helpers import get_env_or_param, restart_service
 
 
 def test_restart_service_success_on_first_try():

@@ -1,8 +1,8 @@
 import logging
 
-from agents_infra.agents.base import ServerAgent
-from agents_infra.utils.helpers import restart_service
-from agents_infra.utils.logtools import maybe_log_message
+from ...utils.helpers import restart_service
+from ...utils.logtools import maybe_log_message
+from ..base import ServerAgent
 
 
 class NTPAgent(ServerAgent):

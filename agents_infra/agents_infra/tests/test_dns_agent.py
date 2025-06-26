@@ -4,8 +4,9 @@ import os
 import tempfile
 
 import pytest
-from agents_infra.agents.dns.dns import DNSAgent
 from mock import MagicMock, patch
+
+from ..agents.dns.dns import DNSAgent
 
 
 @pytest.yield_fixture

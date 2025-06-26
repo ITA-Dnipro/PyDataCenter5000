@@ -17,10 +17,11 @@ import pkg_resources
 import psutil
 import Queue
 import urllib2
-from agents_infra.utils import configtools
-from agents_infra.utils.logtools import maybe_log_message
 from dateutil import parser
 from urlparse import urljoin
+
+from ..utils import configtools
+from ..utils.logtools import maybe_log_message
 
 log_config_path = pkg_resources.resource_filename(
     'agents_infra.utils.logtools', 'logconfig.ini'

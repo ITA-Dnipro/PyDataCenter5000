@@ -10,7 +10,8 @@ import mock
 import psutil
 import pytest
 import urllib2
-from agents_infra.agents.base import CommandHistory, ServerAgent
+
+from ..agents.base import CommandHistory, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(

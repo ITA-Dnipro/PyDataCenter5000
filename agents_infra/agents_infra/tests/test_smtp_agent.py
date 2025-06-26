@@ -4,9 +4,10 @@ import socket
 import tempfile
 
 import pytest
-from agents_infra.agents.base import ServerAgent
-from agents_infra.agents.smtp.smtp import SMTPAgent
 from mock import MagicMock, patch
+
+from ..agents.base import ServerAgent
+from ..agents.smtp.smtp import SMTPAgent
 
 
 class DummySMTPAgent(SMTPAgent):

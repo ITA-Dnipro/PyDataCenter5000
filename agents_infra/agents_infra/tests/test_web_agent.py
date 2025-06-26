@@ -5,8 +5,9 @@ import tempfile
 from logging.handlers import MemoryHandler
 
 import pytest
-from agents_infra.agents.web.web import WebAgent
 from mock import MagicMock, patch
+
+from ..agents.web.web import WebAgent
 
 
 @pytest.yield_fixture

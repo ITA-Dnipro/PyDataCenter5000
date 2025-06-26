@@ -60,7 +60,10 @@ class TestDashboardView:
         by checking both context data and the rendered HTML class.
         """
         ServerStatus.objects.create(
-            hostname='vm-test-agent', ip='10.0.0.1', uptime=100, healthy=True,
+            hostname='vm-test-agent',
+            ip='10.0.0.1',
+            uptime=100,
+            healthy=True,
             timestamp=now() - timestamp_delta
         )
         response = authenticated_client.get(url)
@@ -79,18 +82,26 @@ class TestDashboardView:
             assert 'class="offline"' not in content
 
     def test_dashboard_displays_multiple_agents(
-            self, authenticated_client, url
+            self,
+            authenticated_client,
+            url
     ):
         """
         Tests that the dashboard correctly lists multiple agents with
         different statuses.
         """
         ServerStatus.objects.create(
-            hostname='vm-online-01', ip='10.0.0.1', uptime=100, healthy=True,
+            hostname='vm-online-01',
+            ip='10.0.0.1',
+            uptime=100,
+            healthy=True,
             timestamp=now()
         )
         ServerStatus.objects.create(
-            hostname='vm-offline-02', ip='10.0.0.2', uptime=200, healthy=True,
+            hostname='vm-offline-02',
+            ip='10.0.0.2',
+            uptime=200,
+            healthy=True,
             timestamp=now() - timedelta(minutes=5)
         )
 
@@ -102,3 +113,95 @@ class TestDashboardView:
         assert 'vm-online-01' in content
         assert 'vm-offline-02' in content
         assert content.count('class="offline"') == 1
+
+    def test_dashboard_displays_tags_correctly(
+            self,
+            authenticated_client,
+            url
+    ):
+        """
+        Tests that agent tags are correctly rendered in the dashboard HTML.
+        """
+        ServerStatus.objects.create(
+            hostname='agent-with-tags',
+            ip='10.0.0.1',
+            uptime=100,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'prod', 'role': 'api'}
+        )
+        ServerStatus.objects.create(
+            hostname='agent-no-tags',
+            ip='10.0.0.2',
+            uptime=200,
+            healthy=True,
+            timestamp=now(), tags={}
+        )
+
+        response = authenticated_client.get(url)
+        content = response.content.decode()
+
+        assert response.status_code == 200
+        assert '<span class="tag">env: prod</span>' in content
+        assert '<span class="tag">role: api</span>' in content
+
+        assert 'agent-no-tags' in content
+        assert '<td>agent-no-tags</td>' in content
+
+    def test_dashboard_filtering_works(
+            self,
+            authenticated_client,
+            url
+    ):
+        """
+        Tests that the view correctly filters agents based on query parameters
+        and renders only the filtered results.
+        """
+        ServerStatus.objects.create(
+            hostname='prod-web',
+            ip='10.0.0.1',
+            uptime=100,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'production', 'role': 'web'}
+        )
+        ServerStatus.objects.create(
+            hostname='staging-web',
+            ip='10.0.0.2',
+            uptime=200,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'staging', 'role': 'web'}
+        )
+
+        filtered_url = url + '?tag_env=production'
+        response = authenticated_client.get(filtered_url)
+        content = response.content.decode()
+
+        assert response.status_code == 200
+
+        assert 'prod-web' in content
+        assert 'staging-web' not in content
+
+        assert len(response.context['agents']) == 1
+        assert response.context['agents'][0]['hostname'] == 'prod-web'
+
+    def test_dashboard_filter_form_preserves_state(
+            self,
+            authenticated_client,
+            url
+    ):
+        """
+        Tests that the filter form fields are pre-filled with the values
+        from the GET request parameters.
+        """
+        filtered_url = url + '?hostname=server&tag_role=db'
+        response = authenticated_client.get(filtered_url)
+        content = response.content.decode()
+
+        assert response.status_code == 200
+
+        assert ('name="hostname" placeholder="Hostname" value="server"'
+                in content)
+        assert ('name="tag_role" placeholder="Role Tag" value="db"'
+                in content)

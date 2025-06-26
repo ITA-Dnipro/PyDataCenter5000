@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware, now, utc
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
@@ -441,3 +442,6 @@ class ServerStatusViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ServerStatus.objects.all().order_by('-created_at')
     serializer_class = ServerStatusSerializer
+
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['hostname', 'healthy', 'prediction_flag']

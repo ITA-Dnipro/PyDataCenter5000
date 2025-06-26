@@ -52,3 +52,47 @@ h1 {
 .tags-cell {
   max-width: 300px;
 }
+
+.filter-form {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-form input,
+.filter-form select {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.filter-form select option[value=""] {
+  color: #888;
+  font-style: italic;
+}
+
+.filter-form .btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 1em;
+  white-space: nowrap;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.filter-form .btn-green {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.filter-form .btn-red {
+  background-color: #F44336;
+  color: white;
+  border-color: #F44336;
+}

@@ -11,6 +11,29 @@
 {% block content %}
   <h1>Agent Dashboard</h1>
 
+  <form method="get" class="filter-form">
+    <input type="text" name="hostname" placeholder="Hostname" value="{{ request.GET.hostname }}">
+    <input type="text" name="ip" placeholder="IP Address" value="{{ request.GET.ip }}">
+    <input type="text" name="tag_env" placeholder="Environment Tag" value="{{ request.GET.tag_env }}">
+    <input type="text" name="tag_role" placeholder="Role Tag" value="{{ request.GET.tag_role }}">
+    <input type="text" name="tag_region" placeholder="Region Tag" value="{{ request.GET.tag_region }}">
+
+    <select name="healthy">
+      <option value="" {% if not request.GET.healthy %}selected{% endif %}>Healthy</option>
+      <option value="true" {% if request.GET.healthy == 'true' %}selected{% endif %}>True</option>
+      <option value="false" {% if request.GET.healthy == 'false' %}selected{% endif %}>False</option>
+    </select>
+
+    <select name="status">
+      <option value="" {% if not request.GET.status %}selected{% endif %}>Status</option>
+      <option value="online" {% if request.GET.status == 'online' %}selected{% endif %}>Online</option>
+      <option value="offline" {% if request.GET.status == 'offline' %}selected{% endif %}>Offline</option>
+    </select>
+
+    <button type="submit" class="btn btn-green">Filter</button>
+    <a href="{% url 'monitoring:dashboard' %}" class="btn btn-red">Reset</a>
+  </form>
+
   <table>
     <thead>
       <tr>

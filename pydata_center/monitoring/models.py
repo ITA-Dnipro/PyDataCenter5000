@@ -2,6 +2,12 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
+class PredictionFlag(models.TextChoices):
+    AT_RISK = 'At Risk', 'At Risk'
+    ANOMALOUS = 'Anomalous', 'Anomalous'
+    NO_HEARTBEAT = 'No Heartbeat', 'No Heartbeat'
+
+
 class ServerStatus(models.Model):
 
     class Meta:
@@ -19,11 +25,7 @@ class ServerStatus(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     prediction_flag = models.CharField(
         max_length=20,
-        choices=[
-            ('At Risk', 'At Risk'),
-            ('Anomalous', 'Anomalous'),
-            ('No Heartbeat', 'No Heartbeat'),
-        ],
+        choices=PredictionFlag.choices,
         null=True,
         blank=True,
         help_text='Prognosis result: At Risk / Anomalous / No Heartbeat'

@@ -2,6 +2,7 @@ import os
 
 import django
 from django.core.management.base import BaseCommand
+from monitoring.models import PredictionFlag
 from predictive.anomalies import is_heartbeat_missing
 from predictive.database import get_all_server_metrics, mark_status
 from predictive.inference import detect_anomaly, forecast_cpu
@@ -66,7 +67,7 @@ class Command(BaseCommand):
                 # 1) Forecast CPU
                 prediction = forecast_cpu(features)
                 if prediction > 90:
-                    mark_status(server_id, 'At Risk')
+                    mark_status(server_id, PredictionFlag.AT_RISK)
                     logger.info(
                         f'Server {server_id}: forecasted high CPU load'
                         f'({prediction:.1f}%)'
@@ -74,7 +75,7 @@ class Command(BaseCommand):
 
                 # 2) Multivariate Anomaly Detection
                 if detect_anomaly(features):
-                    mark_status(server_id, 'Anomalous')
+                    mark_status(server_id, PredictionFlag.ANOMALOUS)
                     logger.info(
                         f'Server {server_id}: anomaly detected on last window'
                     )
@@ -82,5 +83,5 @@ class Command(BaseCommand):
             # 3) Heartbeat Missing Check
             last_hb = s.get('last_heartbeat')
             if is_heartbeat_missing(last_hb):
-                mark_status(server_id, 'No Heartbeat')
+                mark_status(server_id, PredictionFlag.NO_HEARTBEAT)
                 logger.info(f'Server {server_id}: missing heartbeat')

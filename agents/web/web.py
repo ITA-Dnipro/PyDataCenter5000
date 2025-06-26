@@ -16,26 +16,17 @@ class WebAgent(ServerAgent):
     def __init__(
         self,
         server_name='web',
-        port=None,
-        processes=None,
-        critical_processes=None,
-        interface=None,
         protocol='tcp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None,
         web_server_host=None,
         web_server_name=None,
     ):
-        port = int(get_env_or_param(port, 'PORT'))
-
         super(WebAgent, self).__init__(
             server_name=server_name,
-            port=port,
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
         self.web_server_host = get_env_or_param(web_server_host,
@@ -130,7 +121,9 @@ class WebAgent(ServerAgent):
         Returns:
             str: The complete URL including host, port and endpoint
         """
-        return 'http://%s:%d/%s' % (self.web_server_host, self.port, endpoint)
+        return 'http://%s:%d/%s' % (
+            self.web_server_host, self.config.get('port'), endpoint
+        )
 
     def maybe_restart_service(self):
         inactive_services = []

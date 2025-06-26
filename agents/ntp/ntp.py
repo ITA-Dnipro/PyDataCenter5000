@@ -6,23 +6,15 @@ class NTPAgent(ServerAgent):
     def __init__(
         self,
         server_name='ntp',
-        port=123,
-        critical_processes=None,
-        interface='enp0s3',
         protocol='udp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None
     ):
         super(NTPAgent, self).__init__(
             server_name=server_name,
-            port=port,
-            critical_processes=critical_processes or [
-                'ntpd', 'chronyd', 'systemd-timesyncd'
-            ],
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
     def service_healthy(

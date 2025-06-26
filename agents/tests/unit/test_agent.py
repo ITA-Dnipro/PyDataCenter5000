@@ -42,7 +42,6 @@ class MockAgent(ServerAgent):
         self,
         server_name='mock',
         port=None,
-        processes=None,
         critical_processes=None,
         interface=None,
         protocol=None,
@@ -50,34 +49,33 @@ class MockAgent(ServerAgent):
         command_queue_size=0,
     ):
         super(MockAgent, self).__init__(
-            server_name,
-            port,
-            processes,
-            critical_processes,
-            interface,
-            protocol,
-            whitelist_commands,
+            server_name=server_name,
+            port=port,
+            critical_processes=critical_processes,
+            interface=interface,
+            protocol=protocol,
+            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
         )
 
     def setup_logging(self, log_path=None):
-        """Patch logging setup to do nothing to allow temp file logging."""
+        """Disable logging setup for testing."""
         pass
 
     @property
     def logger(self):
-        """Override logger to use temp file logger."""
+        """Return a mock logger for tests."""
         return logging.getLogger('mock-logger')
 
     def __del__(self):
         if hasattr(self, 'logfile'):
-            os.remove(self.logfile.name)
+            try:
+                os.remove(self.logfile.name)
+            except Exception:
+                pass
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
-
-    def maybe_restart_service(self):
-        return super(MockAgent, self).maybe_restart_service()
 
 
 def mock_popen_with_output(stdout, stderr=''):

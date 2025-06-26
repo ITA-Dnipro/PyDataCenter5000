@@ -40,6 +40,29 @@ class CommandHistory(object):
         return cls(**data)
 
 
+@attr.s
+class Config(object):
+    """Helper class used to validate self.config in ServerAgent."""
+    name = attr.ib(validator=attr.validators.instance_of(str))
+    api_prefix = attr.ib(validator=attr.validators.instance_of(str))
+    url = attr.ib(validator=attr.validators.instance_of(str))
+    critical_processes = attr.ib(validator=attr.validators.instance_of(list))
+    whitelist_commands = attr.ib(validator=attr.validators.instance_of(list))
+    port = attr.ib(validator=attr.validators.instance_of(int))
+
+    auth_token_type = attr.ib(
+        default=None,
+        validator=attr.validators.optional(attr.validators.instance_of(str))
+    )
+    interface = attr.ib(
+        default=None,
+        validator=attr.validators.optional(attr.validators.instance_of(str))
+    )
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+
 class ServerAgent(object):
     """
     Base class for all agents. Handles operations common for all
@@ -51,64 +74,49 @@ class ServerAgent(object):
     controller_url = None
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
-    whitelist_commands = None
-    critical_processes = None
 
     def __init__(
         self,
         server_name=None,
-        port=None,
-        critical_processes=None,
-        interface=None,
         protocol=None,
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None
     ):
         self.server_name = server_name
-        self.port = port if port is not None else self.port
-        self.interface = interface
+        self.config = config or {}  # temp
+
+        if isinstance(self.config, dict):
+            # We want to ensure that config is a valid instance of Config
+            self.config = Config(**self.config)
+
+        # Type check to prevent unexpected values from slipping through
+        if not isinstance(self.config, Config):
+            raise TypeError(
+                "Expected 'config' to be instance of Config or dict"
+            )
 
         if protocol is not None:
             self.protocol = protocol
 
-        if self.whitelist_commands is None:
-            self.whitelist_commands = []
-
-        if whitelist_commands is not None:
-            self.whitelist_commands.extend(whitelist_commands)
-
-        # Extend the list of global critical processes with those that
-        # are server-specific.
-        self.critical_processes = self.critical_processes or []
-        if critical_processes is not None:
-            self.critical_processes.extend(critical_processes)
-
-        # Init server metadata to prevent AttributeError and to indicate
-        # to user that collect_server_metadata hasn't been called.
+        # Init server metadata to prevent AttributeError
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
-        Create an agent from a configuration (.ini) file.
-
-        Parameters:
-            filename (str): Path to configuration file. Default is None.
-            log_path (str): Path to where the log files will be stored.
-                Default is None.
-
-        Returns:
-            ServerAgent: Child instance of ServerAgent.
+        Create an agent from configuration file.
         """
-        agent = cls()
+        config_dict = cls._parse_config_file(filename)
+        config_obj = Config(**config_dict)
 
-        agent._parse_config_file(filename)
+        agent = cls(
+            server_name=config_obj.name,
+            config=config_obj
+        )
         agent.setup_logging(log_path)
-
         return agent
 
     def setup_logging(self, log_path=None):
@@ -142,16 +150,6 @@ class ServerAgent(object):
         return logging.getLogger(self.server_name)
 
     @property
-    def port(self):
-        return getattr(self, '_port', -1)
-
-    @port.setter
-    def port(self, value):
-        if not isinstance(value, int):
-            raise TypeError('Port number must be an integer')
-        self._port = value
-
-    @property
     def protocol(self):
         return getattr(self, '_protocol', None)
 
@@ -167,51 +165,47 @@ class ServerAgent(object):
 
         self._protocol = value
 
-    def _parse_config_file(self, filename=None):
-        """Parse server's config file using ConfigParser."""
-        filename = filename or pkg_resources.resource_filename(
-            self.__class__.__module__, 'config.ini'
-        )
+    @staticmethod
+    def _parse_config_file(filename=None):
+        """
+        Load and parse config file(s), return config dict.
+        """
+        config_files = [
+            pkg_resources.resource_filename('agents', 'global.ini'),
+            filename or pkg_resources.resource_filename(
+                __name__, 'config.ini'
+            )
+        ]
 
         config = ConfigParser.ConfigParser()
-        config.read(filename)
+        config.read(config_files)
 
         type_casts = {
             'port': int,
             'critical_processes': parse_csv_list,
             'whitelist_commands': parse_csv_list,
         }
+        list_merge_keys = ['critical_processes', 'whitelist_commands']
 
         config_dict = {}
-
         for section in config.sections():
             for key, value in config.items(section):
                 cast = type_casts.get(key, str)
                 try:
-                    config_dict[key] = cast(value)
-                except Exception as e:
-                    maybe_log_message(
-                        "Failed to parse config '%s' in section [%s]: %s" %
-                        (key, section, e),
-                        logger=self.logger,
-                        level=logging.WARNING,
-                    )
+                    parsed = cast(value) or None
+                    if key in list_merge_keys:
+                        if parsed:
+                            config_dict.setdefault(key, [])
+                            config_dict[key].extend([
+                                x for x in parsed if x not in config_dict[key]
+                            ])
+                    else:
+                        config_dict[key] = parsed
+                except Exception:
+                    # Logging skipped here (no logger yet)
+                    pass
 
-        self.server_name = config_dict.get('name', self.server_name)
-        self.port = config_dict.get('port', self.port)
-        self.interface = config_dict.get('interface', self.interface)
-
-        if 'critical_processes' in config_dict:
-            self.critical_processes.extend([
-                proc for proc in config_dict['critical_processes']
-                if proc not in self.critical_processes
-            ])
-
-        if 'whitelist_commands' in config_dict:
-            self.whitelist_commands.extend([
-                cmd for cmd in config_dict['whitelist_commands']
-                if cmd not in self.whitelist_commands
-            ])
+        return config_dict
 
     def collect_server_metadata(self):
         """
@@ -235,14 +229,14 @@ class ServerAgent(object):
 
         self.ip = None
 
-        if self.interface:
+        if self.config.get('interface'):
             try:
-                self.ip = get_ip_from_interface(self.interface)
+                self.ip = get_ip_from_interface(self.config.get('interface'))
             except (KeyError, AttributeError) as e:
                 maybe_log_message(
                     (
                         'Could not deduce IP address from interface '
-                        '%s: %s' % (self.interface, str(e))
+                        '%s: %s' % (self.config.get('interface'), str(e))
                     ),
                     logger=self.logger,
                 )
@@ -283,7 +277,7 @@ class ServerAgent(object):
         Raises:
             ValueError: If the port not assigned a valid number.
         """
-        if self.port == -1:
+        if self.config.get('port') == -1:
             raise ValueError(
                 'Port not set: server agent must assign a valid port number'
             )
@@ -308,9 +302,9 @@ class ServerAgent(object):
 
         try:
             if self.protocol == 'tcp':
-                s.connect((self.ip, self.port))
+                s.connect((self.ip, self.config.get('port')))
             else:
-                s.sendto(payload or b'', (self.ip, self.port))
+                s.sendto(payload or b'', (self.ip, self.config.get('port')))
 
             if packet_size > 0:
                 data, _ = s.recvfrom(packet_size)
@@ -340,7 +334,7 @@ class ServerAgent(object):
         inactive_processes = 0
 
         try:
-            for proc in self.critical_processes:
+            for proc in self.config.get('critical_processes'):
                 is_active = is_process_active(proc)
                 if not is_active:
                     inactive_processes += 1
@@ -367,7 +361,6 @@ class ServerAgent(object):
             maybe_log_message(
                 'Critical processes check failed: %s' % e,
                 self.logger,
-                fallback_logger=self.fallback_logger,
                 exc_info=True
             )
             return False
@@ -640,7 +633,7 @@ class ServerAgent(object):
 
                 return
 
-        if data.command in self.whitelist_commands:
+        if data.command in self.config.get('whitelist_commands'):
             try:
                 self.queue.put(data, block=block, timeout=timeout)
             except Queue.Full:

@@ -2,7 +2,7 @@ import logging
 import subprocess
 
 from ..agent import ServerAgent
-from ..utils.helpers import is_process_active, is_valid_ip, restart_service
+from ..utils.helpers import is_valid_ip
 from ..utils.logtools import maybe_log_message
 
 
@@ -11,21 +11,15 @@ class DNSAgent(ServerAgent):
     def __init__(
         self,
         server_name='dns',
-        port=53,
-        critical_processes=None,
-        interface=None,
         protocol='udp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None
     ):
         super(DNSAgent, self).__init__(
             server_name=server_name,
-            port=port,
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
     def run_dig(self, query_domain):

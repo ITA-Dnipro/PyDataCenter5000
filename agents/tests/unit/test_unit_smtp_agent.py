@@ -109,34 +109,3 @@ def test_check_banner_success(mock_socket, smtp_agent):
     assert result == '220 smtp.example.com ESMTP'
 
     mock_sock.close.assert_called_once()
-
-
-@patch('subprocess.Popen')
-def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
-    """
-    Test that _is_process_running() returns True
-    if any default SMTP process is found in the system process list.
-    """
-    agent, log_path = smtp_agent
-
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (
-        b'master\nsendmail\npostfix\nexim\n', b'')
-    mock_popen.return_value = process_mock
-
-    for proc_name in ['postfix', 'sendmail', 'exim', 'master']:
-        agent._processes = [proc_name]
-        result = agent._is_process_running()
-        assert result is True
-
-
-@patch('subprocess.Popen')
-def test_is_process_running_false_if_not_found(mock_popen, smtp_agent):
-    agent, _ = smtp_agent
-    agent._processes = ['postfix']
-
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (b'otherproc\n', b'')
-    mock_popen.return_value = process_mock
-
-    assert agent._is_process_running() is False

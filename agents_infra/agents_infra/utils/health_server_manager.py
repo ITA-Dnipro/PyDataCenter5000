@@ -27,9 +27,8 @@ class HealthServerManager:
         self.server = None
         self.thread = None
 
-        self.logger = logging.getLogger('agents.utils.health_server_manager')
-        self.fallback_logger = logging.getLogger(
-            'agents.utils.health_server_manager.fallback'
+        self.logger = logging.getLogger(
+            'agents_infra.utils.health_server_manager'
         )
 
     def start(self):
@@ -43,7 +42,6 @@ class HealthServerManager:
                 maybe_log_message(
                     'Health server running at /health on port %s' % self.port,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
                 self.server.serve_forever()
@@ -63,7 +61,6 @@ class HealthServerManager:
             maybe_log_message(
                 'Shutting down health server...',
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.INFO
             )
             try:
@@ -74,14 +71,12 @@ class HealthServerManager:
                 maybe_log_message(
                     'Health server shut down successfully.',
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
             except Exception as e:
                 maybe_log_message(
                     'Failed to shut down health server: %s' % e,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.ERROR
                 )
             finally:

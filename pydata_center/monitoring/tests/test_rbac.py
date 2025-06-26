@@ -97,16 +97,18 @@ class TestCommandHistoryRBAC:
     def test_operator_can_create_command(self, operator_client):
         payload = {
             'hostname': 'agent001',
-            'command': 'ls'
+            'type': 'linux',
+            'params': {'shell': 'uptime'},
         }
-        response = operator_client.post(self.url, data=payload)
+        response = operator_client.post(self.url, data=payload, format='json')
         assert response.status_code == 201
         assert response.data['status'] == 'pending'
 
     def test_viewer_cannot_patch_command(self, viewer_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='uptime',
+            type='linux',
+            params={'shell': 'uptime'},
             status='pending'
         )
         url = f'{self.url}{command.id}/'
@@ -116,7 +118,8 @@ class TestCommandHistoryRBAC:
     def test_operator_can_patch_command(self, operator_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='uptime',
+            type='linux',
+            params={'shell': 'uptime'},
             status='pending'
         )
         url = f'{self.url}{command.id}/'
@@ -131,7 +134,8 @@ class TestCommandHistoryRBAC:
     def test_viewer_cannot_delete_command(self, viewer_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='reboot',
+            type='linux',
+            params={'shell': 'uptime'},
             status='done'
         )
         url = f'{self.url}{command.id}/'
@@ -141,7 +145,8 @@ class TestCommandHistoryRBAC:
     def test_operator_can_delete_command(self, operator_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='reboot',
+            type='linux',
+            params={'shell': 'uptime'},
             status='done'
         )
         url = f'{self.url}{command.id}/'

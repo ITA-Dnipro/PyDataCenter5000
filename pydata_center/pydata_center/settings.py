@@ -52,6 +52,7 @@ API_PREFIX = os.getenv('API_PREFIX', 'api/v1')
 # Application definition
 
 INSTALLED_APPS = [
+    'django_filters',
     'predictive',
     'django.contrib.admin',
     'django.contrib.auth',

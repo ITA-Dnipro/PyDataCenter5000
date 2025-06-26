@@ -7,7 +7,7 @@ import time
 from .logtools import maybe_log_message
 
 
-def restart_service(logger, fallback_logger, service, attempts=3):
+def restart_service(service, attempts=3, logger=None):
     """
     Attempts to restart a system service with exponential backoff
     if it is found to be inactive. Logs each attempt and result.
@@ -27,12 +27,10 @@ def restart_service(logger, fallback_logger, service, attempts=3):
     """
 
     maybe_log_message(
-        '%s not active. Attempting restart...' % service,
-        logger,
-        fallback_logger=fallback_logger
-        )
+        '%s not active. Attempting restart...' % service, logger=logger
+    )
 
-    for i in range(1, attempts+1):
+    for i in range(1, attempts + 1):
         try:
             delay = 2**i
 
@@ -42,9 +40,8 @@ def restart_service(logger, fallback_logger, service, attempts=3):
                     service,
                     delay
                 ),
-                logger,
-                fallback_logger=fallback_logger
-                )
+                logger=logger,
+            )
 
             time.sleep(delay)
 
@@ -58,27 +55,24 @@ def restart_service(logger, fallback_logger, service, attempts=3):
             if retcode == 0:
                 maybe_log_message(
                     '%s service restarted successfully.' % service,
-                    logger,
-                    fallback_logger=fallback_logger,
+                    logger=logger,
                     level=logging.INFO
                     )
                 return True  # If restsrting successful
             else:
                 maybe_log_message(
                     '%s restart failed with code %s.' % (service, retcode),
-                    logger,
-                    fallback_logger=fallback_logger
-                    )
+                    logger=logger,
+                )
 
         except Exception as restart_err:
             maybe_log_message(
                 'Error during %s service restart: %s' % (
-                    service,
-                    restart_err),
-                logger,
-                fallback_logger=fallback_logger,
-                exc_info=True
-                )
+                    service, restart_err
+                ),
+                logger=logger,
+                exc_info=True,
+            )
             return False  # Stop after first fatal error
     return False  # If restarting failed
 

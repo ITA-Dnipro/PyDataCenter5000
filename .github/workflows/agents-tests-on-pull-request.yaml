@@ -33,7 +33,7 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m pytest agents --cov=agents --cov-report=xml --cov-config=agents/.coveragerc
+              python -m pytest -c agents/pytest.ini -m 'not integration' agents --cov=agents --cov-report=xml --cov-config=agents/.coveragerc
             "
 
       - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
@@ -46,7 +46,7 @@ jobs:
               cd /pydata && \
               pip install -r agents/requirements.txt && \
               pip install pytest && \
-              python -m pytest agents
+              python -m pytest -c agents/pytest.ini -m 'not coro' agents
             "
 
       - name: Upload Coverage Report to Codecov

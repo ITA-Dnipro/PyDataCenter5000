@@ -5,8 +5,8 @@ import tempfile
 import pytest
 from mock import MagicMock, patch
 
+from agents import SMTPAgent
 from agents.agent import ServerAgent
-from agents.smtp.smtp import SMTPAgent
 
 
 class DummySMTPAgent(SMTPAgent):

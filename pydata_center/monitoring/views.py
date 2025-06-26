@@ -441,4 +441,3 @@ class ServerStatusViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ServerStatus.objects.all().order_by('-created_at')
     serializer_class = ServerStatusSerializer
-    permission_classes = [IsAdminOrOperatorForWrite]

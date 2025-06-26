@@ -20,12 +20,8 @@ import urllib2
 from dateutil import parser
 from urlparse import urljoin
 
+from .utils import LOG_CONFIG_PATH, maybe_log_message
 from .utils.configtools import get_config_option, parse_csv_list
-from .utils.logtools import maybe_log_message
-
-log_config_path = pkg_resources.resource_filename(
-    'agents.utils.logtools', 'logconfig.ini'
-)
 
 PROTOCOLS = ('tcp', 'udp')
 
@@ -101,6 +97,7 @@ class ServerAgent(object):
         interface=None,
         protocol=None,
         whitelist_commands=None,
+        command_queue_size=0,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -110,7 +107,9 @@ class ServerAgent(object):
         if protocol is not None:
             self.protocol = protocol
 
-        self.whitelist_commands = self.whitelist_commands or []
+        if self.whitelist_commands is None:
+            self.whitelist_commands = []
+
         if whitelist_commands is not None:
             self.whitelist_commands.extend(whitelist_commands)
 
@@ -125,8 +124,8 @@ class ServerAgent(object):
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # Initialize thread-safe command queue
-        self.queue = Queue.Queue()
+        # Thread-safe queue to store pending commands.
+        self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
         # Initialize tags
         self.tags = {}
@@ -160,13 +159,14 @@ class ServerAgent(object):
                 stored.
         """
         log_path = (
-            log_path or pkg_resources.resource_filename(
+            log_path or pkg_resources.
+            resource_filename(
                 self.__class__.__module__, 'logs/%s.log' % self.server_name
             )
         )
 
         logging.config.fileConfig(
-            log_config_path,
+            LOG_CONFIG_PATH,
             defaults={
                 'agent_name': self.server_name,
                 'log_path': log_path
@@ -179,12 +179,6 @@ class ServerAgent(object):
             raise ValueError('Must assign a valid server name to use logger')
 
         return logging.getLogger(self.server_name)
-
-    @property
-    def fallback_logger(self):
-        return logging.getLogger(
-            '_'.join([self.server_name, 'fallback'])
-        )
 
     @property
     def port(self):
@@ -243,7 +237,6 @@ class ServerAgent(object):
                 'name',
                 default=self.server_name,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
 
             self.port = get_config_option(
@@ -252,7 +245,6 @@ class ServerAgent(object):
                 'port',
                 default=self.port,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 cast=int,
             )
 
@@ -262,7 +254,6 @@ class ServerAgent(object):
                 'processes',
                 default=self.processes,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
 
@@ -272,10 +263,10 @@ class ServerAgent(object):
                 'server',
                 'critical_processes',
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
-            # Extend, avoiding duplicates
+
+            # Extend avoiding duplicates
             if critical_processes:
                 self.critical_processes.extend(
                     proc for proc in critical_processes
@@ -283,11 +274,7 @@ class ServerAgent(object):
                 )
 
             self.interface = get_config_option(
-                config,
-                'server',
-                'interface',
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                config, 'server', 'interface', logger=self.logger
             )
 
             whitelist_commands = get_config_option(
@@ -295,7 +282,6 @@ class ServerAgent(object):
                 'controller',
                 'whitelist_commands',
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 cast=parse_csv_list,
             )
             # Add commands to the list of globally allowed commands.
@@ -327,9 +313,7 @@ class ServerAgent(object):
         """
         system = platform.system()
         if not system:
-            maybe_log_message(
-                'Could not deduce OS type', self.logger, self.fallback_logger
-            )
+            maybe_log_message('Could not deduce OS type', logger=self.logger)
 
         self.os_type = system.lower() or 'unknown'
 
@@ -339,9 +323,7 @@ class ServerAgent(object):
             self.hostname = 'unknown'
 
             maybe_log_message(
-                'Could not get hostname: %s' % str(e),
-                self.logger,
-                fallback_logger=self.fallback_logger,
+                'Could not get hostname: %s' % str(e), logger=self.logger
             )
 
         self.ip = None
@@ -355,8 +337,7 @@ class ServerAgent(object):
                         'Could not deduce IP address from interface '
                         '%s: %s' % (self.interface, str(e))
                     ),
-                    self.logger,
-                    fallback_logger=self.fallback_logger,
+                    logger=self.logger,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
@@ -366,7 +347,6 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
-                    fallback_logger=self.fallback_logger,
                 )
 
         self.uptime = -1
@@ -376,9 +356,7 @@ class ServerAgent(object):
 
         if self.uptime < 0:
             maybe_log_message(
-                "Could not get system's uptime",
-                self.logger,
-                fallback_logger=self.fallback_logger,
+                "Could not get system's uptime", logger=self.logger
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -433,7 +411,6 @@ class ServerAgent(object):
                             '%d bytes, got %d bytes' % (packet_size, len(data))
                         ),
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
                     )
 
                     return False
@@ -443,7 +420,6 @@ class ServerAgent(object):
             maybe_log_message(
                 'Port check failed due to error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
 
             return False
@@ -469,8 +445,7 @@ class ServerAgent(object):
         except OSError as e:
             maybe_log_message(
                 'Process check failed: %s' % e,
-                self.logger,
-                fallback_logger=self.fallback_logger,
+                logger=self.logger,
                 exc_info=True,
             )
 
@@ -494,11 +469,8 @@ class ServerAgent(object):
 
         except OSError as e:
             maybe_log_message(
-                'SSH service check failed: %s' % e,
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True
-                )
+                'SSH service check failed: %s' % e, self.logger, exc_info=True
+            )
             return False
 
     @abc.abstractmethod
@@ -548,8 +520,7 @@ class ServerAgent(object):
                 except (IOError, OSError) as e:
                     maybe_log_message(
                         'Error logging to file: %s' % str(e),
-                        self.logger,
-                        fallback_logger=self.fallback_logger,
+                        logger=self.logger,
                     )
 
             return status
@@ -557,8 +528,7 @@ class ServerAgent(object):
             maybe_log_message(
                 ('JSON serialization of status failed '
                  'due to error: %s' % str(e)),
-                self.logger,
-                fallback_logger=self.fallback_logger,
+                logger=self.logger,
             )
 
     def status_to_txt(self):
@@ -570,32 +540,74 @@ class ServerAgent(object):
                 self.logger.info(u'%s: %s' % (k, v))
         except (IOError, OSError) as e:
             maybe_log_message(
-                'Error logging to file: %s' % str(e),
-                self.logger,
-                fallback_logger=self.fallback_logger,
+                'Error logging to file: %s' % str(e), logger=self.logger
             )
 
     def post_data(
-        self, url, data, api_key=None, max_retries=3, delay=5, timeout=5
+        self,
+        url,
+        payload,
+        to_controller=True,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **kwargs
     ):
         """
-        Sends a POST request with JSON data to the specified URL
-        with retry logic. Retries up to `max_retries` times with `delay`
+        Sends a POST request with JSON data to the specified URL with
+        retry logic. Retries up to `max_retries` times with `delay`
         seconds between attempts. Logs all attempts and failures.
+
+        Parameters:
+            url (str): Endpoint URL or, for `to_controller=True`,
+                suffix of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            payload (Any): Data to send via POST request. If not a string,
+                JSON serialization will be attempted.
+            api_key (str, optiona): API key for authorization. Default
+                is None.
+            max_retries (int, optional): Maximum number of retry attempts.
+                Default is 3.
+            delay (int, optional): Delay (in seconds) between retries.
+                Default is 5.
+            timeout (int, optional): POST request timeout (in seconds).
+                Default is 5.
+            to_controller (bool, optional): Whether data is to be sent
+                to controller. Default is False.
+            **kwargs: Key-value pairs to be appended to the header.
         """
+        if to_controller:
+            if not self.controller_url:
+                maybe_log_message(
+                    (
+                        "Couldn't send POST request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
+
+            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            url = urljoin(base_api_url, url)
+
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
                 {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
             )
-        payload = json.dumps(data).encode('utf-8')
+        if kwargs:
+            headers.update(kwargs)
+
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
 
         for attempt in range(1, max_retries + 1):
             try:
                 maybe_log_message(
                     '[Attempt %d] Sending data to %s' % (attempt, url),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
 
@@ -608,17 +620,17 @@ class ServerAgent(object):
                 maybe_log_message(
                     'POST request status: %d' % status_code,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO
                 )
 
                 response.close()
 
                 maybe_log_message(
-                    'Success on attempt %d: %s' % (attempt, result),
+                    'POST request succeeded on attempt %d: %s' % (
+                        attempt, result
+                    ),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO
+                    level=logging.INFO,
                 )
 
                 return result
@@ -626,16 +638,14 @@ class ServerAgent(object):
                 maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.ERROR
+                    level=logging.ERROR,
                 )
 
                 if attempt < max_retries:
                     maybe_log_message(
                         'Retrying in %d seconds...' % delay,
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
-                        level=logging.WARNING
+                        level=logging.WARNING,
                     )
                     time.sleep(delay * attempt)
                 else:
@@ -643,74 +653,13 @@ class ServerAgent(object):
                         'All %d attempts failed. Data not sent. '
                         'Last error: %s' % (max_retries, e),
                         logger=self.logger,
-                        fallback_logger=self.fallback_logger,
-                        level=logging.CRITICAL
+                        level=logging.CRITICAL,
                     )
 
-                    raise RuntimeError(
-                        'POST failed after %d attempts' % max_retries
-                    )
-
-    def status_to_controller(
-        self, api_key=None, max_retries=3, delay=5, timeout=5
-    ):
-        """
-        Sends a POST request with JSON data to the specified URL, including
-        optional authentication, and with built-in retry logic.
-
-        Parameters:
-            url (str): Target URL for the POST request.
-            data (dict): Data to send as JSON payload.
-            auth_token_type (str): Token type prefix for the Authorization
-                header (e.g., 'Bearer').
-            api_key (str): API key to be used for the Authorization header. If
-                None, no auth header is added.
-            max_retries (int): Maximum number of retry attempts on failure.
-                Default is MAX_RETRIES.
-            delay (int | float): Delay (in seconds) between
-        """
-        if not self.controller_url:
-            maybe_log_message(
-                "Couldn't send status update: controller URL is not set",
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return
-
-        payload_str = self.status_to_json(log=False)
-        payload = json.loads(payload_str)
-
-        try:
-            result = self.post_data(
-                self.controller_url,
-                payload,
-                api_key,
-                max_retries,
-                delay,
-                timeout
-            )
-
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )
+                    if not fail_silently:
+                        raise RuntimeError(
+                            'POST failed after %d attempts' % max_retries
+                        )
 
     def fetch_command_from_controller(
         self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
@@ -726,7 +675,6 @@ class ServerAgent(object):
                     'hostname not set'
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
             return
 
@@ -758,7 +706,6 @@ class ServerAgent(object):
                     'status: %s' % status_code
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.INFO,
             )
 
@@ -766,7 +713,6 @@ class ServerAgent(object):
                 maybe_log_message(
                     'No pending commands for server %s' % self.hostname,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                     level=logging.INFO,
                 )
 
@@ -782,35 +728,48 @@ class ServerAgent(object):
                     'due to error: %s' % str(e)
                 ),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
         except Exception as e:
             maybe_log_message(
                 'GET request failed due to unexpected error: %s' % str(e),
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 exc_info=True,
             )
 
-    def maybe_add_to_queue(self, data):
+    def maybe_add_command_to_queue(self, data, block=False, timeout=None):
         """
         Add command to queue if it passes field validation and if
         whitelisted by the server.
         """
+        if not isinstance(data, CommandHistory):
+            try:
+                data = CommandHistory.from_dict(data)
+            except (TypeError, ValueError) as e:
+                maybe_log_message(
+                    'Command validation failed due to error: %s' % str(e),
+                    logger=self.logger,
+                )
+
+                return
+
+        if data.command in self.whitelist_commands:
+            try:
+                self.queue.put(data, block=block, timeout=timeout)
+            except Queue.Full:
+                maybe_log_message(
+                    'Queue is full - could not append command',
+                    logger=self.logger,
+                )
+
+    def get_command_from_queue(self, block=False, timeout=None):
         try:
-            command_history = CommandHistory.from_dict(data)
-        except (TypeError, ValueError) as e:
+            return self.queue.get(block=block, timeout=timeout)
+        except Queue.Empty:
             maybe_log_message(
-                'Command validation failed due to error: %s' % str(e),
+                'Queue is empty - could not retrieve command',
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
             )
-
-            return
-
-        if command_history.command in self.whitelist_commands:
-            self.queue.put(command_history)
 
     def get_cpu_usage(self, interval=60):
         """
@@ -820,9 +779,7 @@ class ServerAgent(object):
             return psutil.cpu_percent(interval=interval)
         except (psutil.Error, ValueError) as e:
             maybe_log_message(
-                'Error getting CPU usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                'Error getting CPU usage: %s' % str(e), logger=self.logger
             )
             return -1.0
 
@@ -835,9 +792,7 @@ class ServerAgent(object):
             return mem.percent
         except psutil.Error as e:
             maybe_log_message(
-                'Error getting RAM usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                'Error getting RAM usage: %s' % str(e), logger=self.logger
             )
             return -1.0
 
@@ -849,9 +804,7 @@ class ServerAgent(object):
             return os.getloadavg()[0]
         except (OSError, AttributeError) as e:
             maybe_log_message(
-                'Error getting load average: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                'Error getting load average: %s' % str(e), logger=self.logger
             )
             return -1.0
 
@@ -864,9 +817,7 @@ class ServerAgent(object):
             return usage.percent
         except psutil.Error as e:
             maybe_log_message(
-                'Error getting disk usage: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
+                'Error getting disk usage: %s' % str(e), logger=self.logger
             )
             return -1.0
 
@@ -881,59 +832,3 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
-
-    def send_metrics_to_controller(
-        self,
-        suffix='agent/metrics/',
-        api_key=None,
-        max_retries=3,
-        delay=5,
-        timeout=5,
-    ):
-        """
-        Sends a POST request with JSON data to the controller URL,
-        including authentication, and built-in retry logic.
-        """
-        if not self.controller_url:
-            maybe_log_message(
-                "Couldn't send status update: controller URL is not set",
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-            )
-            return
-        base_api_url = urljoin(self.controller_url, self.api_prefix)
-        metrics_api_url = urljoin(base_api_url, suffix)
-        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
-
-        payload = self.generate_report()
-        try:
-            result = self.post_data(
-                url,
-                payload,
-                api_key,
-                max_retries,
-                delay,
-                timeout
-            )
-
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    fallback_logger=self.fallback_logger,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
-                exc_info=True,
-            )

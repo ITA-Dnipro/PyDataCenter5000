@@ -28,6 +28,8 @@ set +a
 : "${INSTALL_SQLITE:=false}"
 : "${PYTHON_DIR:=/opt/python2.6}"
 : "${BUILD_ZLIB_FROM_SRC:=true}"
+: "${INSTALL_CORO:=true}"
+: "${INSTALL_PYTEST_XDIST:=false}"
 
 get_package_src_from_tar() {
     local name=$1
@@ -47,6 +49,10 @@ get_package_src_from_git() {
     local name=$1
     local url=$2
     local tag=$3
+
+    if [ -d "${name}" ]; then
+        rm -rf "${name}"
+    fi
 
     git clone "${url}" "${name}"
 
@@ -180,6 +186,61 @@ fi
 if ! python -c "import pytest_cov"; then
     get_package_src_from_tar pytest-cov "https://files.pythonhosted.org/packages/source/p/pytest-cov/pytest-cov-2.2.0.tar.gz"
     install_python_package_from_src pytest-cov
+fi
+
+if [ "$INSTALL_CORO" = "true" ]; then
+    if ! python -c "import cython"; then
+        get_package_src_from_tar cython "https://files.pythonhosted.org/packages/b1/51/bd5ef7dff3ae02a2c6047aa18d3d06df2fb8a40b00e938e7ea2f75544cac/Cython-0.24.tar.gz"
+        install_python_package_from_src cython
+    fi
+
+    if ! python -c "import distribute"; then
+        get_package_src_from_tar distribute "https://files.pythonhosted.org/packages/03/08/16815ba1e7d7dc21289c0ea89bffea4c34cc4d10979d2f3f64837ee51087/distribute-0.6.26.tar.gz"
+        install_python_package_from_src distribute
+    fi
+
+    if ! python -c "import pycrypto"; then
+        get_package_src_from_tar pycrypto "https://files.pythonhosted.org/packages/60/db/645aa9af249f059cc3a368b118de33889219e0362141e75d4eaf6f80f163/pycrypto-2.6.1.tar.gz"
+        install_python_package_from_src pycrypto
+    fi
+
+    if ! python -c "import coro"; then
+        echo "[INFO] Installing libssl1.0-dev for coro build..."
+
+        # Add bionic repo temporarily
+        cp /etc/apt/sources.list /etc/apt/sources.list.bak
+        echo "deb [trusted=yes] http://security.ubuntu.com/ubuntu bionic-security main" > /etc/apt/sources.list
+
+        apt update && apt-cache policy libssl1.0-dev
+        apt-get install -y libssl1.0-dev
+
+        get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"
+        install_python_package_from_src coro
+
+        echo "[INFO] Restoring original sources.list..."
+        mv /etc/apt/sources.list.bak /etc/apt/sources.list
+        apt update
+    fi
+fi
+
+if [ "$INSTALL_PYTEST_XDIST" = "true" ]; then
+    if ! python -c "import setuptools_scm"; then
+        get_package_src_from_tar setuptools-scm "https://files.pythonhosted.org/packages/d4/96/4b253a56454d92d8477704417c490d1949ca866bda1f8696bcc5fff49613/setuptools_scm-1.15.7.tar.gz"
+        install_python_package_from_src setuptools-scm
+    fi
+
+    if ! python -c "import apipkg"; then
+        get_package_src_from_tar apipkg "https://files.pythonhosted.org/packages/32/37/6ce6dbaa8035730efa95e60b09498ec17000d137742391ff46974d9ef859/apipkg-1.4.tar.gz"
+        install_python_package_from_src apipkg
+    fi
+
+    if ! python -c "import execnet"; then
+        get_package_src_from_tar execnet "https://files.pythonhosted.org/packages/eb/ee/43729e7dee8772e69b3b01715ab9742790be2eace2d18cf53d219b9c31f8/execnet-1.4.1.tar.gz"
+        install_python_package_from_src execnet
+    fi
+
+    get_package_src_from_tar pytest-xdist "https://files.pythonhosted.org/packages/eb/ee/43729e7dee8772e69b3b01715ab9742790be2eace2d18cf53d219b9c31f8/execnet-1.4.1.tar.gz"
+    install_python_package_from_src pytest-xdist
 fi
 
 echo "[INFO] Setup completed successfully."

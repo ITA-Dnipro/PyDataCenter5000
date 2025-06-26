@@ -66,6 +66,23 @@ def test_interface_not_found(mock_addrs):
     assert result is None, 'Expected None when interface does not exist'
 
 
+@mock.patch('psutil.net_if_addrs')
+def test_multiple_addresses_prioritize_ipv4(mock_addrs):
+    """Test that the first non-loopback IPv4 is returned among mixed types."""
+    mock_addrs.return_value = {
+        'eth0': [
+            mock.Mock(address='127.0.0.1', family=socket.AF_INET),
+            mock.Mock(address='192.168.1.100', family=socket.AF_INET),
+            mock.Mock(address='fe80::1', family=socket.AF_INET6),
+        ]
+    }
+
+    result = get_ip_from_interface('eth0')
+    assert result == '192.168.1.100', (
+        'Expected to skip loopback and return valid IPv4 address'
+    )
+
+
 # TESTS FOR get_linux_uptime()
 
 @mock.patch('__builtin__.open')

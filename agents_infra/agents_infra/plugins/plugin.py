@@ -39,6 +39,12 @@ class Plugin(object):
     def __init__(self, module):
         self.module = _validate_module(module)
 
+    @property
+    def name(self):
+        return getattr(
+            self.module, 'PLUGIN_NAME', self.module.__name__.split('.')[-1]
+        )
+
     def __call__(self, parent):
         return self.module.execute()
 
@@ -46,7 +52,4 @@ class Plugin(object):
 def register_plugin(obj, module):
     """Allows to dynamically register plugins as instance methods."""
     plugin = Plugin(module)
-
-    name = plugin.module.__name__.split('.')[-1]
-
-    setattr(obj, name, types.MethodType(plugin, None, obj))
+    setattr(obj, plugin.name, types.MethodType(plugin, None, obj))

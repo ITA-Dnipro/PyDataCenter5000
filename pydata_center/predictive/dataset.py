@@ -26,6 +26,10 @@ def fetch_raw_metrics(days: int = 7) -> pd.DataFrame:
     since = timezone.now() - timedelta(days=days)
     qs = AgentMetric.objects.filter(timestamp__gte=since).values(*cols)
     df = pd.DataFrame.from_records(qs, columns=cols)
+
+    if df.empty:
+        return df
+
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df = df.sort_values(['server_status_id', 'timestamp'])
     return df

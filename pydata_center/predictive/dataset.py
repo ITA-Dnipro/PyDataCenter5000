@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from django.utils import timezone
 from monitoring.models import AgentMetric, TriggeredAlert
+from sklearn.preprocessing import StandardScaler
 
 
 def fetch_raw_metrics(days: int = 7) -> pd.DataFrame:
@@ -37,7 +38,8 @@ def fetch_raw_metrics(days: int = 7) -> pd.DataFrame:
 
 def build_datasets(
     df: pd.DataFrame,
-    window: int = 5
+    window: int = 5,
+    scale: bool = False
 ) -> Tuple[
     Tuple[np.ndarray, np.ndarray],
     Tuple[np.ndarray, np.ndarray]
@@ -66,7 +68,6 @@ def build_datasets(
 
             t_start = next_time - timedelta(seconds=30)
             t_end = next_time + timedelta(seconds=30)
-
             has_alert = np.any(
                 (alert_times >= t_start) & (alert_times <= t_end)
             )
@@ -74,9 +75,17 @@ def build_datasets(
             y_clf.append(1 if has_alert else 0)
             X_clf.append(window_X.flatten())
 
+    X_reg = np.array(X_reg)
+    X_clf = np.array(X_clf)
+
+    if scale:
+        scaler = StandardScaler()
+        X_reg = scaler.fit_transform(X_reg)
+        X_clf = scaler.fit_transform(X_clf)
+
     return (
-        np.array(X_reg), np.array(y_reg),
-        np.array(X_clf), np.array(y_clf)
+        X_reg, np.array(y_reg),
+        X_clf, np.array(y_clf)
     )
 
 

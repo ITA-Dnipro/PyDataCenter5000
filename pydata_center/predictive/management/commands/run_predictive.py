@@ -1,6 +1,3 @@
-import os
-
-import django
 from django.core.management.base import BaseCommand
 from monitoring.models import PredictionFlag
 from predictive.anomalies import is_heartbeat_missing
@@ -8,10 +5,13 @@ from predictive.database import get_all_server_metrics, mark_status
 from predictive.inference import detect_anomaly, forecast_cpu
 from predictive.logger import setup_logger
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pydata_center.settings')
-django.setup()
-
 logger = setup_logger()
+
+CPU_THRESHOLD = 90.0
+WINDOW_SIZE = 5
+METRIC_KEYS = [
+    'cpu', 'ram', 'disk', 'load_avg', 'nginx_down_count', 'uptime'
+]
 
 
 class Command(BaseCommand):
@@ -31,45 +31,54 @@ class Command(BaseCommand):
         """
         Entry point for the command.
         """
-        window = 5
         servers = get_all_server_metrics()
-
-        metric_keys = [
-            'cpu', 'ram', 'disk', 'load_avg', 'nginx_down_count', 'uptime'
-        ]
+        checked = 0
+        flagged = 0
 
         for s in servers:
             server_id = s['id']
 
-            metrics = {
-                key: s.get(key, [])[-window:] for key in metric_keys
+            metric_data = {
+                key: s.get(key, [])[-WINDOW_SIZE:] for key in METRIC_KEYS
             }
 
-            if all(len(lst) == window for lst in metrics.values()):
+            if all(
+                len(values) == WINDOW_SIZE for values in metric_data.values()
+            ):
+                checked += 1
+                features = [
+                    value
+                    for window_tuple in zip(
+                        *[metric_data[k] for k in METRIC_KEYS]
+                    )
+                    for value in window_tuple
+                ]
 
-                # Build flattened feature vector
-                features = []
-                for i in range(window):
-                    features.extend([metrics[key][i] for key in metric_keys])
-
-                # 1) Forecast CPU
+                # Forecast CPU
                 prediction = forecast_cpu(features)
-                if prediction > 90:
+                if prediction > CPU_THRESHOLD:
                     mark_status(server_id, PredictionFlag.AT_RISK)
                     logger.info(
-                        f'Server {server_id}: forecasted high CPU load'
-                        f'({prediction:.1f}%)'
+                        f'Server {server_id}:'
+                        f'forecasted high CPU load ({prediction:.1f}%)'
                     )
+                    flagged += 1
 
-                # 2) Multivariate Anomaly Detection
+                # Multivariate Anomaly Detection
                 if detect_anomaly(features):
                     mark_status(server_id, PredictionFlag.ANOMALOUS)
                     logger.info(
                         f'Server {server_id}: anomaly detected on last window'
                     )
+                    flagged += 1
 
-            # 3) Heartbeat Missing Check
+            # Heartbeat Missing Check
             last_hb = s.get('last_heartbeat')
             if is_heartbeat_missing(last_hb):
                 mark_status(server_id, PredictionFlag.NO_HEARTBEAT)
                 logger.info(f'Server {server_id}: missing heartbeat')
+                flagged += 1
+
+        logger.info(
+            f'Checked {checked} servers, flagged {flagged} total issues. '
+        )

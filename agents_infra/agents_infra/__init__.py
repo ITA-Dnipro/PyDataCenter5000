@@ -3,12 +3,16 @@ from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
 from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
-from .plugins import execute_cpu_check
+from .plugins import (execute_cpu_check, execute_disk_check,
+                      execute_load_avg_check, execute_ram_check)
 from .plugins.plugin import register_plugin
 from .utils import configtools
 
 # Register default plugins.
-register_plugin(agent.ServerAgent, execute_cpu_check)
+register_plugin(execute_cpu_check, agent.ServerAgent)
+register_plugin(execute_ram_check, agent.ServerAgent)
+register_plugin(execute_load_avg_check, agent.ServerAgent)
+register_plugin(execute_disk_check, agent.ServerAgent)
 
 # Make sure all global configurations (from agents/config.ini) are
 # parsed before any concrete child is instantiated.

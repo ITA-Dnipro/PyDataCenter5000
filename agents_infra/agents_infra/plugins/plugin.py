@@ -2,6 +2,8 @@ import inspect
 import types
 from collections import Callable
 
+from singledispatch import singledispatch
+
 from ..exceptions import PluginValidationError
 
 
@@ -39,22 +41,52 @@ class Plugin(object):
     Attributes:
         module (Module): Plugin module containing the 'execute' callable.
     """
-    def __init__(self, module):
-        self.module = _validate_module(module)
+    def __init__(self, executable, name):
+        self.executable = executable
+        self.name = name
 
         self.enabled = True  # By default, plugin is enabled.
 
-    @property
-    def name(self):
-        return getattr(
-            self.module, 'PLUGIN_NAME', self.module.__name__.split('.')[-1]
+    @classmethod
+    def from_module(cls, module):
+        """Create plugin from a module with a valid 'execute' callable."""
+        module = _validate_module(module)
+        name = getattr(
+            module, 'PLUGIN_NAME', module.__name__.split('.')[-1]
         )
 
+        return cls(module.execute, name)
+
+    @classmethod
+    def from_callable(cls, func, name=None):
+        """Create plugin from a callable."""
+        if not isinstance(func, Callable):
+            raise PluginValidationError(
+                'Must pass a callable to "from_callable" factory'
+            )
+
+        return cls(func, name if name else func.__name__)
+
     def __call__(self, parent=None, **kwargs):
-        return self.module.execute(parent, **kwargs)
+        return self.executable(parent, **kwargs)
 
 
-def register_plugin(obj, module):
-    """Allows to dynamically register plugins as instance methods."""
-    plugin = Plugin(module)
+@singledispatch
+def register_plugin(source, obj):
+    """Allows to dynamically register plugins as object's methods."""
+    raise NotImplementedError(
+        'Plugin registration not supported for a source of type %s'
+        % type(source)
+    )
+
+
+@register_plugin.register(types.ModuleType)
+def _(source, obj):
+    plugin = Plugin.from_module(source)
+    setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
+
+
+@register_plugin.register(Callable)
+def _(source, obj):
+    plugin = Plugin.from_callable(source)
     setattr(obj, plugin.name, types.MethodType(plugin, None, obj))

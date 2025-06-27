@@ -749,31 +749,6 @@ class ServerAgent(object):
                 logger=self.logger,
             )
 
-    def get_load_average(self):
-        """
-        Get the system load average over the last 1 minute.
-        """
-        try:
-            return os.getloadavg()[0]
-        except (OSError, AttributeError) as e:
-            maybe_log_message(
-                'Error getting load average: %s' % str(e), logger=self.logger
-            )
-            return -1.0
-
-    def get_disk_usage(self):
-        """
-        Get the current disk usage percentage for the root filesystem.
-        """
-        try:
-            usage = psutil.disk_usage('/')
-            return usage.percent
-        except psutil.Error as e:
-            maybe_log_message(
-                'Error getting disk usage: %s' % str(e), logger=self.logger
-            )
-            return -1.0
-
     def generate_report(self):
         """
         Generate a report containing server resource usage.

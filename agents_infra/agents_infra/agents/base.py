@@ -749,31 +749,6 @@ class ServerAgent(object):
                 logger=self.logger,
             )
 
-    def get_cpu_usage(self, interval=60):
-        """
-        Get the average CPU usage percentage over the last minute.
-        """
-        try:
-            return psutil.cpu_percent(interval=interval)
-        except (psutil.Error, ValueError) as e:
-            maybe_log_message(
-                'Error getting CPU usage: %s' % str(e), logger=self.logger
-            )
-            return -1.0
-
-    def get_ram_usage(self):
-        """
-        Get the current RAM usage percentage.
-        """
-        try:
-            mem = psutil.virtual_memory()
-            return mem.percent
-        except psutil.Error as e:
-            maybe_log_message(
-                'Error getting RAM usage: %s' % str(e), logger=self.logger
-            )
-            return -1.0
-
     def get_load_average(self):
         """
         Get the system load average over the last 1 minute.

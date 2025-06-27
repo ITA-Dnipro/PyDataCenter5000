@@ -35,9 +35,14 @@ class Plugin(object):
     """
     Wrapper class for plugin modules. Responsible for plugin validation
     and execution.
+
+    Attributes:
+        module (Module): Plugin module containing the 'execute' callable.
     """
     def __init__(self, module):
         self.module = _validate_module(module)
+
+        self.enabled = True  # By default, plugin is enabled.
 
     @property
     def name(self):

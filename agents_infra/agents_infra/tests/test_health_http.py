@@ -5,8 +5,8 @@ import unittest
 import mock
 import StringIO
 
+from ..managers.health_server_manager import HealthServerManager
 from ..utils.health_http import HealthHandler
-from ..utils.health_server_manager import HealthServerManager
 
 
 class DummyServer(object):

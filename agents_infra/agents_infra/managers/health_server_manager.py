@@ -4,10 +4,11 @@ import threading
 from BaseHTTPServer import HTTPServer
 
 from ..utils.health_http import HealthHandler
-from .logtools import maybe_log_message
+from ..utils.logtools import maybe_log_message
+from .base import ServerManager
 
 
-class HealthServerManager:
+class HealthServerManager(ServerManager):
     def __init__(
             self,
             agent_name,

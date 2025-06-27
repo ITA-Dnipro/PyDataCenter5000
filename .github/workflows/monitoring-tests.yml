@@ -7,12 +7,14 @@ on:
     branches:
       - main
       - develop
+      - fix-codecov
   pull_request:
     paths:
       - pydata_center/monitoring/**
     branches:
       - main
       - develop
+      - fix-codecov
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -73,12 +75,15 @@ jobs:
 
     - name: Run monitoring tests with coverage
       run: |
-        pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
+        pytest monitoring \
+          --cov=monitoring \
+          --cov-report=xml:coverage-monitoring.xml \
+          --cov-report=term
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: pydata_center/coverage.xml
+        files: ./coverage-monitoring.xml
         flags: monitoring
         verbose: true

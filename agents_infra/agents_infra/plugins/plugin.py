@@ -45,8 +45,8 @@ class Plugin(object):
             self.module, 'PLUGIN_NAME', self.module.__name__.split('.')[-1]
         )
 
-    def __call__(self, parent):
-        return self.module.execute()
+    def __call__(self, parent=None, **kwargs):
+        return self.module.execute(parent, **kwargs)
 
 
 def register_plugin(obj, module):

@@ -80,12 +80,14 @@ def build_datasets(
             X_reg.append(window_X.flatten())
 
             # Classification target: presence of TriggeredAlert at t+1
+            time_window_start = next_time - timedelta(seconds=30)
+            time_window_end = next_time + timedelta(seconds=30)
+
             has_alert = TriggeredAlert.objects.filter(
                 rule__is_active=True,
-                triggered_at__date=next_time.date(),
-                triggered_at__hour=next_time.hour,
-                triggered_at__minute=next_time.minute
+                triggered_at__range=(time_window_start, time_window_end)
             ).exists()
+
             y_clf.append(1 if has_alert else 0)
             X_clf.append(window_X.flatten())
 

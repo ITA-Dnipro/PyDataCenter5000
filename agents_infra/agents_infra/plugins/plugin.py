@@ -1,5 +1,6 @@
+import inspect
 import types
-from typing import Callable
+from collections import Callable
 
 from ..exceptions import PluginValidationError
 
@@ -11,13 +12,13 @@ def _validate_module(module):
     ):
         raise PluginValidationError('Plugin must contain execute callable')
 
-    try:
-        result = module.execute()
-    except TypeError:
+    argspec = inspect.getargspec(module.execute)
+    if len(argspec.args) - len(argspec.defaults) > 0:
         raise PluginValidationError(
-            'execute only supports optional arguments'
+            '"execute" does not support required positional arguments'
         )
 
+    result = module.execute()
     if not isinstance(result, dict):
         raise PluginValidationError(
             'execute callable must return a dict, not %s' % type(result)
@@ -27,6 +28,10 @@ def _validate_module(module):
 
 
 class Plugin(object):
+    """
+    Wrapper class for plugin modules. Responsible for plugin validation
+    and execution.
+    """
     def __init__(self, module):
         self.module = _validate_module(module)
 

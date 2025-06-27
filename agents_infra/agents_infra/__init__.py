@@ -7,6 +7,7 @@ from .plugins import execute_cpu_check
 from .plugins.plugin import register_plugin
 from .utils import configtools
 
+# Register default plugins.
 register_plugin(agent.ServerAgent, execute_cpu_check)
 
 # Make sure all global configurations (from agents/config.ini) are

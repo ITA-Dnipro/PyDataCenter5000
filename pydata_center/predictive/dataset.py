@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Tuple
+from typing import Literal, Tuple
 
 import numpy as np
 import pandas as pd
@@ -39,11 +39,17 @@ def fetch_raw_metrics(days: int = 7) -> pd.DataFrame:
 def build_datasets(
     df: pd.DataFrame,
     window: int = 5,
-    scale: bool = False
+    scale: bool = False,
+    missing: Literal['drop', 'mean'] = 'drop'
 ) -> Tuple[
     Tuple[np.ndarray, np.ndarray],
     Tuple[np.ndarray, np.ndarray]
 ]:
+    if missing == 'drop':
+        df = df.dropna()
+    elif missing == 'mean':
+        df = df.fillna(df.mean(numeric_only=True))
+
     X_reg, y_reg = [], []
     X_clf, y_clf = [], []
 

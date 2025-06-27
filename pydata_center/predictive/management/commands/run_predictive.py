@@ -34,35 +34,23 @@ class Command(BaseCommand):
         window = 5
         servers = get_all_server_metrics()
 
+        metric_keys = [
+            'cpu', 'ram', 'disk', 'load_avg', 'nginx_down_count', 'uptime'
+        ]
+
         for s in servers:
             server_id = s['id']
 
-            cpu_list = s.get('cpu', [])[-window:]
-            ram_list = s.get('ram', [])[-window:]
-            disk_list = s.get('disk', [])[-window:]
-            load_list = s.get('load_avg', [])[-window:]
-            nginx_list = s.get('nginx_down_count', [])[-window:]
-            uptime_list = s.get('uptime', [])[-window:]
+            metrics = {
+                key: s.get(key, [])[-window:] for key in metric_keys
+            }
 
-            if (
-                len(cpu_list) == window and
-                len(ram_list) == window and
-                len(disk_list) == window and
-                len(load_list) == window and
-                len(nginx_list) == window and
-                len(uptime_list) == window
-            ):
+            if all(len(lst) == window for lst in metrics.values()):
+
                 # Build flattened feature vector
                 features = []
                 for i in range(window):
-                    features.extend([
-                        cpu_list[i],
-                        ram_list[i],
-                        disk_list[i],
-                        load_list[i],
-                        nginx_list[i],
-                        uptime_list[i],
-                    ])
+                    features.extend([metrics[key][i] for key in metric_keys])
 
                 # 1) Forecast CPU
                 prediction = forecast_cpu(features)

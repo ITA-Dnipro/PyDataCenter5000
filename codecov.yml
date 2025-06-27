@@ -2,9 +2,9 @@ codecov:
   require_ci_to_pass: true
 
 flags:
-  agents:
+  agents_infra:
     paths:
-      - "agents/"
+      - "agents_infra/"
   monitoring:
     paths:
       - "pydata_center/monitoring/"

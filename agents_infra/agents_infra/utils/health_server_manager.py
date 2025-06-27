@@ -6,11 +6,6 @@ from BaseHTTPServer import HTTPServer
 from ..utils.health_http import HealthHandler
 from .logtools import maybe_log_message
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
-
 
 class HealthServerManager:
     def __init__(

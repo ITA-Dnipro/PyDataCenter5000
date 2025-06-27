@@ -18,6 +18,12 @@ MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 
+def save_model(model, name: str):
+    path = os.path.join(MODEL_DIR, name)
+    joblib.dump(model, path)
+    logger.info(f'Saved model to {name}')
+
+
 def train_regression_model(
         X: np.ndarray,
         y: np.ndarray
@@ -58,7 +64,6 @@ def train_classification_model(X: np.ndarray, y: np.ndarray):
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
     preds = clf.predict(X_test)
-    print('Classification report:')
     logger.info(
         'Classification report:\n' + classification_report(y_test, preds)
     )
@@ -73,24 +78,19 @@ def main():
     # Train regression model
     if len(y_reg) > 0:
         reg_model = train_regression_model(X_reg, y_reg)
-        joblib.dump(reg_model, os.path.join(MODEL_DIR, 'cpu_forecast.pkl'))
-        logger.info('Saved regression model to cpu_forecast.pkl')
+        save_model(reg_model, 'cpu_forecast.pkl')
     else:
         logger.warning('Not enough data for regression model.')
 
     # Train anomaly detection
     if len(X_clf) > 0:
         iso_model = train_anomaly_model(X_clf)
-        joblib.dump(iso_model, os.path.join(MODEL_DIR, 'iso_anomaly.pkl'))
-        logger.info('Saved IsolationForest model to iso_anomaly.pkl')
+        save_model(iso_model, 'iso_anomaly.pkl')
 
         # supervised classification (optional)
         if np.any(y_clf == 1):
             clf_model = train_classification_model(X_clf, y_clf)
-            joblib.dump(
-                clf_model, os.path.join(MODEL_DIR, 'anom_classifier.pkl')
-            )
-            logger.info('Saved classifier model to anom_classifier.pkl')
+            save_model(clf_model, 'anom_classifier.pkl')
         else:
             logger.warning('No positive labels for supervised classification.')
     else:

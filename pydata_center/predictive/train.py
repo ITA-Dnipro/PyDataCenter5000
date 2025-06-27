@@ -4,12 +4,15 @@ import django
 import joblib
 import numpy as np
 from predictive.dataset import build_datasets, fetch_raw_metrics
+from predictive.logger import setup_logger
 from sklearn.ensemble import IsolationForest, RandomForestRegressor
 from sklearn.metrics import classification_report, mean_squared_error
 from sklearn.model_selection import train_test_split
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pydata_center.settings')
 django.setup()
+
+logger = setup_logger()
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -29,7 +32,7 @@ def train_regression_model(
     model.fit(X_train, y_train)
     preds = model.predict(X_test)
     rmse = mean_squared_error(y_test, preds, squared=False)
-    print(f'Regression RMSE: {rmse:.3f}')
+    logger.info(f'Regression RMSE: {rmse:.3f}')
     return model
 
 
@@ -56,7 +59,9 @@ def train_classification_model(X: np.ndarray, y: np.ndarray):
     clf.fit(X_train, y_train)
     preds = clf.predict(X_test)
     print('Classification report:')
-    print(classification_report(y_test, preds))
+    logger.info(
+        'Classification report:\n' + classification_report(y_test, preds)
+    )
     return clf
 
 
@@ -69,15 +74,15 @@ def main():
     if len(y_reg) > 0:
         reg_model = train_regression_model(X_reg, y_reg)
         joblib.dump(reg_model, os.path.join(MODEL_DIR, 'cpu_forecast.pkl'))
-        print('Saved regression model to cpu_forecast.pkl')
+        logger.info('Saved regression model to cpu_forecast.pkl')
     else:
-        print('Not enough data for regression model.')
+        logger.warning('Not enough data for regression model.')
 
     # Train anomaly detection
     if len(X_clf) > 0:
         iso_model = train_anomaly_model(X_clf)
         joblib.dump(iso_model, os.path.join(MODEL_DIR, 'iso_anomaly.pkl'))
-        print('Saved IsolationForest model to iso_anomaly.pkl')
+        logger.info('Saved IsolationForest model to iso_anomaly.pkl')
 
         # supervised classification (optional)
         if np.any(y_clf == 1):
@@ -85,11 +90,11 @@ def main():
             joblib.dump(
                 clf_model, os.path.join(MODEL_DIR, 'anom_classifier.pkl')
             )
-            print('Saved classifier model to anom_classifier.pkl')
+            logger.info('Saved classifier model to anom_classifier.pkl')
         else:
-            print('No positive labels for supervised classification.')
+            logger.warning('No positive labels for supervised classification.')
     else:
-        print('Not enough data for anomaly models.')
+        logger.warning('Not enough data for anomaly models.')
 
 
 if __name__ == '__main__':

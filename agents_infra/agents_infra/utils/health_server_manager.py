@@ -27,8 +27,10 @@ class HealthServerManager:
         self.server = None
         self.thread = None
 
-        self.logger = logging.getLogger(
-            'agents_infra.utils.health_server_manager'
+    @property
+    def logger(self):
+        return logging.getLogger(
+            '-'.join([self.agent_name, 'health-server'])
         )
 
     def start(self):

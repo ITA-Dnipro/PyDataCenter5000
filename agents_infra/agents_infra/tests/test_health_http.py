@@ -1,4 +1,5 @@
 import json
+import logging
 import unittest
 
 import mock
@@ -189,10 +190,14 @@ class TestHealthServerManager(unittest.TestCase):
         )
 
     def test_logger_initialized(self):
+        agent_name = 'test'
         manager = HealthServerManager(
-            agent_name='test',
+            agent_name=agent_name,
             is_service_healthy_callback=lambda: True
         )
-        self.assertTrue(
-            manager.logger is not None, 'Logger is not initialized'
-        )
+
+        logger = manager.logger
+        expected_logger_name = '%s-health-server' % agent_name
+
+        self.assertTrue(isinstance(logger, logging.Logger))
+        self.assertEqual(logger.name, expected_logger_name)

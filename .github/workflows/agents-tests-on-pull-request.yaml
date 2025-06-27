@@ -39,8 +39,9 @@ jobs:
                 -m 'not integration' \
                 agents_infra/agents_infra \
                 --cov=agents_infra/agents_infra \
-                --cov-report=xml:coverage-agents.xml \
-                --cov-config=agents_infra/agents_infra/.coveragerc
+                --cov-report=xml \
+                --cov-config=agents_infra/agents_infra/.coveragerc && \
+              mv coverage.xml coverage-agents.xml
             "
 
       - name: Agents Unit Tests (Python 2.7 - Official Docker Image)

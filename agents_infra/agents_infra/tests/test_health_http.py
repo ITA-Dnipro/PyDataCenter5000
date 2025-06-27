@@ -162,7 +162,7 @@ class TestHealthHandler(unittest.TestCase):
 
 
 class TestHealthServerManager(unittest.TestCase):
-    @mock.patch('agents_infra.utils.health_server_manager.HTTPServer')
+    @mock.patch('agents_infra.managers.health_server_manager.HTTPServer')
     def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):
         manager = HealthServerManager(
             agent_name='test',

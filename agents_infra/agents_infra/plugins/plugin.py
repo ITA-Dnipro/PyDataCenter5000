@@ -13,7 +13,11 @@ def _validate_module(module):
         raise PluginValidationError('Plugin must contain execute callable')
 
     argspec = inspect.getargspec(module.execute)
-    if len(argspec.args) - len(argspec.defaults) > 0:
+    if (
+        len(argspec.args) - (
+            len(argspec.defaults) if argspec.defaults else 0
+        ) > 0
+    ):
         raise PluginValidationError(
             '"execute" does not support required positional arguments'
         )

@@ -42,29 +42,14 @@ def build_datasets(
     Tuple[np.ndarray, np.ndarray],
     Tuple[np.ndarray, np.ndarray]
 ]:
-    """
-    Build regression and classification datasets from a raw metrics DataFrame.
-
-    Regression dataset:
-      - X_reg: ndarray of shape (n_samples, window * n_features)
-      - y_reg: ndarray of shape (n_samples,)
-      Target is cpu at t+1.
-
-    Classification dataset:
-      - X_clf: ndarray of shape (n_samples, window * n_features)
-      - y_clf: ndarray of shape (n_samples,)
-      Target is 1 if a TriggeredAlert exists at t+1, else 0.
-
-    Args:
-        df (pd.DataFrame): DataFrame returned by fetch_raw_metrics().
-        window (int): Number of timesteps per sample window.
-
-    Returns:
-        Tuple:
-            (X_reg, y_reg), (X_clf, y_clf)
-    """
     X_reg, y_reg = [], []
     X_clf, y_clf = [], []
+
+    all_alerts = TriggeredAlert.objects.filter(
+        rule__is_active=True
+    ).values_list('triggered_at', flat=True)
+
+    alert_times = np.array(list(all_alerts), dtype='datetime64[ns]')
 
     for sid, group in df.groupby('server_status_id'):
         vals = group[
@@ -76,17 +61,15 @@ def build_datasets(
             window_X = vals[i: i + window]
             next_time = times[i + window]
 
-            y_reg.append(vals[i + window + 0][0])
+            y_reg.append(vals[i + window][0])
             X_reg.append(window_X.flatten())
 
-            # Classification target: presence of TriggeredAlert at t+1
-            time_window_start = next_time - timedelta(seconds=30)
-            time_window_end = next_time + timedelta(seconds=30)
+            t_start = next_time - timedelta(seconds=30)
+            t_end = next_time + timedelta(seconds=30)
 
-            has_alert = TriggeredAlert.objects.filter(
-                rule__is_active=True,
-                triggered_at__range=(time_window_start, time_window_end)
-            ).exists()
+            has_alert = np.any(
+                (alert_times >= t_start) & (alert_times <= t_end)
+            )
 
             y_clf.append(1 if has_alert else 0)
             X_clf.append(window_X.flatten())

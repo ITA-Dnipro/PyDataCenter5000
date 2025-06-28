@@ -1667,7 +1667,11 @@ def test_ping_controller_tcp_fail(monkeypatch):
     def raise_socket_error(addr, timeout):
         raise socket.error()
 
-    monkeypatch.setattr(socket, 'create_connection', raise_socket_error)
+    module_path = agent._ping_controller.__module__
+    monkeypatch.setattr(
+        f'{module_path}.socket.create_connection',
+        raise_socket_error
+    )
 
     result = agent._ping_controller('http://mock', api_key=None)
     assert result is False

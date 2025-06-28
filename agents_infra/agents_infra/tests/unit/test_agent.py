@@ -37,7 +37,6 @@ UNEXPECTED_ERROR_OUTPUT = (
 
 
 class MockAgent(ServerAgent):
-
     def __init__(
         self,
         server_name='mock',
@@ -59,6 +58,7 @@ class MockAgent(ServerAgent):
             whitelist_commands,
             command_queue_size=command_queue_size,
         )
+        self.mock_controller_healthy = True
 
     def setup_logging(self, log_path=None):
         """Patch logging setup to do nothing to allow temp file logging."""
@@ -73,11 +73,22 @@ class MockAgent(ServerAgent):
         if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)
 
+    def _ping_controller(self, url, api_key, timeout=3):
+        return self.mock_controller_healthy
+
+    def ensure_active_controller(self, api_key):
+        return (
+            self.current_controller if self.mock_controller_healthy else None
+        )
+
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
 
     def maybe_restart_service(self):
-        return super(MockAgent, self).maybe_restart_service()
+        return super(
+            MockAgent,
+            self
+        ).maybe_restart_service()
 
 
 def mock_popen_with_output(stdout, stderr=''):
@@ -429,10 +440,10 @@ def test_fetch_command_from_controller_success(
         )
 
 
-def test_fetch_command_from_controller_emty_response(
+def test_fetch_command_from_controller_empty_response(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
-    class MockResponse(object):
+    class MockResponse:
         def getcode(self):
             return 200
 
@@ -447,16 +458,13 @@ def test_fetch_command_from_controller_emty_response(
     )
 
     agent = MockAgent(port=12345)
-
     agent.hostname = 'mock_server'
     agent.controller_urls = ['http://mock/']
     agent.current_controller = 'http://mock/'
 
     agent.fetch_command_from_controller()
 
-    assert_msg_in_logfile(
-        'No pending commands for server %s' % agent.hostname
-    )
+    assert_msg_in_logfile('No pending commands for server %s' % agent.hostname)
 
 
 def test_fetch_command_from_controller_missing_data(
@@ -466,20 +474,22 @@ def test_fetch_command_from_controller_missing_data(
     Test proper handling and logging of missing data
     (hostname or controller URL) in fetch_command_from_controller.
     """
-    parameters = [(None, 'mock_server'), ('http://mock/', None)]
+    test_cases = [
+        (None, 'mock_server'),
+        ('http://mock/', None),
+    ]
 
-    for controller_url, hostname in parameters:
+    for controller_url, hostname in test_cases:
         agent = MockAgent(port=12345)
-
-        agent.hostname = hostname
-        agent.controller_urls = [controller_url]
+        agent.controller_urls = [controller_url] if controller_url else []
         agent.current_controller = controller_url
+        agent.hostname = hostname
 
         agent.fetch_command_from_controller()
 
         assert_msg_in_logfile(
-            "Couldn't fetch controller command: controller URL or "
-            'hostname not set'
+            "Couldn't fetch controller command:"
+            ' controllers URLs or hostname not set'
         )
 
 
@@ -490,34 +500,27 @@ def test_fetch_command_from_controller_error(
     Test proper handling and logging of errors in
     fetch_command_from_controller.
     """
-    for error, msg in [
+    test_errors = [
         HTTP_ERROR_OUTPUT,
         URL_ERROR_OUTPUT,
         TIMEOUT_ERROR_OUTPUT,
         UNEXPECTED_ERROR_OUTPUT,
-    ]:
+    ]
+
+    for error_instance, expected_log_msg in test_errors:
         def mock_urlopen(request, timeout=5):
-            raise error
+            raise error_instance
 
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
         agent = MockAgent(port=12345)
-
-        agent.collect_server_metadata()
-
         agent.hostname = 'mock_server'
-        agent.controller_urls = [
-            (
-                'http://mock/api/command/?hostname=%s' % agent.hostname
-            )
-        ]
-        agent.current_controller = (
-            'http://mock/api/command/?hostname=%s' % agent.hostname
-        )
+        agent.controller_urls = ['http://mock/']
+        agent.current_controller = 'http://mock/'
 
         agent.fetch_command_from_controller()
 
-        assert_msg_in_logfile(msg)
+        assert_msg_in_logfile(expected_log_msg)
 
 
 def test_maybe_add_to_queue_adds_item():

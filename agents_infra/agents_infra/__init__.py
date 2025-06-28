@@ -3,8 +3,8 @@ from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
 from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
-from .plugins import (execute_cpu_check, execute_disk_check,
-                      execute_load_avg_check, execute_ram_check)
+from .plugins.metric import (execute_cpu_check, execute_disk_check,
+                             execute_load_avg_check, execute_ram_check)
 from .plugins.plugin import register_plugin
 from .utils import configtools
 

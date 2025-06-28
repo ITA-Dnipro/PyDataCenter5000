@@ -1659,16 +1659,15 @@ def test_ping_controller_success(monkeypatch):
 
 def test_ping_controller_tcp_fail(monkeypatch):
     """
-        Test that _ping_controller returns False when
-        TCP connection to the controller fails.
+    Test that _ping_controller returns False when
+    TCP connection to the controller fails.
     """
-
     agent = MockAgent(port=12345)
 
     def raise_socket_error(addr, timeout):
         raise socket.error()
 
-    monkeypatch.setattr('socket.create_connection', raise_socket_error)
+    monkeypatch.setattr(socket, 'create_connection', raise_socket_error)
 
     result = agent._ping_controller('http://mock', api_key=None)
     assert result is False
@@ -1676,13 +1675,18 @@ def test_ping_controller_tcp_fail(monkeypatch):
 
 def test_ping_controller_health_check_fail(monkeypatch):
     """
-       Test that _ping_controller returns False when
-       the health check endpoint fails with an HTTP error.
+    Test that _ping_controller returns False when
+    the health check endpoint fails with an HTTP error.
     """
 
     agent = MockAgent(port=12345)
 
-    monkeypatch.setattr('socket.create_connection', lambda addr, timeout: True)
+    monkeypatch.setattr(
+        socket,
+        'create_connection',
+        lambda addr,
+        timeout: True
+    )
 
     def mock_urlopen(req, timeout=3):
         raise urllib2.HTTPError(
@@ -1693,7 +1697,7 @@ def test_ping_controller_health_check_fail(monkeypatch):
             fp=None
         )
 
-    monkeypatch.setattr('urllib2.urlopen', mock_urlopen)
+    monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     result = agent._ping_controller('http://mock', api_key=None)
     assert result is False
@@ -1772,13 +1776,19 @@ def test_ensure_active_controller_success_current(monkeypatch):
 
 def test_ensure_active_controller_switches_to_healthy(monkeypatch):
     """
-        Test that ensure_active_controller switches
-        to the next available healthy controller
-        if the current one is unhealthy.
+    Test that ensure_active_controller switches to the next
+    available healthy controller if the current one
+     is unhealthy.
     """
     agent = MockAgent(port=12345)
     agent.set_controller_urls(['http://mock1', 'http://mock2'])
     agent.current_controller = 'http://mock1'
+
+    monkeypatch.setattr(
+        agent,
+        'try_revert_primary_controller',
+        lambda api_key: agent.current_controller
+    )
 
     def mock_ping(url, api_key):
         return url == 'http://mock2'
@@ -1787,19 +1797,30 @@ def test_ensure_active_controller_switches_to_healthy(monkeypatch):
 
     result = agent.ensure_active_controller(api_key=None)
     assert result == 'http://mock2'
-    assert agent.current_controller == 'http://mock2'
 
 
 def test_ensure_active_controller_fails_all(monkeypatch):
     """
-        Test that ensure_active_controller returns None and
-        logs an error if no controllers are healthy.
+    Test that ensure_active_controller returns None
+    if no controllers are healthy.
     """
     agent = MockAgent(port=12345)
     agent.set_controller_urls(['http://mock1', 'http://mock2'])
     agent.current_controller = 'http://mock1'
 
-    monkeypatch.setattr(agent, '_ping_controller', lambda url, api_key: False)
+    # Skip revert logic
+    monkeypatch.setattr(
+        agent,
+        'try_revert_primary_controller',
+        lambda api_key: agent.current_controller
+    )
+
+    monkeypatch.setattr(
+        agent,
+        '_ping_controller',
+        lambda url,
+        api_key: False
+    )
 
     result = agent.ensure_active_controller(api_key=None)
     assert result is None

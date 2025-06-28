@@ -25,13 +25,14 @@ class HealthHandler(BaseHTTPRequestHandler):
         """
         if self.path == '/health':
             try:
-                uptime = getattr(self.server, 'uptime', lambda: None)()
                 health = {
                     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                     'agent': getattr(self.server, 'server_name', 'unknown'),
-                    'uptime': None if uptime == -1 else uptime,
+                    'uptime': getattr(self.server, 'uptime', None),
                     'status': 'ok' if getattr(
-                        self.server, 'is_service_healthy', lambda: False
+                        self.server,
+                        'is_service_healthy_callback',
+                        lambda: False
                     )() else 'error',
                 }
                 status_code = 200

@@ -69,12 +69,7 @@ def main():
         logging.info('Agent initialized. Collecting server metadata...')
         agent.collect_server_metadata()
 
-        health_manager = HealthServerManager(
-            agent_name=agent.server_name,
-            is_service_healthy_callback=agent.is_service_healthy,
-            port=agent.health_port,
-            uptime_callback=get_linux_uptime,
-        )
+        health_manager = HealthServerManager(agent=agent)
 
         supervisor = AgentSupervisor(agent=agent, managers=[health_manager])
 

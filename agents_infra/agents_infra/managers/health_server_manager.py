@@ -9,33 +9,27 @@ from .base import ServerManager
 
 
 class HealthServerManager(ServerManager):
-    def __init__(
-            self,
-            agent_name,
-            is_service_healthy_callback,
-            port=8081,
-            uptime_callback=None
-    ):
-        self.agent_name = agent_name
-        self.is_service_healthy = is_service_healthy_callback
-        self.port = port
-        self.uptime_callback = uptime_callback or (lambda: None)
+    def __init__(self, agent, port=None):
+        self.agent = agent
+        self.port = port if port is not None else agent.health_port
         self.server = None
         self.thread = None
 
     @property
     def logger(self):
         return logging.getLogger(
-            '-'.join([self.agent_name, 'health-server'])
+            '-'.join([self.agent.server_name, 'health-server'])
         )
 
     def start(self):
         def run():
             try:
                 self.server = HTTPServer(('', self.port), HealthHandler)
-                self.server.server_name = self.agent_name
-                self.server.uptime = self.uptime_callback
-                self.server.is_service_healthy = self.is_service_healthy
+                self.server.server_name = self.agent.server_name
+                self.server.uptime = self.agent.uptime
+                self.server.is_service_healthy_callback = (
+                    self.agent.is_service_healthy
+                )
 
                 maybe_log_message(
                     'Health server running at /health on port %s' % self.port,
@@ -55,16 +49,16 @@ class HealthServerManager(ServerManager):
         self.thread.start()
 
     def stop(self):
-        if hasattr(self, 'health_server'):
+        if self.server is not None:
             maybe_log_message(
                 'Shutting down health server...',
                 logger=self.logger,
                 level=logging.INFO
             )
             try:
-                self.health_server.shutdown()
-                self.health_server.server_close()
-                self.health_thread.join()
+                self.server.shutdown()
+                self.server.server_close()
+                self.thread.join()
 
                 maybe_log_message(
                     'Health server shut down successfully.',
@@ -78,5 +72,5 @@ class HealthServerManager(ServerManager):
                     level=logging.ERROR
                 )
             finally:
-                del self.health_server
-                del self.health_thread
+                del self.server
+                del self.thread

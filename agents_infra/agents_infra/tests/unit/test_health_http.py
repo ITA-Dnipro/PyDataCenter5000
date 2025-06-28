@@ -126,9 +126,8 @@ class TestHealthHandler(unittest.TestCase):
             def __init__(self):
                 super(FailingServer, self).__init__()
 
-                def fail():
-                    return 1 / 0
-                self.uptime = fail()
+            def is_service_healthy_callback(self):
+                return 1 / 0
 
         class FailingHandler(self.handler_class):
             def __init__(self):

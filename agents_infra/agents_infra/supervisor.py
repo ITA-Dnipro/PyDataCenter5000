@@ -1,5 +1,6 @@
 import itertools
 import logging
+import signal
 import threading
 
 import coro

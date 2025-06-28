@@ -6,7 +6,6 @@ import logging.config
 import os
 import platform
 import re
-import signal
 import socket
 import subprocess
 import sys

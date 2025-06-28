@@ -10,10 +10,10 @@ from ...utils.health_http import HealthHandler
 
 
 class DummyServer(object):
-    def __init__(self, name='test-agent', healthy=True, uptime=123):
+    def __init__(self, name='test-agent', healthy=True, uptime_value=123):
         self.server_name = name
-        self.is_service_healthy = lambda: healthy
-        self.uptime = lambda: uptime
+        self.is_service_healthy_callback = lambda: healthy
+        self.uptime = uptime_value
 
 
 class TestHealthHandler(unittest.TestCase):
@@ -162,16 +162,18 @@ class TestHealthHandler(unittest.TestCase):
 
 
 class TestHealthServerManager(unittest.TestCase):
+    class DummyAgent(object):
+        def __init__(self, name='test', healthy=True):
+            self.server_name = name
+            self.health_port = 8081
+            self.is_service_healthy = lambda: healthy
+            self.uptime = lambda: 123
+
     @mock.patch('agents_infra.managers.health_server_manager.HTTPServer')
     def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):
-        class DummyAgent(object):
-            def __init__(self, name='test', healthy=True):
-                self.server_name = name
-                self.health_port = 8081
-                self.is_service_healthy = lambda: healthy
-                self.uptime = lambda: 123
-
-        dummy_agent = DummyAgent()
+        """Checks that the stop method calls shutdown, server_close,
+        and thread join."""
+        dummy_agent = self.DummyAgent()
         manager = HealthServerManager(agent=dummy_agent)
 
         mock_server = mock.Mock()
@@ -183,23 +185,31 @@ class TestHealthServerManager(unittest.TestCase):
 
         self.assertTrue(
             mock_server.shutdown.called,
-            'shutdown() was not called on the server'
+            'Expected shutdown() to be called on server, but not'
             )
         self.assertTrue(
             mock_server.server_close.called,
-            'server_close() was not called on the server'
-        )
+            'Expected server_close() to be called on server, but not'
+            )
         self.assertTrue(
             mock_thread.join.called,
-            'join() was not called on the thread'
+            'Expected join() to be called on thread, but not'
         )
 
     def test_logger_initialized(self):
-        dummy_agent = DummyAgent(name='test')
+        """Tests that the logger is initialized with the correct name."""
+        dummy_agent = self.DummyAgent(name='test')
         manager = HealthServerManager(agent=dummy_agent)
 
         logger = manager.logger
-        expected_logger_name = 'test-health-server'
+        expected_name = 'test-health-server'
 
-        self.assertTrue(isinstance(logger, logging.Logger))
-        self.assertEqual(logger.name, expected_logger_name)
+        self.assertTrue(
+            isinstance(logger, logging.Logger),
+            'Logger is not an instance of logging.Logger'
+        )
+        self.assertEqual(
+            logger.name, expected_name,
+            'Logger name expected "%s", but got "%s"' %
+            (expected_name, logger.name)
+        )

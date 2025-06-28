@@ -1669,7 +1669,7 @@ def test_ping_controller_tcp_fail(monkeypatch):
 
     module_path = agent._ping_controller.__module__
     monkeypatch.setattr(
-        f'{module_path}.socket.create_connection',
+        '%s.socket.create_connection' % module_path,
         raise_socket_error
     )
 

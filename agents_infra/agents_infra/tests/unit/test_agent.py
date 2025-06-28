@@ -368,7 +368,7 @@ def test_post_data_to_controller_missing_url(
 
     # Set controller's URL explicitly to be independent of changes
     # of default values in agent.py/
-    agent.controller_url = None
+    agent.controller_urls = None
 
     agent.post_data(
         url='', payload={'to_controller': 'test'}, to_controller=True
@@ -416,7 +416,7 @@ def test_fetch_command_from_controller_success(
         agent = MockAgent(port=12345)
 
         agent.hostname = 'mock_server'
-        agent.controller_url = 'http://mock/'
+        agent.current_controller = 'http://mock/'
 
         result = agent.fetch_command_from_controller()
 
@@ -447,7 +447,7 @@ def test_fetch_command_from_controller_emty_response(
     agent = MockAgent(port=12345)
 
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
 
     agent.fetch_command_from_controller()
 
@@ -469,7 +469,7 @@ def test_fetch_command_from_controller_missing_data(
         agent = MockAgent(port=12345)
 
         agent.hostname = hostname
-        agent.controller_url = controller_url
+        agent.current_controller = controller_url
 
         agent.fetch_command_from_controller()
 
@@ -502,7 +502,7 @@ def test_fetch_command_from_controller_error(
         agent.collect_server_metadata()
 
         agent.hostname = 'mock_server'
-        agent.controller_url = (
+        agent.current_controller = (
             'http://mock/api/command/?hostname=%s' % agent.hostname
         )
 
@@ -1275,7 +1275,7 @@ def test_fetch_command_from_controller_headers_default():
     """Test that default headers are set correctly."""
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
 
     captured_request = {'headers': None}
 
@@ -1301,7 +1301,7 @@ def test_fetch_command_from_controller_headers_with_api_key():
     agent = MockAgent(port=12345)
 
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
     agent.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
@@ -1331,7 +1331,7 @@ def test_fetch_command_from_controller_headers_with_kwargs():
     """Test that additional headers from kwargs are added correctly."""
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
     agent.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
@@ -1367,7 +1367,7 @@ def test_fetch_command_from_controller_headers_kwargs_override():
     """Test that kwargs headers override default headers."""
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
     agent.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
@@ -1400,7 +1400,7 @@ def test_fetch_command_from_controller_headers_update():
     """Test that headers.update correctly adds Authorization header."""
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
     agent.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}

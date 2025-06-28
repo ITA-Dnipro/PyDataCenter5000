@@ -121,8 +121,7 @@ class ServerAgent(object):
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
-        self.os_type = self.hostname = self.ip = None
-        self.uptime = self.timestamp = None
+        self.os_type = self.hostname = self.ip = self.uptime = None
 
         # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
@@ -364,10 +363,6 @@ class ServerAgent(object):
                 "Could not get system's uptime", logger=self.logger
             )
 
-        self.timestamp = datetime.datetime.utcnow().strftime(
-            '%Y-%m-%d %H:%M:%S'
-        )
-
     def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the port is open.
@@ -497,7 +492,6 @@ class ServerAgent(object):
             'ip': self.ip,
             'server_name': self.server_name,
             'uptime': self.uptime,
-            'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
 

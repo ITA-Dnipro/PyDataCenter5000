@@ -120,14 +120,12 @@ class TestHealthHandler(unittest.TestCase):
     def test_health_status_error_on_exception(self):
         """
         Health endpoint returns 500 with status 'error' and error message
-        when uptime() or is_service_healthy() raises an exception.
+        when is_service_healthy() raises an exception.
         """
         class FailingServer(DummyServer):
             def __init__(self):
                 super(FailingServer, self).__init__()
-
-            def is_service_healthy_callback(self):
-                return 1 / 0
+                self.is_service_healthy_callback = lambda: 1 / 0
 
         class FailingHandler(self.handler_class):
             def __init__(self):

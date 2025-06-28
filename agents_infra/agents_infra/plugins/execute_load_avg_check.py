@@ -1,6 +1,6 @@
 import os
 
-PLUGIN_NAME = 'get_load_avg'
+PLUGIN_NAME = 'load_avg'
 
 
 def execute(parent=None, **kwargs):

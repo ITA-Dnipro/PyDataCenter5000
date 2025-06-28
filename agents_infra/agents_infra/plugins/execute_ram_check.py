@@ -1,6 +1,6 @@
 import psutil
 
-PLUGIN_NAME = 'get_ram_percent'
+PLUGIN_NAME = 'ram_percent'
 
 
 def execute(parent=None, **kwargs):

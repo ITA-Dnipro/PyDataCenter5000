@@ -1,6 +1,6 @@
 import psutil
 
-PLUGIN_NAME = 'get_cpu_percent'
+PLUGIN_NAME = 'cpu_percent'
 
 
 def execute(parent=None, **kwargs):

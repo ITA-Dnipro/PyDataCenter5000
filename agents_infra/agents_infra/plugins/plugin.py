@@ -45,6 +45,7 @@ class Plugin(object):
         self.executable = executable
         self.name = name
 
+        self.is_plugin = True
         self.enabled = True  # By default, plugin is enabled.
 
     @classmethod

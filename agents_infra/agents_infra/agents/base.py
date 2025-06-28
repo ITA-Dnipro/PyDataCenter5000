@@ -1,9 +1,9 @@
 import abc
 import datetime
+import inspect
 import json
 import logging
 import logging.config
-import os
 import platform
 import re
 import socket
@@ -169,6 +169,23 @@ class ServerAgent(object):
                 'log_path': log_path
             },
         )
+
+    def aggregate_plugins(self):
+        """
+        Aggregate the output of currently enabled plugins in the same dict.
+        """
+        results = {}
+
+        for _, p in inspect.getmembers(
+            type(self),
+            predicate=lambda p: (
+                inspect.ismethod(p) and getattr(p, 'is_plugin', False)
+            )
+        ):
+            if p.enabled:
+                results[p.name] = p(self)
+
+        return results
 
     @property
     def logger(self):

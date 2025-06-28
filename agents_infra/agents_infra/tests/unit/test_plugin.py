@@ -68,3 +68,31 @@ def test_validate_plugin_module_invalid_execute_return_type_error(
         match='execute callable must return a dict, not %s' % type(None),
     ):
         _validate_plugin_module(dummy_module)
+
+
+def test_plugin_creation_from_module(dummy_module):
+    """Test that the plugin is properly created via from_module factory."""
+    dummy_module.execute = lambda: {}
+    dummy_module.PLUGIN_NAME = 'dummy_plugin'
+    dummy_module.PLUGIN_CATEGORY = 'dummy_category'
+
+    plugin = Plugin.from_module(dummy_module)
+
+    assert plugin.name == 'dummy_plugin'
+    assert plugin.category == 'dummy_category'
+
+    assert plugin.is_plugin
+    assert plugin.enabled
+
+
+def test_plugin_creation_from_callable():
+    """Test that the plugin is properly created via from_callable factory."""
+    plugin = Plugin.from_callable(
+        lambda: {}, name='dummy_plugin', category='dummy_category'
+    )
+
+    assert plugin.name == 'dummy_plugin'
+    assert plugin.category == 'dummy_category'
+
+    assert plugin.is_plugin
+    assert plugin.enabled

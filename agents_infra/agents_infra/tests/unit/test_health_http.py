@@ -128,7 +128,7 @@ class TestHealthHandler(unittest.TestCase):
 
                 def fail():
                     return 1 / 0
-                self.uptime = fail
+                self.uptime = fail()
 
         class FailingHandler(self.handler_class):
             def __init__(self):
@@ -167,7 +167,7 @@ class TestHealthServerManager(unittest.TestCase):
             self.server_name = name
             self.health_port = 8081
             self.is_service_healthy = lambda: healthy
-            self.uptime = lambda: 123
+            self.uptime = 123
 
     @mock.patch('agents_infra.managers.health_server_manager.HTTPServer')
     def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):

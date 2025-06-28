@@ -164,15 +164,20 @@ class TestHealthHandler(unittest.TestCase):
 class TestHealthServerManager(unittest.TestCase):
     @mock.patch('agents_infra.managers.health_server_manager.HTTPServer')
     def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):
-        manager = HealthServerManager(
-            agent_name='test',
-            is_service_healthy_callback=lambda: True
-        )
+        class DummyAgent(object):
+            def __init__(self, name='test', healthy=True):
+                self.server_name = name
+                self.health_port = 8081
+                self.is_service_healthy = lambda: healthy
+                self.uptime = lambda: 123
+
+        dummy_agent = DummyAgent()
+        manager = HealthServerManager(agent=dummy_agent)
 
         mock_server = mock.Mock()
         mock_thread = mock.Mock()
-        manager.health_server = mock_server
-        manager.health_thread = mock_thread
+        manager.server = mock_server
+        manager.thread = mock_thread
 
         manager.stop()
 
@@ -190,14 +195,11 @@ class TestHealthServerManager(unittest.TestCase):
         )
 
     def test_logger_initialized(self):
-        agent_name = 'test'
-        manager = HealthServerManager(
-            agent_name=agent_name,
-            is_service_healthy_callback=lambda: True
-        )
+        dummy_agent = DummyAgent(name='test')
+        manager = HealthServerManager(agent=dummy_agent)
 
         logger = manager.logger
-        expected_logger_name = '%s-health-server' % agent_name
+        expected_logger_name = 'test-health-server'
 
         self.assertTrue(isinstance(logger, logging.Logger))
         self.assertEqual(logger.name, expected_logger_name)

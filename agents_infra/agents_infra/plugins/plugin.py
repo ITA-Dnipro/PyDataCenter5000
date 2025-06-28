@@ -7,7 +7,7 @@ from singledispatch import singledispatch
 from ..exceptions import PluginValidationError
 
 
-def _validate_module(module):
+def _validate_plugin_module(module):
     if (
         not hasattr(module, 'execute')
         or not isinstance(module.execute, Callable)
@@ -53,7 +53,7 @@ class Plugin(object):
     @classmethod
     def from_module(cls, module):
         """Create plugin from a module with a valid 'execute' callable."""
-        module = _validate_module(module)
+        module = _validate_plugin_module(module)
         name = getattr(
             module, 'PLUGIN_NAME', module.__name__.split('.')[-1]
         )

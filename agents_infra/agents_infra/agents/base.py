@@ -170,7 +170,7 @@ class ServerAgent(object):
             },
         )
 
-    def aggregate_plugins(self, category=None):
+    def aggregate_reports(self, category=None):
         """
         Aggregate the output of currently enabled plugins in the same dict.
         """

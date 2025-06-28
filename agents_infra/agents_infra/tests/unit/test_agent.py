@@ -368,7 +368,8 @@ def test_post_data_to_controller_missing_url(
 
     # Set controller's URL explicitly to be independent of changes
     # of default values in agent.py/
-    agent.controller_urls = None
+    agent.controller_urls = []
+    agent.current_controller = None
 
     agent.post_data(
         url='', payload={'to_controller': 'test'}, to_controller=True
@@ -416,6 +417,7 @@ def test_fetch_command_from_controller_success(
         agent = MockAgent(port=12345)
 
         agent.hostname = 'mock_server'
+        agent.controller_urls = ['http://mock/']
         agent.current_controller = 'http://mock/'
 
         result = agent.fetch_command_from_controller()
@@ -447,6 +449,7 @@ def test_fetch_command_from_controller_emty_response(
     agent = MockAgent(port=12345)
 
     agent.hostname = 'mock_server'
+    agent.controller_urls = ['http://mock/']
     agent.current_controller = 'http://mock/'
 
     agent.fetch_command_from_controller()
@@ -469,6 +472,7 @@ def test_fetch_command_from_controller_missing_data(
         agent = MockAgent(port=12345)
 
         agent.hostname = hostname
+        agent.controller_urls = [controller_url]
         agent.current_controller = controller_url
 
         agent.fetch_command_from_controller()
@@ -502,6 +506,11 @@ def test_fetch_command_from_controller_error(
         agent.collect_server_metadata()
 
         agent.hostname = 'mock_server'
+        agent.controller_urls = [
+            (
+                'http://mock/api/command/?hostname=%s' % agent.hostname
+            )
+        ]
         agent.current_controller = (
             'http://mock/api/command/?hostname=%s' % agent.hostname
         )

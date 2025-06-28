@@ -137,24 +137,6 @@ class ServerAgent(object):
         # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
-        self.health_server_manager = HealthServerManager(
-            agent_name=self.server_name,
-            is_service_healthy_callback=self.is_service_healthy,
-            port=self.health_port,
-            uptime_callback=get_linux_uptime
-        )
-
-        try:
-            self.health_server_manager.start()
-        except Exception as e:
-            maybe_log_message(
-                'Health server initialization failed: %s' % str(e),
-                logger=self.logger,
-            )
-
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -848,15 +830,3 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
-
-    def stop_health_server(self):
-        self.health_server_manager.stop()
-
-    def _signal_handler(self, signum, frame):
-        maybe_log_message(
-            'Received signal %s, shutting down...' % signum,
-            logger=self.logger,
-            level=logging.INFO
-        )
-        self.stop_health_server()
-        sys.exit(0)

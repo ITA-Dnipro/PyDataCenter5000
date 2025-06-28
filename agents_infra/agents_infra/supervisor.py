@@ -24,13 +24,17 @@ class AgentSupervisor(object):
             exit.
     """
 
-    def __init__(self, agent):
+    def __init__(self, agent, managers=None):
         self.agent = agent
+        self.managers = managers or []
 
         self._coros = {}  # Store coroutine IDs and references
         self._lock = threading.Lock()
 
         self.counter = itertools.count(1)
+
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
     @property
     def logger(self):
@@ -48,6 +52,18 @@ class AgentSupervisor(object):
             )
 
         coro.event_loop(timeout)
+
+    def start_managers(self):
+        """Starts the managers. Blocks until explicitly stopped."""
+        for manager in self.managers:
+            manager.start()
+        self.logger.info('All managers started. Running main loop...')
+        signal.pause()
+
+    def stop_managers(self):
+        """Stops the managers."""
+        for manager in self.managers:
+            manager.stop()
 
     def sleep(self, interval):
         """
@@ -340,3 +356,12 @@ class AgentSupervisor(object):
 
         coroutine = coro.spawn(exit)
         self.put_coro(0, coroutine)
+
+    def _signal_handler(self, signum, frame):
+        maybe_log_message(
+            'Received signal %s, shutting down...' % signum,
+            logger=self.logger,
+            level=logging.INFO
+        )
+        self.stop_health_server()
+        sys.exit(0)

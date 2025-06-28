@@ -3,6 +3,11 @@ import os
 import sys
 import time
 
+from agents_infra.agents.base import get_linux_uptime
+from agents_infra.agents.managers.health_server_manager import \
+    HealthServerManager
+from agents_infra.agents.supervisor import AgentSupervisor
+
 sys.path.insert(
     0,
     os.path.abspath(
@@ -34,7 +39,6 @@ def main():
     agent_name = sys.argv[1]
 
     try:
-        # Dynamically import: agents.dns.dns -> DNSAgent
         module = __import__(
             'agents.%s.%s' % (agent_name, agent_name), fromlist=['']
         )
@@ -62,10 +66,20 @@ def main():
         except AttributeError:
             logging.debug('Agent does not implement setup_logging().')
 
-        logging.info('Agent initialized. Starting health loop...')
+        logging.info('Agent initialized. Collecting server metadata...')
         agent.collect_server_metadata()
-        while True:
-            time.sleep(1)
+
+        health_manager = HealthServerManager(
+            agent_name=agent.server_name,
+            is_service_healthy_callback=agent.is_service_healthy,
+            port=agent.health_port,
+            uptime_callback=get_linux_uptime,
+        )
+
+        supervisor = AgentSupervisor(agent=agent, managers=[health_manager])
+
+        logging.info('Starting all managers and entering signal pause...')
+        supervisor.start_managers()
 
     except Exception as e:
         logging.exception('Error while running agent: %s' % e)

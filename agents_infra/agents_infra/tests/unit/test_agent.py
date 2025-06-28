@@ -1667,7 +1667,11 @@ def test_ping_controller_tcp_fail(monkeypatch):
     def raise_socket_error(addr, timeout):
         raise socket.error()
 
+    def dummy_urlopen(req, timeout=3):
+        raise Exception('urlopen should not be called if TCP fails')
+
     monkeypatch.setattr(socket, 'create_connection', raise_socket_error)
+    monkeypatch.setattr(urllib2, 'urlopen', dummy_urlopen)
 
     result = agent._ping_controller('http://mock', api_key=None)
     assert result is False

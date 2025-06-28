@@ -41,9 +41,11 @@ class Plugin(object):
     Attributes:
         module (Module): Plugin module containing the 'execute' callable.
     """
-    def __init__(self, executable, name):
+    def __init__(self, executable, name, category=None):
         self.executable = executable
         self.name = name
+
+        self.category = category or 'unknown'
 
         self.is_plugin = True
         self.enabled = True  # By default, plugin is enabled.
@@ -56,17 +58,21 @@ class Plugin(object):
             module, 'PLUGIN_NAME', module.__name__.split('.')[-1]
         )
 
-        return cls(module.execute, name)
+        category = getattr(module, 'PLUGIN_CATEGORY', 'unknown')
+
+        return cls(module.execute, name, category=category)
 
     @classmethod
-    def from_callable(cls, func, name=None):
+    def from_callable(cls, func, name=None, category=None):
         """Create plugin from a callable."""
         if not isinstance(func, Callable):
             raise PluginValidationError(
                 'Must pass a callable to "from_callable" factory'
             )
 
-        return cls(func, name if name else func.__name__)
+        return cls(
+            func, name if name else func.__name__, category or 'unknown'
+        )
 
     def __call__(self, parent=None, **kwargs):
         return self.executable(parent, **kwargs)

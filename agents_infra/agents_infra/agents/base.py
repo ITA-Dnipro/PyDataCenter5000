@@ -170,20 +170,26 @@ class ServerAgent(object):
             },
         )
 
-    def aggregate_plugins(self):
+    def aggregate_plugins(self, category=None):
         """
         Aggregate the output of currently enabled plugins in the same dict.
         """
         results = {}
 
-        for _, p in inspect.getmembers(
+        for name, p in inspect.getmembers(
             type(self),
             predicate=lambda p: (
                 inspect.ismethod(p) and getattr(p, 'is_plugin', False)
             )
         ):
-            if p.enabled:
-                results[p.name] = p(self)
+            if p.enabled and (category is None or p.category == category):
+                try:
+                    results[p.name] = p(self)
+                except Exception as e:
+                    maybe_log_message(
+                        'Plugin %s failed due to error: %s' % (name, str(e)),
+                        logger=self.logger,
+                    )
 
         return results
 
@@ -765,15 +771,3 @@ class ServerAgent(object):
                 'Queue is empty - could not retrieve command',
                 logger=self.logger,
             )
-
-    def generate_report(self):
-        """
-        Generate a report containing server resource usage.
-        """
-        return {
-            'cpu': self.get_cpu_usage(),
-            'ram': self.get_ram_usage(),
-            'disk': self.get_disk_usage(),
-            'load_avg': self.get_load_average(),
-            'timestamp': datetime.datetime.now().isoformat(),
-        }

@@ -1,6 +1,7 @@
 import os
 
 PLUGIN_NAME = 'load_avg'
+PLUGIN_CATEGORY = 'metric'
 
 
 def execute(parent=None, **kwargs):

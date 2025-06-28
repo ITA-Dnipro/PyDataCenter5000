@@ -1,9 +1,11 @@
 import types
 
+import mock
 import pytest
 
 from agents_infra.exceptions import PluginValidationError
-from agents_infra.plugins.plugin import Plugin, _validate_plugin_module
+from agents_infra.plugins.plugin import (Plugin, _validate_plugin_module,
+                                         register_plugin)
 
 
 @pytest.fixture
@@ -96,3 +98,51 @@ def test_plugin_creation_from_callable():
 
     assert plugin.is_plugin
     assert plugin.enabled
+
+
+def test_plugin_call():
+    """Test that calling the plugin works as expected."""
+    func = mock.Mock(return_value={'status': 'ok'})
+
+    plugin = Plugin.from_callable(func, name='mock_callable')
+
+    assert plugin() == {'status': 'ok'}
+    assert func.call_count == 1
+
+
+def test_register_plugin_from_module_success(dummy_module):
+    """Test that plugin is properly registered from module for object."""
+    class DummyObject(object):
+        pass
+
+    dummy_module.execute = lambda: {}
+
+    register_plugin(dummy_module, DummyObject)
+
+    assert hasattr(DummyObject, 'dummy_module')
+
+
+def test_register_plugin_from_callable_success():
+    """Test that plugin is properly registered from callable for object."""
+    class DummyObject(object):
+        pass
+
+    def dummy_callable():
+        return {}
+
+    register_plugin(dummy_callable, DummyObject)
+
+    assert hasattr(DummyObject, 'dummy_callable')
+
+
+def test_register_plugin_invalid_type_raises():
+    """Test that plugin registration with invalid type raises an error."""
+    class DummyObject(object):
+        pass
+
+    with pytest.raises(
+        NotImplementedError,
+        match='Plugin registration not supported for a source of type %s'
+        % str
+    ):
+        register_plugin('invalid', DummyObject)

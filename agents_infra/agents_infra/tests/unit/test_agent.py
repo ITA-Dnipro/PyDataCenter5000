@@ -499,7 +499,7 @@ def test_fetch_command_from_controller_error(
 
         agent = MockAgent(port=12345)
 
-        agent.collect_server_metadata()
+        agent.evaluate_identity()
 
         agent.hostname = 'mock_server'
         agent.controller_url = (
@@ -880,7 +880,7 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
 
 
-def test_collect_server_metadata_os_detection(monkeypatch):
+def test_evaluate_identity_os_detection(monkeypatch):
     """Test successful OS type detection."""
     def mock_system():
         return 'Linux'
@@ -897,13 +897,13 @@ def test_collect_server_metadata_os_detection(monkeypatch):
 
     agent = MockAgent(port=12345)
 
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     assert agent.os_type == 'linux'
     assert agent.uptime == 12345.0
 
 
-def test_collect_server_metadata_unknown_os_logged(
+def test_evaluate_identity_unknown_os_logged(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     """Test handling of undetectable OS type."""
@@ -914,14 +914,14 @@ def test_collect_server_metadata_unknown_os_logged(
 
     agent = MockAgent(port=12345)
 
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     assert agent.os_type == 'unknown'
 
     assert_msg_in_logfile('Could not deduce OS type')
 
 
-def test_collect_server_metadata_interface_ip_success(monkeypatch):
+def test_evaluate_identity_interface_ip_success(monkeypatch):
     """Test successful IP address retrieval from interface."""
     def mock_net_if_addrs():
         return {
@@ -936,12 +936,12 @@ def test_collect_server_metadata_interface_ip_success(monkeypatch):
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
     agent = MockAgent(port=12345, interface='eth0')
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     assert agent.ip == '192.168.1.1'
 
 
-def test_collect_server_metadata_interface_errors(
+def test_evaluate_identity_interface_errors(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     """
@@ -967,7 +967,7 @@ def test_collect_server_metadata_interface_errors(
         monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
         agent = MockAgent(port=12345, interface='nonexistent')
-        agent.collect_server_metadata()
+        agent.evaluate_identity()
 
         assert agent.ip is None
 
@@ -977,7 +977,7 @@ def test_collect_server_metadata_interface_errors(
         )
 
 
-def test_collect_server_metadata_hostname_error(
+def test_evaluate_identity_hostname_error(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     """Test handling of socket error when getting hostname."""
@@ -987,7 +987,7 @@ def test_collect_server_metadata_hostname_error(
     monkeypatch.setattr(socket, 'gethostname', mock_gethostname)
 
     agent = MockAgent(port=12345)
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     assert agent.hostname == 'unknown'
 
@@ -1468,7 +1468,7 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
 
 def test_status_to_dict_format():
     agent = MockAgent(port=12345)
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
     result = agent.status_to_dict()
 
     required_keys = set([
@@ -1488,7 +1488,7 @@ def test_status_to_dict_format():
 
 def test_status_to_dict_timestamp_format():
     agent = MockAgent(port=12345)
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
     result = agent.status_to_dict()
     timestamp = result['timestamp']
 

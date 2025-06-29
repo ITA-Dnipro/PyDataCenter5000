@@ -3,7 +3,6 @@ import inspect
 import json
 import logging
 import logging.config
-import platform
 import re
 import socket
 import subprocess
@@ -112,11 +111,12 @@ class ServerAgent(object):
         if critical_processes is not None:
             self.critical_processes.extend(critical_processes)
 
-        # Init server metadata to prevent AttributeError and to indicate
-        # to user that collect_server_metadata hasn't been called.
-        self.os_type = self.hostname = self.ip = None
+        # Server identity refers to data necessary for connectivity to
+        # controller, i.e., hostname and IP address.
+        self.evaluate_identity()
 
-        # Thread-safe queue to store pending commands.
+        # Thread-safe queue to store pending commands. If maxsize <= 0,
+        # the queue is treated as 'infinite'.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
     @classmethod
@@ -171,6 +171,7 @@ class ServerAgent(object):
         """
         reports = {'server_name': self.server_name}
 
+        # Update report with server's identity data.
         if category == 'status':
             reports.update({'hostname': self.hostname, 'ip': self.ip})
 
@@ -309,9 +310,10 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
-    def collect_server_metadata(self):
+    def evaluate_identity(self):
         """
-        Attempt setting server metadata such as the hostname, IP address.
+        Attempt setting server identity which includes the hostname and
+        IP address.
         """
         try:
             self.hostname = socket.gethostname()

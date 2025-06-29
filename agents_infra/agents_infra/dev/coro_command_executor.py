@@ -24,7 +24,7 @@ def main():
     credentials = base64.b64encode(credentials).decode('utf-8')
 
     agent = SMTPAgent.from_config_file()
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     supervisor = AgentSupervisor(agent)
 

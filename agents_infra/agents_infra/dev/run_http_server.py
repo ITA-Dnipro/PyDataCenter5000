@@ -1,58 +1,43 @@
 import logging
 import os
 import sys
-import time
-
-from agents_infra.agents.base import get_linux_uptime
-from agents_infra.agents.managers.health_server_manager import \
-    HealthServerManager
-from agents_infra.agents.supervisor import AgentSupervisor
-
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), '../..')
-    )
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 
 
 def main():
-    """
-    Developer utility to run an agent with health server loop.
+    sys.path.insert(
+        0,
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+    )
 
-    Usage:
-        python run_agent.py <agent_name>
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
 
-    Loads agent config from agents/<agent_name>/config.ini if present,
-    starts health server and runs indefinitely.
-    """
     if len(sys.argv) != 2:
-        logging.error('Usage: python run_agent.py <agent_name>')
+        logging.error('Usage: python run_http_server.py <agent_name>')
         sys.exit(1)
 
     agent_name = sys.argv[1]
 
     try:
-        module = __import__(
-            'agents.%s.%s' % (agent_name, agent_name), fromlist=['']
-        )
+        module_path = 'agents_infra.agents.%s.%s' % (agent_name, agent_name)
+        module = __import__(module_path, fromlist=[''])
 
         if agent_name.lower() == 'web':
             agent_class = getattr(module, 'WebAgent')
         else:
             agent_class = getattr(module, agent_name.upper() + 'Agent')
 
-        config_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(__file__), '..', agent_name, 'config.ini'
-            )
+        config_path = os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            'agents',
+            agent_name,
+            'config.ini'
         )
+        config_path = os.path.abspath(config_path)
 
         if os.path.exists(config_path):
             logging.info('Loading agent from config file: %s' % config_path)
@@ -69,8 +54,19 @@ def main():
         logging.info('Agent initialized. Collecting server metadata...')
         agent.collect_server_metadata()
 
-        health_manager = HealthServerManager(agent=agent)
+        health_manager_module = __import__(
+            'agents_infra.managers.health_server_manager', fromlist=['']
+        )
+        HealthServerManager = getattr(
+            health_manager_module, 'HealthServerManager'
+        )
 
+        supervisor_module = __import__(
+            'agents_infra.supervisor', fromlist=['']
+        )
+        AgentSupervisor = getattr(supervisor_module, 'AgentSupervisor')
+
+        health_manager = HealthServerManager(agent=agent)
         supervisor = AgentSupervisor(agent=agent, managers=[health_manager])
 
         logging.info('Starting all managers and entering signal pause...')

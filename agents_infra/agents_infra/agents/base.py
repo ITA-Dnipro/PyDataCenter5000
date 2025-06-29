@@ -164,9 +164,15 @@ class ServerAgent(object):
 
     def aggregate_reports(self, category=None):
         """
-        Aggregate the output of currently enabled plugins in the same dict.
+        Aggregate reports for a given category.
+
+        Parameters:
+            category (str, optional): Report category.
         """
-        results = {}
+        reports = {'server_name': self.server_name}
+
+        if category == 'status':
+            reports.update({'hostname': self.hostname, 'ip': self.ip})
 
         for name, p in inspect.getmembers(
             type(self),
@@ -176,14 +182,14 @@ class ServerAgent(object):
         ):
             if p.enabled and (category is None or p.category == category):
                 try:
-                    results[p.name] = p(self)
+                    reports[p.name] = p(self)
                 except Exception as e:
                     maybe_log_message(
                         'Plugin %s failed due to error: %s' % (name, str(e)),
                         logger=self.logger,
                     )
 
-        return results
+        return reports
 
     @property
     def logger(self):
@@ -307,12 +313,6 @@ class ServerAgent(object):
         """
         Attempt setting server metadata such as the hostname, IP address.
         """
-        system = platform.system()
-        if not system:
-            maybe_log_message('Could not deduce OS type', logger=self.logger)
-
-        self.os_type = system.lower() or 'unknown'
-
         try:
             self.hostname = socket.gethostname()
         except socket.error as e:
@@ -466,58 +466,6 @@ class ServerAgent(object):
     @abc.abstractmethod
     def maybe_restart_service(self):
         pass
-
-    def status_to_dict(self):
-        return {
-            'os': self.os_type,
-            'hostname': self.hostname,
-            'ip': self.ip,
-            'server_name': self.server_name,
-            'healthy': self.is_service_healthy(),
-        }
-
-    def status_to_json(self, log=False):
-        """
-        Dump host metadata to json file.
-
-        Parameters:
-            log (bool): Whether to log JSON status string to the logfile.
-                Default is False.
-
-        Returns:
-            str: JSON status string.
-        """
-        try:
-            status = json.dumps(self.status_to_dict(), default=str)
-
-            if log:
-                try:
-                    self.logger.info(status)
-                except (IOError, OSError) as e:
-                    maybe_log_message(
-                        'Error logging to file: %s' % str(e),
-                        logger=self.logger,
-                    )
-
-            return status
-        except TypeError as e:
-            maybe_log_message(
-                ('JSON serialization of status failed '
-                 'due to error: %s' % str(e)),
-                logger=self.logger,
-            )
-
-    def status_to_txt(self):
-        """Dump host metadata to txt file as key-value pairs."""
-        data = self.status_to_dict()
-
-        try:
-            for k, v in data.items():
-                self.logger.info(u'%s: %s' % (k, v))
-        except (IOError, OSError) as e:
-            maybe_log_message(
-                'Error logging to file: %s' % str(e), logger=self.logger
-            )
 
     def post_data(
         self,

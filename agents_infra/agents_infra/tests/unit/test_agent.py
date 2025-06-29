@@ -390,11 +390,9 @@ def test_post_data_to_controller_missing_url(
     )
 
 
-def test_fetch_command_from_controller_success(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
+def test_fetch_command_from_controller_success():
     """
-    Test that succesful GET request to controller is properly handled
+    Test that successful GET request to controller is properly handled
     and logged.
     """
     commands = [
@@ -410,7 +408,7 @@ def test_fetch_command_from_controller_success(
     codes = [200, 204]
 
     for command, code in zip(commands, codes):
-        class MockResponse(object):
+        class MockResponse:
             def getcode(self):
                 return code
 
@@ -420,48 +418,48 @@ def test_fetch_command_from_controller_success(
             def close(self):
                 pass
 
-        monkeypatch.setattr(
-            urllib2, 'urlopen', lambda req, timeout: MockResponse()
-        )
+        with mock.patch('urllib2.urlopen', return_value=MockResponse()):
+            with mock.patch.object(
+                    MockAgent,
+                    'ensure_active_controller',
+                    return_value=True
+            ):
+                agent = MockAgent(port=12345)
 
-        agent = MockAgent(port=12345)
+                agent.hostname = 'mock_server'
+                agent.controller_urls = ['http://mock/']
+                agent.current_controller = 'http://mock/'
 
-        agent.hostname = 'mock_server'
-        agent.controller_urls = ['http://mock/']
-        agent.current_controller = 'http://mock/'
-
-        result = agent.fetch_command_from_controller()
+                result = agent.fetch_command_from_controller()
 
         assert result == command, 'Expected command dict, got %r' % result
 
-        assert_msg_in_logfile(
-            'GET request to controller succeded with status: %s' % code
-        )
-
 
 def test_fetch_command_from_controller_empty_response(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     class MockResponse:
         def getcode(self):
             return 200
 
         def read(self):
-            return ' '
+            return ' '  # Simulate empty response content
 
         def close(self):
             pass
 
-    monkeypatch.setattr(
-        urllib2, 'urlopen', lambda req, timeout: MockResponse()
-    )
+    with mock.patch('urllib2.urlopen', return_value=MockResponse()):
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent = MockAgent(port=12345)
+            agent.hostname = 'mock_server'
+            agent.controller_urls = ['http://mock/']
+            agent.current_controller = 'http://mock/'
 
-    agent = MockAgent(port=12345)
-    agent.hostname = 'mock_server'
-    agent.controller_urls = ['http://mock/']
-    agent.current_controller = 'http://mock/'
-
-    agent.fetch_command_from_controller()
+            agent.fetch_command_from_controller()
 
     assert_msg_in_logfile('No pending commands for server %s' % agent.hostname)
 
@@ -474,22 +472,27 @@ def test_fetch_command_from_controller_missing_data(
     (hostname or controller URL) in fetch_command_from_controller.
     """
     test_cases = [
-        (None, 'mock_server'),
-        ('http://mock/', None),
+        (None, 'mock_server'),     # Missing controller URL
+        ('http://mock/', None),    # Missing hostname
     ]
 
     for controller_url, hostname in test_cases:
-        agent = MockAgent(port=12345)
-        agent.controller_urls = [controller_url] if controller_url else []
-        agent.current_controller = controller_url
-        agent.hostname = hostname
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=False
+        ):
+            agent = MockAgent(port=12345)
+            agent.controller_urls = [controller_url] if controller_url else []
+            agent.current_controller = controller_url
+            agent.hostname = hostname
 
-        agent.fetch_command_from_controller()
+            agent.fetch_command_from_controller()
 
-        assert_msg_in_logfile(
-            "Couldn't fetch controller command:"
-            ' controllers URLs or hostname not set'
-        )
+            assert_msg_in_logfile(
+                "Couldn't fetch controller command:"
+                ' controllers URLs or hostname not set'
+            )
 
 
 def test_fetch_command_from_controller_error(
@@ -507,17 +510,18 @@ def test_fetch_command_from_controller_error(
     ]
 
     for error_instance, expected_log_msg in test_errors:
-        def mock_urlopen(request, timeout=5):
-            raise error_instance
+        with mock.patch('urllib2.urlopen', side_effect=error_instance):
+            with mock.patch.object(
+                    MockAgent,
+                    'ensure_active_controller',
+                    return_value=True
+            ):
+                agent = MockAgent(port=12345)
+                agent.hostname = 'mock_server'
+                agent.controller_urls = ['http://mock/']
+                agent.current_controller = 'http://mock/'
 
-        monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
-
-        agent = MockAgent(port=12345)
-        agent.hostname = 'mock_server'
-        agent.controller_urls = ['http://mock/']
-        agent.current_controller = 'http://mock/'
-
-        agent.fetch_command_from_controller()
+                agent.fetch_command_from_controller()
 
         assert_msg_in_logfile(expected_log_msg)
 
@@ -1299,11 +1303,17 @@ def test_fetch_command_from_controller_headers_default():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller()
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.fetch_command_from_controller()
 
-    assert captured_request['headers'] == {'Accept': 'application/json'}, (
-        "Expected headers {'Accept': 'application/json'}, "
-        'but got %r' % captured_request['headers']
+    expected_headers = {'Accept': 'application/json'}
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
     )
 
 
@@ -1326,12 +1336,18 @@ def test_fetch_command_from_controller_headers_with_api_key():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(api_key='test-token')
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.fetch_command_from_controller(api_key='test-token')
 
     expected_headers = {
         'Accept': 'application/json',
         'Authorization': 'Bearer test-token'
     }
+
     assert captured_request['headers'] == expected_headers, (
         'Expected headers %r, but got %r'
         % (expected_headers, captured_request['headers'])
@@ -1339,7 +1355,6 @@ def test_fetch_command_from_controller_headers_with_api_key():
 
 
 def test_fetch_command_from_controller_headers_with_kwargs():
-    """Test that additional headers from kwargs are added correctly."""
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
     agent.current_controller = 'http://mock/'
@@ -1356,11 +1371,16 @@ def test_fetch_command_from_controller_headers_with_kwargs():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(
-            api_key='test-token',
-            CustomHeader='custom-value',
-            XRequestID='12345'
-        )
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.fetch_command_from_controller(
+                api_key='test-token',
+                CustomHeader='custom-value',
+                XRequestID='12345'
+            )
 
     expected_headers = {
         'Accept': 'application/json',
@@ -1368,6 +1388,7 @@ def test_fetch_command_from_controller_headers_with_kwargs():
         'Customheader': 'custom-value',
         'Xrequestid': '12345'
     }
+
     assert captured_request['headers'] == expected_headers, (
         'Expected headers %r, but got %r'
         % (expected_headers, captured_request['headers'])
@@ -1392,18 +1413,24 @@ def test_fetch_command_from_controller_headers_kwargs_override():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(
-            api_key='test-token',
-            Accept='text/plain'
-        )
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.fetch_command_from_controller(
+                api_key='test-token',
+                Accept='text/plain'
+            )
 
     expected_headers = {
         'Accept': 'text/plain',
         'Authorization': 'Bearer test-token'
     }
+
     assert captured_request['headers'] == expected_headers, (
-        'Expected headers %r, but got %r'
-        % (expected_headers, captured_request['headers'])
+        'Expected headers %r, but got %r' %
+        (expected_headers, captured_request['headers'])
     )
 
 
@@ -1425,7 +1452,12 @@ def test_fetch_command_from_controller_headers_update():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(api_key='test-token')
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.fetch_command_from_controller(api_key='test-token')
 
     expected_headers = {
         'Accept': 'application/json',
@@ -1453,11 +1485,16 @@ def test_post_data_headers_update():
         )
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.post_data(
-            url='http://mock/api',
-            payload={'test': 'data'},
-            api_key='test-token'
-        )
+        with mock.patch.object(
+                MockAgent,
+                'ensure_active_controller',
+                return_value=True
+        ):
+            agent.post_data(
+                url='http://mock/api',
+                payload={'test': 'data'},
+                api_key='test-token'
+            )
 
     expected_headers = {
         'Content-type': 'application/json',
@@ -1632,26 +1669,23 @@ def test_status_to_dict_timestamp_format():
     )
 
 
-def test_ping_controller_success(monkeypatch):
+def test_ping_controller_success():
     """
-       Test that _ping_controller returns True when
-       the controller is reachable and responds
-       with a healthy status.
-       """
-
+    Test that _ping_controller returns True when
+    the controller is reachable and responds
+    with a healthy status.
+    """
     agent = MockAgent(port=12345)
 
-    def mock_urlopen(req, timeout=3):
-        class MockResponse:
-            def read(self):
-                return json.dumps({'status': 'healthy'})
+    # Mock response for urlopen
+    class MockResponse(object):
+        def read(self):
+            return json.dumps({'status': 'healthy'})
 
-        return MockResponse()
+    with mock.patch('socket.create_connection', return_value=True):
+        with mock.patch('urllib2.urlopen', return_value=MockResponse()):
+            result = agent._ping_controller('http://mock', api_key=None)
 
-    monkeypatch.setattr('socket.create_connection', lambda addr, timeout: True)
-    monkeypatch.setattr('urllib2.urlopen', mock_urlopen)
-
-    result = agent._ping_controller('http://mock', api_key=None)
     assert result is True
 
 

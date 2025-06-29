@@ -1,3 +1,8 @@
+import datetime
+import hashlib
+
+import jwt
+from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -173,3 +178,39 @@ class Webhook(models.Model):
 
     def __str__(self):
         return f'Webhook: {self.description or self.url[:30]}'
+
+
+class Agent(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    token_hash = models.CharField(max_length=128, unique=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+
+        if is_new and not self.token_hash:
+            token = self.generate_token()
+            self.token_hash = self.hash_token(token)
+            super().save(update_fields=['token_hash'])
+
+            self._plain_token = token
+
+    def generate_token(self):
+        payload = {
+            'agent_id': self.id,
+            'name': self.name,
+            'iat': int(datetime.datetime.utcnow().timestamp()),
+        }
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+        return token
+
+    def hash_token(self, token: str) -> str:
+        return hashlib.sha512(token.encode()).hexdigest()
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def plain_token(self):
+        return getattr(self, '_plain_token', None)

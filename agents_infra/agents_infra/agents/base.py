@@ -89,15 +89,15 @@ class ServerAgent(object):
     critical_processes = None
 
     def __init__(
-        self,
-        server_name=None,
-        port=None,
-        processes=None,
-        critical_processes=None,
-        interface=None,
-        protocol=None,
-        whitelist_commands=None,
-        command_queue_size=0,
+            self,
+            server_name=None,
+            port=None,
+            processes=None,
+            critical_processes=None,
+            interface=None,
+            protocol=None,
+            whitelist_commands=None,
+            command_queue_size=0,
     ):
         self.server_name = server_name
         self.port = port if port is not None else self.port
@@ -288,6 +288,72 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
+    def get_token_file_path(self, token_path=None):
+        if token_path is None:
+            token_path = pkg_resources.resource_filename(
+                self.__class__.__module__,
+                'tokens/%s.token' % self.server_name
+            )
+        return token_path
+
+    def save_local_token(self, token, token_path=None):
+        path = self.get_token_file_path(token_path)
+        dirpath = os.path.dirname(path)
+        if not os.path.exists(dirpath):
+            try:
+                os.makedirs(dirpath)
+            except OSError:
+                if not os.path.exists(dirpath):
+                    raise
+
+        with open(path, 'w') as f:
+            f.write(token)
+
+    def load_local_token(self, token_path=None):
+        path = self.get_token_file_path(token_path)
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return f.read().strip()
+        return None
+
+    def register_agent_if_needed(self):
+        token = self.load_local_token()
+        if token:
+            self.auth_token = token
+            return
+
+        url = self.controller_url.rstrip('/') + '/api/v1/register/'
+        payload = {'name': self.server_name}
+
+        try:
+            response = self.post_data(
+                url,
+                payload=json.dumps(payload),
+                headers={
+                    'Content-Type': 'application/json'
+                }
+            )
+
+            if response.status_code == 201:
+                data = response.json()
+                token = data.get('token')
+                if token:
+                    self.save_local_token(token)
+                    self.auth_token = token
+                else:
+                    raise Exception('No token received from server.')
+            else:
+                raise Exception(
+                    'Registration failed: %s %s' %
+                    (
+                        response.status_code,
+                        response.text
+                    )
+                )
+
+        except Exception as e:
+            raise Exception('Could not register agent: %s' % str(e))
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
@@ -316,8 +382,8 @@ class ServerAgent(object):
             except (KeyError, AttributeError) as e:
                 maybe_log_message(
                     (
-                        'Could not deduce IP address from interface '
-                        '%s: %s' % (self.interface, str(e))
+                            'Could not deduce IP address from interface '
+                            '%s: %s' % (self.interface, str(e))
                     ),
                     logger=self.logger,
                 )
@@ -422,7 +488,7 @@ class ServerAgent(object):
                 re.search(r'\b{0}\b'.format(re.escape(proc)), line)
                 for proc in self.processes
                 for line in normalized_lines
-                )
+            )
 
         except OSError as e:
             maybe_log_message(
@@ -522,16 +588,16 @@ class ServerAgent(object):
             )
 
     def post_data(
-        self,
-        url,
-        payload,
-        to_controller=True,
-        api_key=None,
-        max_retries=3,
-        delay=5,
-        timeout=5,
-        fail_silently=True,
-        **kwargs
+            self,
+            url,
+            payload,
+            to_controller=True,
+            api_key=None,
+            max_retries=3,
+            delay=5,
+            timeout=5,
+            fail_silently=True,
+            **kwargs
     ):
         """
         Sends a POST request with JSON data to the specified URL with
@@ -640,7 +706,7 @@ class ServerAgent(object):
                         )
 
     def fetch_command_from_controller(
-        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+            self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
     ):
         """
         Send GET request to controller to fetch the first pending
@@ -680,8 +746,8 @@ class ServerAgent(object):
 
             maybe_log_message(
                 (
-                    'GET request to controller succeded with '
-                    'status: %s' % status_code
+                        'GET request to controller succeded with '
+                        'status: %s' % status_code
                 ),
                 logger=self.logger,
                 level=logging.INFO,
@@ -702,8 +768,8 @@ class ServerAgent(object):
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
             maybe_log_message(
                 (
-                    'Failed to fetch command - GET request failed '
-                    'due to error: %s' % str(e)
+                        'Failed to fetch command - GET request failed '
+                        'due to error: %s' % str(e)
                 ),
                 logger=self.logger,
                 exc_info=True,

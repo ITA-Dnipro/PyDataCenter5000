@@ -10,7 +10,8 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import (api_view, authentication_classes,
+                                       permission_classes)
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -18,9 +19,11 @@ from rest_framework.response import Response
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
 from .helpers import get_latest_agents
-from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
-from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
-                          ServerStatusSerializer, TriggeredAlertSerializer)
+from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
+                     TriggeredAlert)
+from .serializers import (AgentMetricSerializer, AgentRegistrationSerializer,
+                          CommandHistorySerializer, ServerStatusSerializer,
+                          TriggeredAlertSerializer)
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -431,3 +434,28 @@ def metrics_graphing_page(request):
         'historical_metrics.html',
         {'hostnames': hostnames}
     )
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def register_agent(request):
+    serializer = AgentRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        agent_name = serializer.validated_data['name']
+        agent, created = Agent.objects.get_or_create(name=agent_name)
+
+        if created or not agent.token_hash:
+            token = agent.generate_token()
+            agent.token_hash = agent.hash_token(token)
+            agent.save(update_fields=['token_hash'])
+        else:
+            token = None
+
+        return Response({
+            'token': token,
+            'message': 'Registered successfully.' if created
+            else 'Agent already exists.'
+        }, status=status.HTTP_201_CREATED)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

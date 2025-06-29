@@ -1,5 +1,4 @@
 import abc
-import datetime
 import inspect
 import json
 import logging
@@ -49,12 +48,6 @@ def get_ip_from_interface(interface):
 
         if address.family == socket.AF_INET:
             return address.address
-
-
-def get_linux_uptime():
-    """Get uptime on Linux OS."""
-    with open('/proc/uptime', 'r') as f:
-        return float(f.readline().split()[0])
 
 
 @attr.s
@@ -121,7 +114,7 @@ class ServerAgent(object):
 
         # Init server metadata to prevent AttributeError and to indicate
         # to user that collect_server_metadata hasn't been called.
-        self.os_type = self.hostname = self.ip = self.uptime = None
+        self.os_type = self.hostname = self.ip = None
 
         # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
@@ -312,8 +305,7 @@ class ServerAgent(object):
 
     def collect_server_metadata(self):
         """
-        Attempt setting server metadata such as the hostname, IP address,
-        uptime, and timestamp.
+        Attempt setting server metadata such as the hostname, IP address.
         """
         system = platform.system()
         if not system:
@@ -352,16 +344,6 @@ class ServerAgent(object):
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
                 )
-
-        self.uptime = -1
-
-        if 'linux' in self.os_type:
-            self.uptime = get_linux_uptime()
-
-        if self.uptime < 0:
-            maybe_log_message(
-                "Could not get system's uptime", logger=self.logger
-            )
 
     def is_port_open(self, timeout=2, payload=None, packet_size=0):
         """
@@ -491,7 +473,6 @@ class ServerAgent(object):
             'hostname': self.hostname,
             'ip': self.ip,
             'server_name': self.server_name,
-            'uptime': self.uptime,
             'healthy': self.is_service_healthy(),
         }
 

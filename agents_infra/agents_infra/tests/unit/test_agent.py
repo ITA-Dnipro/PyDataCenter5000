@@ -1670,19 +1670,16 @@ def test_status_to_dict_timestamp_format():
 
 
 def test_ping_controller_success():
-    """
-    Test that _ping_controller returns True when
-    the controller is reachable and responds
-    with a healthy status.
-    """
     agent = MockAgent(port=12345)
 
-    # Mock response for urlopen
     class MockResponse(object):
         def read(self):
             return json.dumps({'status': 'healthy'})
 
-    with mock.patch('socket.create_connection', return_value=True):
+    mock_socket = mock.MagicMock()
+    mock_socket.close = mock.MagicMock()
+
+    with mock.patch('socket.create_connection', return_value=mock_socket):
         with mock.patch('urllib2.urlopen', return_value=MockResponse()):
             result = agent._ping_controller('http://mock', api_key=None)
 

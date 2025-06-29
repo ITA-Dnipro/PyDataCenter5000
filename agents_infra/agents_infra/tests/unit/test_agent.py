@@ -75,12 +75,10 @@ class MockAgent(ServerAgent):
             os.remove(self.logfile.name)
 
     def _ping_controller(self, url, api_key, timeout=3):
-        return self.mock_controller_healthy
+        return super(MockAgent, self)._ping_controller(url, api_key, timeout)
 
     def ensure_active_controller(self, api_key):
-        return (
-            self.current_controller if self.mock_controller_healthy else None
-        )
+        return super(MockAgent, self).ensure_active_controller(api_key)
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
@@ -1657,6 +1655,52 @@ def test_ping_controller_success(monkeypatch):
     assert result is True
 
 
+def test_ping_controller_tcp_fail():
+    """
+    Test that _ping_controller returns False when
+    TCP connection to the controller fails.
+    """
+    agent = MockAgent(port=12345)
+    print(agent.__class__.__module__)
+    with mock.patch(
+            'socket.create_connection',
+            side_effect=socket.error()
+    ):
+        with mock.patch(
+                'urllib2.urlopen',
+                side_effect=Exception('Should not be called')
+        ):
+            result = agent._ping_controller('http://mock', api_key=None)
+    assert result is False
+
+
+def test_ping_controller_health_check_fail():
+    agent = MockAgent(port=12345)
+
+    # TCP succeeds
+    with mock.patch(
+            'socket.create_connection',
+            return_value=mock.Mock()
+    ):
+        # Health check fails
+        def mock_urlopen(req, timeout=3):
+            raise urllib2.HTTPError(
+                req.get_full_url(),
+                500,
+                'Internal Server Error',
+                hdrs=None,
+                fp=None
+            )
+
+        with mock.patch(
+                'urllib2.urlopen',
+                side_effect=mock_urlopen
+        ):
+            result = agent._ping_controller('http://mock', api_key=None)
+
+    assert result is False
+
+
 def test_set_controller_urls():
     """
         Test that set_controller_urls sets the controller
@@ -1681,9 +1725,11 @@ def test_try_revert_primary_controller_success(monkeypatch):
     """
 
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(['http://primary', 'http://secondary'])
+    agent.set_controller_urls(
+        ['http://primary', 'http://secondary']
+    )
     agent.current_controller = 'http://secondary'
-    agent.last_success_time = time.time() - 1000  # make revert possible
+    agent.last_success_time = time.time() - 1000
     agent.revert_interval = 1
 
     def mock_ping(url, api_key):
@@ -1713,6 +1759,29 @@ def test_try_revert_primary_controller_fail_due_to_time():
     assert reverted == 'http://secondary'
 
 
+def test_ensure_active_controller_switches_to_healthy():
+    agent = MockAgent(port=12345)
+    agent.set_controller_urls(
+        ['http://mock1', 'http://mock2']
+    )
+    agent.current_controller = 'http://mock1'
+
+    with mock.patch.object(
+            agent,
+            'try_revert_primary_controller',
+            return_value='http://mock1'
+    ):
+        with mock.patch.object(
+                agent,
+                '_ping_controller',
+                side_effect=lambda url,
+                api_key: url == 'http://mock2'
+        ):
+            result = agent.ensure_active_controller(api_key=None)
+
+    assert result == 'http://mock2'
+
+
 def test_ensure_active_controller_success_current(monkeypatch):
     """
         Test that ensure_active_controller returns the current
@@ -1726,3 +1795,25 @@ def test_ensure_active_controller_success_current(monkeypatch):
 
     result = agent.ensure_active_controller(api_key=None)
     assert result == 'http://mock1'
+
+
+def test_ensure_active_controller_fails_all():
+    agent = MockAgent(port=12345)
+    agent.set_controller_urls(
+        ['http://mock1', 'http://mock2']
+    )
+    agent.current_controller = 'http://mock1'
+
+    with mock.patch.object(
+            agent,
+            'try_revert_primary_controller',
+            return_value='http://mock1'
+    ):
+        with mock.patch.object(
+                agent,
+                '_ping_controller',
+                return_value=False
+        ):
+            result = agent.ensure_active_controller(api_key=None)
+
+    assert result is None

@@ -193,6 +193,53 @@ class TestDashboardView:
         assert len(response.context['agents']) == 1
         assert response.context['agents'][0]['hostname'] == 'prod-web'
 
+    def test_dashboard_combined_filtering(
+            self,
+            authenticated_client,
+            url
+    ):
+        """
+        Tests that the dashboard view correctly handles combined filtering
+        from multiple query parameters.
+        """
+        ServerStatus.objects.create(
+            hostname='multi-filter-prod',
+            ip='10.0.0.3',
+            uptime=100,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'production', 'role': 'db'}
+        )
+        ServerStatus.objects.create(
+            hostname='wrong-host-prod',
+            ip='10.0.0.4',
+            uptime=100,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'production', 'role': 'db'}
+        )
+        ServerStatus.objects.create(
+            hostname='multi-filter-staging',
+            ip='10.0.0.5',
+            uptime=100,
+            healthy=True,
+            timestamp=now(),
+            tags={'env': 'staging', 'role': 'db'}
+        )
+
+        filtered_url = url + '?hostname=multi-filter&tag_env=production'
+        response = authenticated_client.get(filtered_url)
+        assert response.status_code == 200
+
+        agents_in_context = response.context['agents']
+        assert len(agents_in_context) == 1
+        assert agents_in_context[0]['hostname'] == 'multi-filter-prod'
+
+        content = response.content.decode()
+        assert 'multi-filter-prod' in content
+        assert 'wrong-host-prod' not in content
+        assert 'multi-filter-staging' not in content
+
     def test_dashboard_filter_form_preserves_state(
             self,
             authenticated_client,

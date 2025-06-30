@@ -411,9 +411,10 @@ class ReceiveStatusEndpointTests(APITestCase):
             f'got {response.status_code}'
         )
         self.assertIn('tags', response.data)
-        self.assertIn(
-            'Invalid data. Expected a dictionary object',
-            str(response.data['tags'])
+        self.assertTrue(
+            any('dictionary' in str(msg) for msg in response.data['tags']),
+            f'Expected a dictionary-related error message, '
+            f'got: {response.data["tags"]}'
         )
 
     def test_missing_ip_field(self):

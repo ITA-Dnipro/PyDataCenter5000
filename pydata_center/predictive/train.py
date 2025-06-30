@@ -29,8 +29,7 @@ def save_model(model, path: str):
 
 
 def train_regression_model(
-        X: np.ndarray,
-        y: np.ndarray
+        X: np.ndarray, y: np.ndarray
 ) -> RandomForestRegressor:
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
@@ -57,7 +56,6 @@ def train_classification_model(X: np.ndarray, y: np.ndarray):
             'Classification stratification failed: not enough label diversity'
         )
         return None
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
@@ -68,6 +66,35 @@ def train_classification_model(X: np.ndarray, y: np.ndarray):
         'Classification report:\n' + classification_report(y_test, preds)
     )
     return clf
+
+
+def train_all_models(
+    X_reg: np.ndarray, y_reg: np.ndarray,
+    X_clf: np.ndarray, y_clf: np.ndarray,
+    contamination: float
+) -> dict:
+    models = {}
+
+    if len(y_reg) > 0:
+        models['regression'] = train_regression_model(X_reg, y_reg)
+    else:
+        logger.warning('Not enough data for regression model.')
+
+    if len(X_clf) > 0:
+        models['anomaly'] = train_anomaly_model(
+            X_clf, contamination=contamination
+        )
+
+        if np.any(y_clf == 1):
+            clf_model = train_classification_model(X_clf, y_clf)
+            if clf_model:
+                models['classifier'] = clf_model
+        else:
+            logger.warning('No positive labels for supervised classification.')
+    else:
+        logger.warning('Not enough data for anomaly models.')
+
+    return models
 
 
 def parse_args():
@@ -98,26 +125,12 @@ def main():
     df = fetch_raw_metrics(days=args.days)
     (X_reg, y_reg), (X_clf, y_clf) = build_datasets(df, window=args.window)
 
-    if len(y_reg) > 0:
-        reg_model = train_regression_model(X_reg, y_reg)
-        save_model(reg_model, MODEL_PATHS['regression'])
-    else:
-        logger.warning('Not enough data for regression model.')
+    models = train_all_models(
+        X_reg, y_reg, X_clf, y_clf, contamination=args.contamination
+    )
 
-    if len(X_clf) > 0:
-        iso_model = train_anomaly_model(
-            X_clf, contamination=args.contamination
-        )
-        save_model(iso_model, MODEL_PATHS['anomaly'])
-
-        if np.any(y_clf == 1):
-            clf_model = train_classification_model(X_clf, y_clf)
-            if clf_model:
-                save_model(clf_model, MODEL_PATHS['classifier'])
-        else:
-            logger.warning('No positive labels for supervised classification.')
-    else:
-        logger.warning('Not enough data for anomaly models.')
+    for key, model in models.items():
+        save_model(model, MODEL_PATHS[key])
 
 
 if __name__ == '__main__':

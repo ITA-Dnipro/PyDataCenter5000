@@ -5,6 +5,8 @@ from django.utils.timezone import now
 
 from .models import ServerStatus
 
+FILTERABLE_FIELDS = {'hostname', 'ip'}
+
 
 def get_latest_agents(query_params=None, cutoff_seconds=60):
     cutoff_time = now() - timedelta(seconds=cutoff_seconds)
@@ -18,18 +20,17 @@ def get_latest_agents(query_params=None, cutoff_seconds=60):
                 continue
 
             if key.startswith('tag_'):
-                filter_key = f'tags__{key[4:]}__icontains'
-                filters[filter_key] = cleaned_value
-            elif key in {'hostname', 'ip'}:
-                filter_key = f'{key}__icontains'
-                filters[filter_key] = cleaned_value
+                filters[f'tags__{key[4:]}__icontains'] = cleaned_value
+            elif key in FILTERABLE_FIELDS:
+                filters[f'{key}__icontains'] = cleaned_value
             elif key == 'healthy' and cleaned_value in {'true', 'false'}:
                 filters['healthy'] = (cleaned_value == 'true')
-            elif key == 'status':
-                if cleaned_value == 'online':
-                    filters['timestamp__gte'] = cutoff_time
-                elif cleaned_value == 'offline':
-                    filters['timestamp__lt'] = cutoff_time
+            elif key == 'status' and cleaned_value in {'online', 'offline'}:
+                filters[
+                    'timestamp__gte'
+                    if cleaned_value == 'online'
+                    else 'timestamp__lt'
+                ] = cutoff_time
 
     latest_subquery = ServerStatus.objects.filter(
         hostname=OuterRef('hostname')

@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import django
@@ -5,7 +6,8 @@ import joblib
 import numpy as np
 from predictive.dataset import build_datasets, fetch_raw_metrics
 from predictive.logger import setup_logger
-from sklearn.ensemble import IsolationForest, RandomForestRegressor
+from sklearn.ensemble import (IsolationForest, RandomForestClassifier,
+                              RandomForestRegressor)
 from sklearn.metrics import classification_report, mean_squared_error
 from sklearn.model_selection import train_test_split
 
@@ -14,23 +16,22 @@ django.setup()
 
 logger = setup_logger()
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
-os.makedirs(MODEL_DIR, exist_ok=True)
+
+def prepare_model_dir() -> str:
+    model_dir = os.path.join(os.path.dirname(__file__), 'models')
+    os.makedirs(model_dir, exist_ok=True)
+    return model_dir
 
 
-def save_model(model, name: str):
-    path = os.path.join(MODEL_DIR, name)
+def save_model(model, path: str):
     joblib.dump(model, path)
-    logger.info(f'Saved model to {name}')
+    logger.info(f'Saved model to {os.path.basename(path)}')
 
 
 def train_regression_model(
         X: np.ndarray,
         y: np.ndarray
 ) -> RandomForestRegressor:
-    """
-    Train a RandomForestRegressor on the provided data.
-    """
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
@@ -42,22 +43,21 @@ def train_regression_model(
     return model
 
 
-def train_anomaly_model(X: np.ndarray) -> IsolationForest:
-    """
-    Train an IsolationForest for anomaly
-    detection on the feature matrix.
-    """
-    model = IsolationForest(contamination=0.05, random_state=42)
+def train_anomaly_model(
+        X: np.ndarray, contamination: float
+) -> IsolationForest:
+    model = IsolationForest(contamination=contamination, random_state=42)
     model.fit(X)
     return model
 
 
 def train_classification_model(X: np.ndarray, y: np.ndarray):
-    """
-    Train a RandomForestClassifier
-    for anomaly classification.
-    """
-    from sklearn.ensemble import RandomForestClassifier
+    if len(np.unique(y)) < 2:
+        logger.warning(
+            'Classification stratification failed: not enough label diversity'
+        )
+        return None
+
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
@@ -70,27 +70,50 @@ def train_classification_model(X: np.ndarray, y: np.ndarray):
     return clf
 
 
-def main():
-    # Fetch and build datasets
-    df = fetch_raw_metrics(days=7)
-    (X_reg, y_reg), (X_clf, y_clf) = build_datasets(df, window=5)
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train predictive models')
+    parser.add_argument(
+        '--days', type=int, default=7, help='How many days of metrics to use'
+    )
+    parser.add_argument(
+        '--window', type=int, default=5, help='Sliding window size'
+    )
+    parser.add_argument(
+        '--contamination', type=float,
+        default=0.05, help='IsolationForest contamination level'
+    )
+    return parser.parse_args()
 
-    # Train regression model
+
+def main():
+    args = parse_args()
+    model_dir = prepare_model_dir()
+
+    MODEL_PATHS = {
+        'regression': os.path.join(model_dir, 'cpu_forecast.pkl'),
+        'anomaly': os.path.join(model_dir, 'iso_anomaly.pkl'),
+        'classifier': os.path.join(model_dir, 'anom_classifier.pkl')
+    }
+
+    df = fetch_raw_metrics(days=args.days)
+    (X_reg, y_reg), (X_clf, y_clf) = build_datasets(df, window=args.window)
+
     if len(y_reg) > 0:
         reg_model = train_regression_model(X_reg, y_reg)
-        save_model(reg_model, 'cpu_forecast.pkl')
+        save_model(reg_model, MODEL_PATHS['regression'])
     else:
         logger.warning('Not enough data for regression model.')
 
-    # Train anomaly detection
     if len(X_clf) > 0:
-        iso_model = train_anomaly_model(X_clf)
-        save_model(iso_model, 'iso_anomaly.pkl')
+        iso_model = train_anomaly_model(
+            X_clf, contamination=args.contamination
+        )
+        save_model(iso_model, MODEL_PATHS['anomaly'])
 
-        # supervised classification (optional)
         if np.any(y_clf == 1):
             clf_model = train_classification_model(X_clf, y_clf)
-            save_model(clf_model, 'anom_classifier.pkl')
+            if clf_model:
+                save_model(clf_model, MODEL_PATHS['classifier'])
         else:
             logger.warning('No positive labels for supervised classification.')
     else:

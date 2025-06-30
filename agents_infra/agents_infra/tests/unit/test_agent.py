@@ -77,11 +77,6 @@ class MockAgent(ServerAgent):
         """Override logger to use temp file logger."""
         return logging.getLogger('mock-logger')
 
-    @property
-    def fallback_logger(self):
-        """Provide a mock implementation of the fallback_logger property."""
-        return logging.getLogger('mock-fallback-logger')
-
     def __del__(self):
         if hasattr(self, 'logfile'):
             os.remove(self.logfile.name)

@@ -299,7 +299,6 @@ class ServerAgent(object):
                     'server',
                     tag_key,
                     logger=self.logger,
-                    fallback_logger=self.fallback_logger,
                 )
                 if tag_value and tag_value.strip():
                     tags[tag_key] = tag_value.strip().lower()

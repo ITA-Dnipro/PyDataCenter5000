@@ -7,10 +7,9 @@ import subprocess
 
 import dotenv
 from agents.exceptions import BadSubprocessReturnCode
+from agents.smtp import SMTPAgent
 from agents.supervisor import AgentSupervisor
 from agents.utils import make_callback
-
-from agents import SMTPAgent
 
 
 def main():

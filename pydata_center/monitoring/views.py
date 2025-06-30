@@ -1,5 +1,6 @@
 import logging
 
+import requests
 from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
@@ -22,6 +23,7 @@ from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
+from .tasks import send_log_to_graylog
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -454,6 +456,14 @@ def receive_log(request):
     """POST endpoint for receiving logs from agents."""
     serializer = AgentLogEntrySerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save()
+        log_entry = serializer.save()
+
+        send_log_to_graylog.delay(
+            log_entry.level,
+            log_entry.message,
+            log_entry.agent_name,
+            log_entry.timestamp.isoformat(),
+            log_entry.context
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -14,7 +14,7 @@ from django.utils import timezone
 from monitoring.email import send_async_email
 from monitoring.models import (AgentLogEntry, AgentMetric, AlertRule,
                                ServerStatus)
-from monitoring.tasks import evaluate_agent_alerts
+from monitoring.tasks import evaluate_agent_alerts, send_log_to_graylog
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -1063,7 +1063,8 @@ class ReceiveLogEndpointTest(TestCase):
 
         self.url = reverse('monitoring:receive_log')
 
-    def test_successful_log_post_by_operator(self):
+    @patch('monitoring.tasks.send_log_to_graylog.delay')
+    def test_successful_log_post_by_operator(self, mock_send_log):
         """Operator user can successfully post a valid log."""
         self.client.force_authenticate(user=self.operator_user)
         response = self.client.post(
@@ -1117,3 +1118,50 @@ class ReceiveLogEndpointTest(TestCase):
             'timestamp', response.data,
             msg="Response data does not contain error missing 'timestamp'"
         )
+
+
+class SendLogToGraylogTaskTest(TestCase):
+    @patch('monitoring.tasks.graylog_logger')
+    def test_send_log_calls_correct_level_method(self, mock_logger):
+        """
+        Test suite for correct data task call.
+        """
+        # arrange
+        level = 'ERROR'
+        message = 'Test error message'
+        agent_name = 'agent-42'
+        timestamp_iso = '2025-06-30T14:00:00Z'
+        context = {'key': 'value'}
+
+        # act
+        send_log_to_graylog(level, message, agent_name, timestamp_iso, context)
+
+        # assert
+        expected_extra = {
+            'agent_name': agent_name,
+            'timestamp': timestamp_iso,
+            'context': context
+        }
+        mock_logger.error.assert_called_once_with(
+            message, extra=expected_extra
+            )
+
+    @patch('monitoring.tasks.graylog_logger')
+    def test_send_log_default_level_info(self, mock_logger):
+        """
+        Test that when an unknown log level is passed to the task,
+        the 'info' logging method is called by default.
+        """
+        send_log_to_graylog(
+            'UNKNOWN_LEVEL', 'message', 'agent', '2025-06-30T14:00:00Z', None
+        )
+
+        expected_extra = {
+            'agent_name': 'agent',
+            'timestamp': '2025-06-30T14:00:00Z',
+            'context': {}
+        }
+
+        mock_logger.info.assert_called_once_with(
+            'message', extra=expected_extra
+            )

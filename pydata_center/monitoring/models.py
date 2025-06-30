@@ -208,6 +208,10 @@ class Agent(models.Model):
     def hash_token(self, token: str) -> str:
         return hashlib.sha512(token.encode()).hexdigest()
 
+    @property
+    def is_authenticated(self):
+        return True
+
     def __str__(self):
         return self.name
 

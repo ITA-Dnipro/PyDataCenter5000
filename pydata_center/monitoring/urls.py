@@ -37,5 +37,5 @@ urlpatterns = [
     ),
     path('metrics/history/', metrics_history_view, name='metrics_history'),
     path('metrics/graphic/', metrics_graphing_page, name='metrics_graphic'),
-    path('register/', register_agent, name='agent-register'),
+    path('agent/register/', register_agent, name='agent-register'),
 ]

@@ -127,6 +127,8 @@ class ServerAgent(object):
         # Thread-safe queue to store pending commands.
         self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
+        self.auth_token = None
+
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -322,34 +324,32 @@ class ServerAgent(object):
             self.auth_token = token
             return
 
-        url = self.controller_url.rstrip('/') + '/api/v1/register/'
+        url = 'agent/register/'  # Relative path only
         payload = {'name': self.server_name}
 
         try:
-            response = self.post_data(
-                url,
-                payload=json.dumps(payload),
-                headers={
-                    'Content-Type': 'application/json'
-                }
+            raw_response = self.post_data(
+                url=url,
+                payload=payload,
+                to_controller=True,
+                fail_silently=False,
+                Content_Type='application/json'
             )
 
-            if response.status_code == 201:
-                data = response.json()
-                token = data.get('token')
-                if token:
-                    self.save_local_token(token)
-                    self.auth_token = token
-                else:
-                    raise Exception('No token received from server.')
+            if not raw_response:
+                raise Exception('Empty response from server.')
+
+            try:
+                data = json.loads(raw_response)
+            except ValueError:
+                raise Exception('Could not decode response: %s' % raw_response)
+
+            token = data.get('token')
+            if token:
+                self.save_local_token(token)
+                self.auth_token = token
             else:
-                raise Exception(
-                    'Registration failed: %s %s' %
-                    (
-                        response.status_code,
-                        response.text
-                    )
-                )
+                raise Exception('No token received from server.')
 
         except Exception as e:
             raise Exception('Could not register agent: %s' % str(e))
@@ -637,13 +637,14 @@ class ServerAgent(object):
             url = urljoin(base_api_url, url)
 
         headers = {'Content-Type': 'application/json'}
+        print(self.auth_token_type)
         if api_key:
             headers.update(
-                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+                {'Authorization': 'Bearer %s' % (api_key,)}
             )
         if kwargs:
             headers.update(kwargs)
-
+        print(headers)
         if not isinstance(payload, str):
             payload = json.dumps(payload)
 
@@ -704,6 +705,28 @@ class ServerAgent(object):
                         raise RuntimeError(
                             'POST failed after %d attempts' % max_retries
                         )
+
+    def post_data_with_auth(
+        self,
+        url,
+        payload,
+        **kwargs
+    ):
+        """
+        Ensure agent is registered and has a token before sending data.
+        Automatically attaches Authorization header.
+        """
+        if not getattr(self, 'auth_token', None):
+            self.register_agent_if_needed()
+
+        print(self.auth_token)
+        return self.post_data(
+            url=url,
+            payload=payload,
+            to_controller=True,
+            api_key=self.auth_token,
+            **kwargs
+        )
 
     def fetch_command_from_controller(
             self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
@@ -876,3 +899,52 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
+
+    def send_metrics_to_controller(
+        self,
+        suffix='agent/metrics/',
+        max_retries=3,
+        delay=5,
+        timeout=5,
+    ):
+        """
+        Sends a POST request with JSON data to the controller URL,
+        including authentication, and built-in retry logic.
+        """
+        print(5)
+        if not self.controller_url:
+            maybe_log_message(
+                "Couldn't send status update: controller URL is not set",
+                logger=self.logger,
+            )
+            return
+
+        base_api_url = urljoin(self.controller_url, self.api_prefix)
+        metrics_api_url = urljoin(base_api_url, suffix)
+        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
+        print(url)
+        payload = self.generate_report()
+        try:
+            result = self.post_data_with_auth(
+                url,
+                payload
+            )
+
+            if result:
+                maybe_log_message(
+                    'POST request to controller succeeded.',
+                    logger=self.logger,
+                    level=logging.INFO,
+                )
+            else:
+                maybe_log_message(
+                    'POST request to controller failed after retries.',
+                    logger=self.logger,
+                    exc_info=True,
+                )
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error during status update: %s' % str(e),
+                logger=self.logger,
+                exc_info=True,
+            )

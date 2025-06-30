@@ -18,6 +18,7 @@ from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
+from .authentication import AgentTokenAuthentication
 from .helpers import get_latest_agents
 from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
                      TriggeredAlert)
@@ -307,6 +308,8 @@ def dashboard_view(request):
 
 
 @api_view(['POST'])
+@authentication_classes([AgentTokenAuthentication])
+@permission_classes([IsAuthenticated])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')
 

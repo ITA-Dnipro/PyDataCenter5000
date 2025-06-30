@@ -1,12 +1,19 @@
 #!/bin/bash
 set -e
 
-# Install Nginx
-sudo apt-get update
-sudo apt-get install -y nginx
+# Install Nginx if not already installed
+if ! dpkg -l | grep -q nginx; then
+    sudo apt-get update
+    sudo apt-get install -y nginx
+else
+    echo "[INFO] Nginx already installed."
+fi
 
-# Configure Nginx as reverse proxy
-cat << EOF | sudo tee /etc/nginx/sites-available/fastapi
+# Configure Nginx as reverse proxy only if config differs
+NGINX_CONF="/etc/nginx/sites-available/fastapi"
+NEW_CONF="/tmp/fastapi_nginx_conf.tmp"
+
+cat << EOF > "$NEW_CONF"
 server {
     listen 80;
     server_name _;
@@ -27,8 +34,14 @@ server {
 }
 EOF
 
-# Enable the site and restart Nginx
-sudo ln -sf /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
+if ! cmp -s "$NEW_CONF" "$NGINX_CONF"; then
+    sudo cp "$NEW_CONF" "$NGINX_CONF"
+    sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo nginx -t
+    sudo systemctl reload nginx
+    echo "[INFO] Nginx config updated and reloaded."
+else
+    echo "[INFO] Nginx config unchanged."
+fi
+rm -f "$NEW_CONF"

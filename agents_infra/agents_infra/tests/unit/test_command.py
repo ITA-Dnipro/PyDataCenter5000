@@ -86,7 +86,7 @@ def test_command_history_bad_input_error():
 
     parameters = [
         {
-            'type': 1,
+            'type': 'unknown',
             'hostname': 'test-server',
             'status': 'pending',
             'timestamp': '2025-06-03T18:25:35.418746Z',

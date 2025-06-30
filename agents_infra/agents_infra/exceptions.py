@@ -1,4 +1,4 @@
-class BadSubprocessReturnCode(Exception):
+class BadProcessReturnCode(Exception):
     pass
 
 

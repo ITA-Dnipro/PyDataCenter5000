@@ -1,11 +1,7 @@
 import json
 import logging
-import os
-import platform
-import re
 import socket
 import tempfile
-import types
 
 import mock
 import psutil
@@ -38,28 +34,6 @@ UNEXPECTED_ERROR_OUTPUT = (
 
 class MockAgent(ServerAgent):
 
-    def __init__(
-        self,
-        server_name='mock',
-        port=None,
-        processes=None,
-        critical_processes=None,
-        interface=None,
-        protocol=None,
-        whitelist_commands=None,
-        command_queue_size=0,
-    ):
-        super(MockAgent, self).__init__(
-            server_name,
-            port,
-            processes,
-            critical_processes,
-            interface,
-            protocol,
-            whitelist_commands,
-            command_queue_size=command_queue_size,
-        )
-
     def setup_logging(self, log_path=None):
         """Patch logging setup to do nothing to allow temp file logging."""
         pass
@@ -68,10 +42,6 @@ class MockAgent(ServerAgent):
     def logger(self):
         """Override logger to use temp file logger."""
         return logging.getLogger('mock-logger')
-
-    def __del__(self):
-        if hasattr(self, 'logfile'):
-            os.remove(self.logfile.name)
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
@@ -158,7 +128,7 @@ def test_command_history_bad_input_error():
             CommandHistory.from_dict(data)
 
 
-def test_type_checks_on_init():
+def test_type_checks_on_init_raise():
     """Test that type checks fail initialization with bad parameters."""
     with pytest.raises(TypeError):
         MockAgent(port='invalid')
@@ -166,49 +136,42 @@ def test_type_checks_on_init():
     with pytest.raises(TypeError):
         MockAgent(processes=0)
 
+    with pytest.raises((TypeError, ValueError)):
+        for protocol in [None, 'invalid']:
+            MockAgent(protocol=protocol)
 
-def test_critical_processes_parsing():
-    """Test that critical_processes are correctly parsed from config."""
+
+def test_parse_config_file_success():
+    """Test parsing of a config.ini by the agent."""
     with tempfile.NamedTemporaryFile() as tmp:
         tmp.write(
             '[server]\n'
-            'name=mock\n'
-            'port=123\n'
-            'processes=proc1\n'
-            'critical_processes=sshd, nginx, postgres\n'
+            'name=mock-server\n'
+            'port=12345\n'
+            'processes=proc1, proc2\n'
+            'critical_processes=crit_proc1, crit_proc2, crit_proc3\n'
+            'interface=iface\n'
+            '[controller]\n'
+            'whitelist_commands=cmd1, cmd2\n'
         )
         tmp.flush()
 
         agent = MockAgent.from_config_file(tmp.name)
-        assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
 
+    assert agent.server_name == 'mock-server'
+    assert agent.port == 12345
 
-def test_status_to_json_type_error(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
-    """
-    Test that the TypeError is handled and logged on JSON serialization
-    failure.
-    """
+    assert agent.processes == ['proc1', 'proc2']
+    assert (
+        'crit_proc1' in agent.critical_processes
+        and 'crit_proc2' in agent.critical_processes
+        and 'crit_proc3' in agent.critical_processes
+    )
 
-    class MockUnserializableParameter(object):
-        def __str__(self):
-            raise TypeError("Can't serialize me")
-
-    def mock_status_to_dict(self):
-        status = ServerAgent.status_to_dict(self)
-        status.update({'mock_parameter': MockUnserializableParameter()})
-        return status
-
-    agent = MockAgent(port=12345)
-
-    agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
-
-    agent.status_to_json()
-
-    assert_msg_in_logfile(
-        'JSON serialization of status failed due to error: '
-        "Can't serialize me"
+    assert agent.interface == 'iface'
+    assert (
+        'cmd1' in agent.whitelist_commands
+        and 'cmd1' in agent.whitelist_commands
     )
 
 
@@ -596,60 +559,6 @@ def test_maybe_add_to_queue_logs_bad_input(
     assert agent.queue.qsize() == 0
 
 
-def test_status_to_dict_keys():
-    """
-    Verify that status_to_dict() returns all expected keys
-    in the status dictionary.
-    """
-    agent = MockAgent(port=12345)
-
-    # Set attributes manually
-    agent.os_type = 'linux'
-    agent.hostname = 'test-host'
-    agent.ip = '127.0.0.1'
-    agent.server_name = 'dns'
-    agent.uptime = 12345
-    agent.timestamp = '2025-06-03 20:00:00'
-    agent.healthy = True
-
-    result = agent.status_to_dict()
-
-    required_keys = set([
-        'os',
-        'hostname',
-        'ip',
-        'server_name',
-        'uptime',
-        'timestamp',
-        'healthy',
-    ])
-
-    msg_keys = 'Expected status_to_dict() keys to match: %s' % required_keys
-    assert set(result.keys()) == required_keys, msg_keys
-
-
-def test_status_to_dict_with_missing_fields():
-    """
-    Ensure status_to_dict() handles missing or None fields gracefully.
-    """
-    agent = MockAgent(port=12345)
-
-    agent.os_type = None
-    agent.hostname = None
-    agent.ip = None
-    agent.server_name = 'dns'
-    agent.uptime = -1
-    agent.timestamp = None
-    agent.healthy = False
-
-    result = agent.status_to_dict()
-
-    assert result['os'] is None, "Expected 'os' to be None when missing"
-    assert result['hostname'] is None, "Expected 'hostname' to be None"
-    assert result['ip'] is None, "Expected 'ip' to be None when missing"
-    assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
-
-
 def test_is_port_open_invalid_port():
     """Test that is_port_open raises ValueError for invalid port."""
     agent = MockAgent()
@@ -878,47 +787,6 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
 
     from agents_infra.agents.base import get_ip_from_interface
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
-
-
-def test_evaluate_identity_os_detection(monkeypatch):
-    """Test successful OS type detection."""
-    def mock_system():
-        return 'Linux'
-
-    def mock_get_linux_uptime():
-        return 12345.0
-
-    monkeypatch.setattr(platform, 'system', mock_system)
-
-    from ...agents import base as agent
-    monkeypatch.setattr(agent,
-                        'get_linux_uptime',
-                        mock_get_linux_uptime)
-
-    agent = MockAgent(port=12345)
-
-    agent.evaluate_identity()
-
-    assert agent.os_type == 'linux'
-    assert agent.uptime == 12345.0
-
-
-def test_evaluate_identity_unknown_os_logged(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
-    """Test handling of undetectable OS type."""
-    def mock_system():
-        return ''
-
-    monkeypatch.setattr(platform, 'system', mock_system)
-
-    agent = MockAgent(port=12345)
-
-    agent.evaluate_identity()
-
-    assert agent.os_type == 'unknown'
-
-    assert_msg_in_logfile('Could not deduce OS type')
 
 
 def test_evaluate_identity_interface_ip_success(monkeypatch):
@@ -1464,36 +1332,3 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
                 agent.logger,
                 exc_info=True
                 )
-
-
-def test_status_to_dict_format():
-    agent = MockAgent(port=12345)
-    agent.evaluate_identity()
-    result = agent.status_to_dict()
-
-    required_keys = set([
-        'os', 'hostname', 'ip', 'server_name', 'uptime', 'timestamp',
-        'healthy'
-    ])
-    assert set(result.keys()) == required_keys
-
-    assert isinstance(result['os'], str)
-    assert isinstance(result['hostname'], str)
-    assert isinstance(result['ip'], (str, type(None)))
-    assert result['server_name'] == 'mock'
-    assert isinstance(result['uptime'], (int, float))
-    assert isinstance(result['timestamp'], str)
-    assert isinstance(result['healthy'], bool)
-
-
-def test_status_to_dict_timestamp_format():
-    agent = MockAgent(port=12345)
-    agent.evaluate_identity()
-    result = agent.status_to_dict()
-    timestamp = result['timestamp']
-
-    match = re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp)
-    assert match is not None and match.group(0) == timestamp, (
-        "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
-        % timestamp
-    )

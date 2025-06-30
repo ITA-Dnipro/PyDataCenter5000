@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
@@ -26,6 +26,8 @@ def authenticated_client(db):
     user = User.objects.create_user(username='test_user')
     # add user to Operator group
     operator_group, _ = Group.objects.get_or_create(name='Operator')
+    permission = Permission.objects.get(codename='add_serverstatus')
+    operator_group.permissions.add(permission)
     user.groups.add(operator_group)
     client = APIClient()
     client.force_authenticate(user=user)

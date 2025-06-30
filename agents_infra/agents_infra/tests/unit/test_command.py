@@ -1,5 +1,6 @@
 import mock
 import pytest
+
 from agents_infra.command import (COMMAND_REGISTRY, AgentCommand,
                                   CommandHistory, CommandStatus, LinuxCommand,
                                   dispatch_command, execute_shell_command,
@@ -81,21 +82,24 @@ def test_command_history_missing_data():
 
 def test_command_history_bad_input_error():
     """Test that error is raised on bad command history input."""
+    from dateutil.parser import ParserError
+
     parameters = [
         {
-            'command': None,
+            'type': 1,
             'hostname': 'test-server',
             'status': 'pending',
             'timestamp': '2025-06-03T18:25:35.418746Z',
         },
         {
-            'command': 'ls',
+            'type': 'linux',
+            'params': {'bad': 'input'},
             'hostname': 'test-server',
-            'status': None,
             'timestamp': '2025-06-03T18:25:35.418746Z',
         },
         {
-            'command': 'ls',
+            'type': 'linux',
+            'params': {'shell': 'ls'},
             'hostname': 'test-server',
             'status': 'pending',
             'timestamp': 'bad date',
@@ -103,7 +107,7 @@ def test_command_history_bad_input_error():
     ]
 
     for data in parameters:
-        with pytest.raises((TypeError, ValueError)):
+        with pytest.raises((ParserError, TypeError, ValueError)):
             CommandHistory.from_dict(data)
 
 

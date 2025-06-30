@@ -264,7 +264,9 @@ class ReceiveStatusEndpointTests(APITestCase):
         is correctly received and stored.
         """
         valid_data = self._get_valid_status_data()
-        valid_data['tags'] = {'env': 'production', 'role': 'db'}
+
+        expected_tags = {'env': 'production', 'role': 'db'}
+        valid_data['tags'] = expected_tags
 
         response = self.client.post(self.url, data=valid_data, format='json')
 
@@ -283,7 +285,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
         self.assertDictEqual(
             status_obj.tags,
-            {'env': 'production', 'role': 'db'},
+            expected_tags,
             'Tags were not stored correctly'
         )
 

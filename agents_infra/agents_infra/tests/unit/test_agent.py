@@ -36,6 +36,14 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
+def load_agent_from_config(config_content):
+    """Helper to create a MockAgent from a string config."""
+    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+        return MockAgent.from_config_file(tmp.name)
+
+
 class MockAgent(ServerAgent):
 
     def __init__(
@@ -1638,18 +1646,14 @@ env = production
 role = web
 region = eu-central
 """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        expected_tags = {
-            'env': 'production',
-            'role': 'web',
-            'region': 'eu-central',
-        }
-        assert agent.tags == expected_tags
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+        'region': 'eu-central',
+    }
+    assert agent.tags == expected_tags
 
 
 def test_tag_parsing_partial_config():
@@ -1662,18 +1666,14 @@ name = test_server
 env = staging
 role = db
 """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        expected_tags = {
-            'env': 'staging',
-            'role': 'db',
-        }
-        assert agent.tags == expected_tags
-        assert 'region' not in agent.tags
+    expected_tags = {
+        'env': 'staging',
+        'role': 'db',
+    }
+    assert agent.tags == expected_tags
+    assert 'region' not in agent.tags
 
 
 def test_tag_parsing_ignores_empty_values():
@@ -1687,18 +1687,14 @@ env = dev
 role =
 region = us-east
 """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        expected_tags = {
-            'env': 'dev',
-            'region': 'us-east',
-        }
-        assert agent.tags == expected_tags
-        assert 'role' not in agent.tags
+    expected_tags = {
+        'env': 'dev',
+        'region': 'us-east',
+    }
+    assert agent.tags == expected_tags
+    assert 'role' not in agent.tags
 
 
 def test_status_dict_includes_tags_when_present():
@@ -1712,15 +1708,11 @@ name = test_server
 env = production
 role = web
 """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
 
-        agent = MockAgent.from_config_file(tmp.name)
-        status = agent.status_to_dict()
-
-        assert 'tags' in status
-        assert status['tags'] == {'env': 'production', 'role': 'web'}
+    assert 'tags' in status
+    assert status['tags'] == {'env': 'production', 'role': 'web'}
 
 
 def test_status_dict_omits_tags_for_backward_compatibility():
@@ -1732,12 +1724,8 @@ def test_status_dict_omits_tags_for_backward_compatibility():
 [server]
 name = old_agent_server
 """
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
 
-        agent = MockAgent.from_config_file(tmp.name)
-        status = agent.status_to_dict()
-
-        assert agent.tags == {}
-        assert 'tags' not in status
+    assert agent.tags == {}
+    assert 'tags' not in status

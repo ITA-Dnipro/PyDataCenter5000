@@ -1,0 +1,71 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    restart: on-failure
+    networks:
+      - graylog
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+
+  datanode:
+    image: graylog/graylog-datanode:6.2.2
+    hostname: datanode
+    restart: on-failure
+    environment:
+      GRAYLOG_DATANODE_NODE_ID_FILE: /var/lib/graylog-datanode/node-id
+      GRAYLOG_DATANODE_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET}"
+      GRAYLOG_DATANODE_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "8999:8999"
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - graylog_datanode:/var/lib/graylog-datanode
+    networks:
+      - graylog
+
+  graylog:
+    image: graylog/graylog:6.2.2
+    hostname: graylog-server
+    restart: on-failure
+    depends_on:
+      - mongodb
+      - datanode
+    entrypoint: "/usr/bin/tini -- /docker-entrypoint.sh"
+    environment:
+      GRAYLOG_NODE_ID_FILE: /usr/share/graylog/data/data/node-id
+      GRAYLOG_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET}"
+      GRAYLOG_ROOT_PASSWORD_SHA2: "${GRAYLOG_ROOT_PASSWORD_SHA2}"
+      GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
+      GRAYLOG_HTTP_EXTERNAL_URI: "http://localhost:9000/"
+      GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+    ports:
+      - "9000:9000"
+      - "12201:12201"
+    volumes:
+      - graylog_data:/usr/share/graylog/data/data
+    networks:
+      - graylog
+    healthcheck:
+      test: curl --fail http://localhost:9000/api/system/lbstatus || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  graylog:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  graylog_datanode:
+  graylog_data:

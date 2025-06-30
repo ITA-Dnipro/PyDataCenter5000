@@ -82,8 +82,6 @@ def test_command_history_missing_data():
 
 def test_command_history_bad_input_error():
     """Test that error is raised on bad command history input."""
-    from dateutil.parser import ParserError
-
     parameters = [
         {
             'type': 'unknown',
@@ -107,7 +105,7 @@ def test_command_history_bad_input_error():
     ]
 
     for data in parameters:
-        with pytest.raises((ParserError, TypeError, ValueError)):
+        with pytest.raises((TypeError, ValueError)):
             CommandHistory.from_dict(data)
 
 

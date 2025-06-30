@@ -1697,6 +1697,25 @@ region = us-east
     assert 'role' not in agent.tags
 
 
+def test_tag_parsing_strips_whitespace():
+    """
+    Tests that whitespace around tag values is correctly stripped.
+    """
+    config_content = """
+[server]
+name = test_server
+env =   Production
+role =   Web
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'Production',
+        'role': 'Web',
+    }
+    assert agent.tags == expected_tags
+
+
 def test_status_dict_includes_tags_when_present():
     """
     Test that status_to_dict() includes the 'tags' key

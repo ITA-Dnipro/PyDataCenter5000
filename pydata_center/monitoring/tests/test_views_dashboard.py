@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
 from django.utils.timezone import now
@@ -43,10 +44,10 @@ class TestDashboardView:
         assert 'No agent data available' in content
 
     @pytest.mark.parametrize(
-        'timestamp_delta, expected_offline_status, expected_class',
+        'timestamp_delta, expected_offline_status',
         [
-            (timedelta(seconds=10), False, None),
-            (timedelta(minutes=10), True, 'class="offline"'),
+            (timedelta(seconds=10), False),
+            (timedelta(minutes=10), True),
         ]
     )
     def test_dashboard_online_offline_status(
@@ -54,8 +55,7 @@ class TestDashboardView:
             authenticated_client,
             url,
             timestamp_delta,
-            expected_offline_status,
-            expected_class
+            expected_offline_status
     ):
         """
         Tests if an agent is correctly displayed as online or offline
@@ -69,19 +69,19 @@ class TestDashboardView:
             timestamp=now() - timestamp_delta
         )
         response = authenticated_client.get(url)
-        content = response.content.decode()
-
         assert response.status_code == 200
 
         agents_in_context = response.context['agents']
         assert len(agents_in_context) == 1
         assert agents_in_context[0]['offline'] is expected_offline_status
 
-        assert 'vm-test-agent' in content
-        if expected_class:
-            assert expected_class in content
-        else:
-            assert 'class="offline"' not in content
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        row = soup.find('td', string='vm-test-agent').parent
+        assert row is not None
+
+        has_offline_class = 'offline' in row.get('class', [])
+        assert has_offline_class == expected_offline_status
 
     def test_dashboard_displays_multiple_agents(
             self,
@@ -141,14 +141,19 @@ class TestDashboardView:
         )
 
         response = authenticated_client.get(url)
-        content = response.content.decode()
-
         assert response.status_code == 200
-        assert '<span class="tag">env: prod</span>' in content
-        assert '<span class="tag">role: api</span>' in content
 
-        assert 'agent-no-tags' in content
-        assert '<td>agent-no-tags</td>' in content
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        row_with_tags = soup.find('td', string='agent-with-tags').parent
+        rendered_tags = {
+            tag.text.strip() for tag in row_with_tags.select('span.tag')
+        }
+        assert rendered_tags == {'env: prod', 'role: api'}
+
+        row_no_tags = soup.find('td', string='agent-no-tags').parent
+        tags_cell = row_no_tags.find('td', class_='tags-cell')
+        assert tags_cell.text.strip() == '-'
 
     def test_dashboard_filtering_works(
             self,
@@ -199,11 +204,15 @@ class TestDashboardView:
         """
         filtered_url = url + '?hostname=server&tag_role=db'
         response = authenticated_client.get(filtered_url)
-        content = response.content.decode()
-
         assert response.status_code == 200
 
-        assert ('name="hostname" placeholder="Hostname" value="server"'
-                in content)
-        assert ('name="tag_role" placeholder="Role Tag" value="db"'
-                in content)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        hostname_input = soup.select_one('input[name="hostname"]')
+        tag_role_input = soup.select_one('input[name="tag_role"]')
+
+        assert hostname_input is not None
+        assert tag_role_input is not None
+
+        assert hostname_input.get('value') == 'server'
+        assert tag_role_input.get('value') == 'db'

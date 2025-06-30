@@ -135,7 +135,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrOperatorForWrite]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
-    search_fields = ['hostname', 'status']
+    search_fields = ['type', 'hostname', 'status']
     ordering_fields = ['timestamp']
 
     def partial_update(self, request, *args, **kwargs):

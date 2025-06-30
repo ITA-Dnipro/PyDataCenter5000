@@ -281,9 +281,10 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
         status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
-        self.assertEqual(
+        self.assertDictEqual(
             status_obj.tags,
-            {'env': 'production', 'role': 'db'}
+            {'env': 'production', 'role': 'db'},
+            'Tags were not stored correctly'
         )
 
     def test_receive_status_without_tags_is_backward_compatible(self):
@@ -310,7 +311,11 @@ class ReceiveStatusEndpointTests(APITestCase):
 
         status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
         # We set default=dict in the model, so we expect an empty dict
-        self.assertEqual(status_obj.tags, {})
+        self.assertDictEqual(
+            status_obj.tags,
+            {},
+            'Tags should be empty when not provided'
+        )
 
     def test_receive_invalid_status(self):
         invalid_data = {

@@ -178,6 +178,21 @@ if ! python -c "import dateutil"; then
     install_python_package_from_src dateutil
 fi
 
+if ! python -c "import ordereddict"; then
+    get_package_src_from_tar ordereddict "https://files.pythonhosted.org/packages/53/25/ef88e8e45db141faa9598fbf7ad0062df8f50f881a36ed6a0073e1572126/ordereddict-1.1.tar.gz"
+    install_python_package_from_src ordereddict
+fi
+
+if ! python -c "import enum"; then
+    get_package_src_from_tar enum34 "https://files.pythonhosted.org/packages/11/c4/2da1f4952ba476677a42f25cd32ab8aaf0e1c0d0e00b89822b835c7e654c/enum34-1.1.10.tar.gz"
+    install_python_package_from_src enum34
+fi
+
+if ! python -c "import singledispatch"; then
+    get_package_src_from_tar singledispatch "https://files.pythonhosted.org/packages/d9/e9/513ad8dc17210db12cb14f2d4d190d618fb87dd38814203ea71c87ba5b68/singledispatch-3.4.0.3.tar.gz"
+    install_python_package_from_src singledispatch
+fi
+
 if ! python -c "import coverage"; then
     get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
     install_python_package_from_src coverage

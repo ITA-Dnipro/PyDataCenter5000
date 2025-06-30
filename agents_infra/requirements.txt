@@ -11,6 +11,8 @@ pytest_cov==2.2.0
 cython==0.24
 distribute==0.6.26
 pycrypto==2.6.1
+enum34==1.1.10
+singledispatch==3.4.0.3
 # pytest-xdist dependencies (for coro integration tests).
 # Not needed for CI.
 setuptools-scm==1.15.7

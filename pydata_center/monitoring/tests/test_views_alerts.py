@@ -129,7 +129,8 @@ class TestCommandHistoryAPI:
     def setup_method(self, method):
         self.command = CommandHistory.objects.create(
             hostname='agent-setup',
-            command='initial_command',
+            type='linux',
+            params={'shell': 'initial_command'},
             notify_on_success=False
         )
         self.detail_url = reverse(
@@ -340,7 +341,8 @@ class TestCommandHistoryAPI:
         client = APIClient()
         command = CommandHistory.objects.create(
             hostname='test',
-            command='test'
+            type='linux',
+            params={'shell': 'cmd'},
         )
         url = reverse('monitoring:commandhistory-detail', args=[command.id])
         response = client.patch(url, data={})

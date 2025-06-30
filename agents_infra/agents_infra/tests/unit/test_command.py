@@ -3,8 +3,7 @@ import pytest
 
 from agents_infra.command import (COMMAND_REGISTRY, AgentCommand,
                                   CommandHistory, CommandStatus, LinuxCommand,
-                                  dispatch_command, execute_shell_command,
-                                  register_command)
+                                  dispatch_command, execute_shell_command)
 from agents_infra.exceptions import BadProcessReturnCode
 
 

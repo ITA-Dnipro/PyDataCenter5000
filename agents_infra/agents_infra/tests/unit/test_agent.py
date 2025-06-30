@@ -1697,21 +1697,23 @@ region = us-east
     assert 'role' not in agent.tags
 
 
-def test_tag_parsing_strips_whitespace():
+def test_tag_parsing_normalizes_values():
     """
-    Tests that whitespace around tag values is correctly stripped.
+    Tests that tag values are correctly normalized:
+    - Whitespace is stripped from both ends.
+    - Value is converted to lowercase.
     """
     config_content = """
 [server]
 name = test_server
 env =   Production
-role =   Web
+role =   WEB
 """
     agent = load_agent_from_config(config_content)
 
     expected_tags = {
-        'env': 'Production',
-        'role': 'Web',
+        'env': 'production',
+        'role': 'web',
     }
     assert agent.tags == expected_tags
 

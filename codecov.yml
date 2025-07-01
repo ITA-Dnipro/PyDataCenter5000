@@ -4,7 +4,7 @@ codecov:
 flags:
   agents_infra:
     paths:
-      - "agents_infra/"
+      - "agents_infra/agents_infra"
   monitoring:
     paths:
-      - "pydata_center/monitoring/"
+      - "monitoring"

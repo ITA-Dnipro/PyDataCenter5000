@@ -1,19 +1,19 @@
-name: agents tests
+name: Agents Tests
 
 on:
   pull_request:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     branches:
-      - main
-      - develop
-      - fix-codecov
+      - 'main'
+      - 'develop'
+      - 'fix-codecov'
 
 jobs:
   test:
@@ -21,50 +21,43 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [2.6, 2.7]
+        python-version: ['2.6', '2.7']
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Agents Unit Tests (Python 2.6 - Custom Docker Image with coverage)
-        if: matrix.python-version == '2.6'
+      - name: Run Agents tests (Python ${{ matrix.python-version }})
         run: |
-          docker run --rm \
-            -v "$PWD":/pydata \
-            ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
-            bash -c "
-              cd /pydata && \
-              python -m pytest \
+          cd $GITHUB_WORKSPACE
+          if [ "${{ matrix.python-version }}" = "2.6" ]; then
+            docker run --rm -v "$PWD":/pydata ghcr.io/yelyzavetav/ubuntu-python2.6:latest bash -c "
+              cd /pydata &&
+              pip install pytest pytest-cov -r agents_infra/requirements.txt &&
+              pytest \
                 -c agents_infra/agents_infra/pytest.ini \
-                -m 'not integration' \
-                agents_infra/agents_infra \
                 --cov=agents_infra/agents_infra \
-                --cov-report=xml \
-                --cov-config=agents_infra/agents_infra/.coveragerc && \
-              mv coverage.xml coverage-agents.xml
+                --cov-report=xml:coverage-agents.xml \
+                -m 'not integration' \
+                agents_infra/agents_infra
             "
-
-      - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
-        if: matrix.python-version == '2.7'
-        run: |
-          docker run --rm \
-            -v "$PWD":/pydata \
-            python:2.7 \
-            bash -c "
-              cd /pydata && \
-              pip install -r agents_infra/requirements.txt && \
-              pip install pytest && \
-              python -m pytest \
+          else
+            docker run --rm -v "$PWD":/pydata python:2.7 bash -c "
+              cd /pydata &&
+              pip install pytest pytest-cov -r agents_infra/requirements.txt &&
+              pytest \
                 -c agents_infra/agents_infra/pytest.ini \
+                --cov=agents_infra/agents_infra \
+                --cov-report=xml:coverage-agents.xml \
                 -m 'not coro' \
                 agents_infra/agents_infra
             "
+          fi
 
-      - name: Upload Coverage Report to Codecov
-        if: matrix.python-version == '2.6'
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage-agents.xml
+          files: coverage-agents.xml
           flags: agents_infra
           verbose: true

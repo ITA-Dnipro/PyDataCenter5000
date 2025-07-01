@@ -1,14 +1,16 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import (CommandHistoryViewSet, TriggeredAlertViewSet,
-                    create_agent_metric, dashboard_view, fetch_pending_command,
-                    metrics_graphing_page, metrics_history_view,
-                    receive_status, submit_command_result)
+from .views import (CommandHistoryViewSet, ServerStatusViewSet,
+                    TriggeredAlertViewSet, create_agent_metric, dashboard_view,
+                    fetch_pending_command, metrics_graphing_page,
+                    metrics_history_view, receive_status,
+                    submit_command_result)
 
 app_name = 'monitoring'
 
 router = DefaultRouter()
+router.register(r'serverstatus', ServerStatusViewSet, basename='serverstatus')
 router.register(r'commands', CommandHistoryViewSet)
 router.register(r'triggered-alerts', TriggeredAlertViewSet)
 

@@ -58,7 +58,11 @@ class AgentSupervisor(object):
         """Starts the managers. Blocks until explicitly stopped."""
         for manager in self.managers:
             manager.start()
-        self.logger.info('All managers started. Running main loop...')
+        maybe_log_message(
+            'All managers started. Running main loop...',
+            logger=self.logger,
+            level=logging.INFO
+        )
         signal.pause()
 
     def stop_managers(self):

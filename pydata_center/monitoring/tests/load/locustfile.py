@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import random
 import uuid
@@ -7,12 +8,19 @@ from dotenv import load_dotenv
 from locust import HttpUser, between, task
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 TOKEN = None
 
 USERNAME = os.getenv('LOCUST_USERNAME', 'user')
 PASSWORD = os.getenv('LOCUST_PASSWORD', 'password')
-print(f'USERNAME: {USERNAME}')
-print(f'PASSWORD: {PASSWORD}')
+
+logger.info(f'USERNAME: {USERNAME}')
+logger.info(f'PASSWORD: {PASSWORD}')
 
 
 def get_token_once():
@@ -28,10 +36,10 @@ def get_token_once():
     })
     if response.status_code == 200:
         TOKEN = response.json()['access']
-        print(f'TOKEN: {TOKEN[:20]}...')
+        logger.info(f'TOKEN: {TOKEN[:20]}...')
         return TOKEN
     else:
-        print(f'Login failed: {response.status_code}')
+        logger.error(f'Login failed: {response.status_code}')
         return None
 
 

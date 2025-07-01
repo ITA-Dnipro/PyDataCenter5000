@@ -1,6 +1,5 @@
 import logging
 
-import requests
 from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
@@ -11,7 +10,8 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import (api_view, permission_classes,
+                                       throttle_classes)
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -452,6 +452,7 @@ def metrics_graphing_page(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAdminOrOperatorForWrite])
+@throttle_classes([])
 def receive_log(request):
     """POST endpoint for receiving logs from agents."""
     serializer = AgentLogEntrySerializer(data=request.data)

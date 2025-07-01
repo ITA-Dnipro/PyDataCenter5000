@@ -1,11 +1,13 @@
 import abc
 
 
-class ServerManager:
+class ServerManager(object):
     __metaclass__ = abc.ABCMeta
 
+    @abc.abstractmethod
     def start(self):
-        raise NotImplementedError('Subclasses must implement start()')
+        pass
 
+    @abc.abstractmethod
     def stop(self):
-        raise NotImplementedError('Subclasses must implement stop()')
+        pass

@@ -387,13 +387,8 @@ class ServerAgent(object):
         with warnings.catch_warnings(record=True) as records:
             # Check port status via plugin.
             port_status = self.check_port(
-                port=self.port,
-                ip=self.ip,
-                protocol=self.protocol,
-                timeout=timeout,
-                payload=payload,
-                packet_size=packet_size,
-            )
+                timeout=timeout, payload=payload, packet_size=packet_size
+            )['port_open']
 
             for record in records:
                 maybe_log_message(
@@ -401,7 +396,6 @@ class ServerAgent(object):
                     logger=self.logger,
                     level=logging.WARNING,
                 )
-
         return (
             port_status
             and self._is_process_running()

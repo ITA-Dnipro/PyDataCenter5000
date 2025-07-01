@@ -9,19 +9,31 @@ PLUGIN_CATEGORY = 'health'
 
 def execute(
     parent=None,
-    port=-1,
-    ip=None,
-    protocol='tcp',
     timeout=2,
     payload=None,
     packet_size=0,
     *args,
     **kwargs
 ):
-    if not isinstance(port, int):
-        raise TypeError('Port number must be an integer, not %s' % type(port))
+    if parent is not None:
+        port = parent.port
+        ip = parent.ip
+        protocol = parent.protocol
+    else:
+        if (
+            'port' not in kwargs
+            or 'ip' not in kwargs
+            or 'protocol' not in kwargs
+        ):
+            raise TypeError(
+                'Must provide valid port number, IP address and '
+                'data transfer protocol for port check'
+            )
 
-    is_port_open = False
+        if not isinstance(port, int):
+            raise TypeError(
+                'Port number must be an integer, not %s' % type(port)
+            )
 
     if not is_valid_ip(ip):
         warnings.warn(
@@ -35,6 +47,8 @@ def execute(
         (socket.SOCK_STREAM if protocol == 'tcp' else socket.SOCK_DGRAM),
     )
     s.settimeout(timeout)
+
+    port_status = False
 
     try:
         if protocol == 'tcp':
@@ -51,10 +65,11 @@ def execute(
                         '%d bytes, got %d bytes' % (packet_size, len(data))
                     )
                 )
-        is_port_open = True
+
+        port_status = True
     except (socket.error, socket.timeout) as e:
         warnings.warn('Port check failed due to error: %s' % str(e))
     finally:
         s.close()
 
-        return {'port_open': is_port_open}
+        return {'port_open': port_status}

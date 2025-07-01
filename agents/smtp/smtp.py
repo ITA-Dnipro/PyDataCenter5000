@@ -16,21 +16,15 @@ class SMTPAgent(ServerAgent):
     def __init__(
         self,
         server_name='smtp',
-        port=25,
-        critical_processes=None,
-        interface=None,
         protocol='tcp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None,
     ):
         super(SMTPAgent, self).__init__(
             server_name=server_name,
-            port=port,
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
     def check_banner(self):
@@ -39,7 +33,7 @@ class SMTPAgent(ServerAgent):
 
         banner = ''
         try:
-            sock.connect((self.ip, self.port))
+            sock.connect((self.ip, self.config.get('port')))
             banner = sock.recv(1024)
         except (socket.error, socket.timeout) as e:
             maybe_log_message(

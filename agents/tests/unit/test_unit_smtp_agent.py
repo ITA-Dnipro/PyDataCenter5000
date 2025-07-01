@@ -9,22 +9,27 @@ from agents import SMTPAgent
 from agents.agent import ServerAgent
 
 
-class DummySMTPAgent(SMTPAgent):
-
-    def maybe_restart_service(self, *args, **kwargs):
-        return False
-
-
 @pytest.yield_fixture
 def smtp_agent():
     """
-    Create and configure a SMTPAgent instance with logging for use in tests.
+    Create and configure an SMTPAgent instance with logging for use in tests.
     Cleans up the temporary log file after the test completes.
     """
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummySMTPAgent()
+    config = {
+        'name': 'smtp',
+        'port': 25,
+        'interface': 'enp0s3',
+        'url': 'http://localhost',
+        'api_prefix': 'api/v1/',
+        'auth_token_type': None,
+        'critical_processes': ['postfix', 'sendmail'],
+        'whitelist_commands': ['uptime', 'telnet']
+    }
+
+    agent = SMTPAgent(config=config)
     agent.setup_logging(logfile.name)
 
     yield agent, logfile.name

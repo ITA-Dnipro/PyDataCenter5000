@@ -110,7 +110,22 @@ class ServerAgent(object):
         Create an agent from configuration file.
         """
         config_dict = cls._parse_config_file(filename)
-        config_obj = Config(**config_dict)
+        defaults = {
+            'name': None,
+            'api_prefix': '',
+            'url': '',
+            'critical_processes': [],
+            'whitelist_commands': [],
+            'port': 0,
+            'auth_token_type': None,
+            'interface': None,
+        }
+
+        for key in defaults.keys():
+            if key in config_dict:
+                defaults[key] = config_dict[key]
+
+        config_obj = Config(**defaults)
 
         agent = cls(
             server_name=config_obj.name,

@@ -32,8 +32,9 @@ jobs:
           cd $GITHUB_WORKSPACE
           if [ "${{ matrix.python-version }}" = "2.6" ]; then
             docker run --rm -v "$PWD":/pydata ghcr.io/yelyzavetav/ubuntu-python2.6:latest bash -c "
+              apt-get update && apt-get install -y python-pip &&
               cd /pydata &&
-              pip install pytest pytest-cov -r agents_infra/requirements.txt &&
+              pip install -r agents_infra/requirements.txt &&
               pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 --cov=agents_infra/agents_infra \
@@ -44,8 +45,7 @@ jobs:
           else
             docker run --rm -v "$PWD":/pydata python:2.7 bash -c "
               cd /pydata &&
-              # встановлюємо залежності з requirements, без подвійного pytest
-              pip install -r agents_infra/requirements.txt pytest-cov &&
+              pip install -r agents_infra/requirements.txt &&
               pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 --cov=agents_infra/agents_infra \

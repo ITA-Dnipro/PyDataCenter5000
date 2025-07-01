@@ -18,13 +18,13 @@ from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
+from .graylog import send_log_to_graylog
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
-from .tasks import send_log_to_graylog
-from .utils import extract_status_data, get_client_ip
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 

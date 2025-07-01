@@ -12,9 +12,10 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from monitoring.email import send_async_email
+from monitoring.graylog import send_log_to_graylog
 from monitoring.models import (AgentLogEntry, AgentMetric, AlertRule,
                                ServerStatus)
-from monitoring.tasks import evaluate_agent_alerts, send_log_to_graylog
+from monitoring.tasks import evaluate_agent_alerts
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -1063,7 +1064,7 @@ class ReceiveLogEndpointTest(TestCase):
 
         self.url = reverse('monitoring:receive_log')
 
-    @patch('monitoring.tasks.send_log_to_graylog.delay')
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
     def test_successful_log_post_by_operator(self, mock_send_log):
         """Operator user can successfully post a valid log."""
         self.client.force_authenticate(user=self.operator_user)
@@ -1120,8 +1121,8 @@ class ReceiveLogEndpointTest(TestCase):
         )
 
 
-class SendLogToGraylogTaskTest(TestCase):
-    @patch('monitoring.tasks.graylog_logger')
+class SendLogToGraylogTest(TestCase):
+    @patch('monitoring.graylog.graylog_logger')
     def test_send_log_calls_correct_level_method(self, mock_logger):
         """
         Test suite for correct data task call.
@@ -1146,7 +1147,7 @@ class SendLogToGraylogTaskTest(TestCase):
             message, extra=expected_extra
             )
 
-    @patch('monitoring.tasks.graylog_logger')
+    @patch('monitoring.graylog.graylog_logger')
     def test_send_log_default_level_info(self, mock_logger):
         """
         Test that when an unknown log level is passed to the task,

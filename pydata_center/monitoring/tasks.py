@@ -1,5 +1,6 @@
 import logging
 import operator
+import os
 from datetime import timedelta
 from functools import singledispatchmethod
 from typing import Union
@@ -180,52 +181,3 @@ def evaluate_agent_alerts(
             cache.set(
                 cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
             )
-
-
-graylog_logger = logging.getLogger('graylog_logger')
-graylog_logger.setLevel(logging.DEBUG)
-
-
-tcp_handler = graypy.GELFTCPHandler('127.0.0.1', 12201)
-graylog_logger.addHandler(tcp_handler)
-
-
-@shared_task
-def send_log_to_graylog(level, message, agent_name, timestamp_iso, context):
-    """
-    Send a log message to Graylog with the specified level, message, and
-    context.
-
-    This function uses a shared task to send a log message to Graylog. The
-    appropriate log level is determined from the input parameter, and the log
-    message is sent along with details such as agent name, timestamp, and
-    context.
-
-    Args:
-        level (str): The severity level of the log. Valid options are 'DEBUG',
-            'INFO', 'WARNING', 'ERROR', and 'CRITICAL'.
-        message (str): The log message to be sent to Graylog.
-        agent_name (str): The name of the agent associated with the log
-            message.
-        timestamp_iso (str): The ISO formatted timestamp to include in the log.
-        context (dict): Additional context to include with the log message.
-            Defaults to an empty dictionary.
-
-    Note:
-        This function uses a logger specific to Graylog to route the logs.
-    """
-    extra = {
-        'agent_name': agent_name,
-        'timestamp': timestamp_iso,
-        'context': context or {},
-    }
-
-    level_method = {
-        'DEBUG': graylog_logger.debug,
-        'INFO': graylog_logger.info,
-        'WARNING': graylog_logger.warning,
-        'ERROR': graylog_logger.error,
-        'CRITICAL': graylog_logger.critical,
-    }.get(level, graylog_logger.info)
-
-    level_method(message, extra=extra)

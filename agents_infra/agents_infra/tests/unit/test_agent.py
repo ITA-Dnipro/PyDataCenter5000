@@ -12,7 +12,8 @@ import psutil
 import pytest
 import urllib2
 
-from ...agents.base import CommandHistory, ServerAgent
+from agents_infra.agents.base import ServerAgent
+from agents_infra.command import CommandHistory
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -84,78 +85,6 @@ def mock_popen_with_output(stdout, stderr=''):
     process_mock = mock.Mock()
     process_mock.communicate.return_value = (stdout, stderr)
     return process_mock
-
-
-def test_command_history_valid_data():
-    """Test that command history is properly instantiated."""
-    data = {
-        'command': 'ls',
-        'hostname': 'test-server',
-        'status': 'pending',
-        'timestamp': '2025-06-03T18:25:35.418746Z',
-        'result': 'ok',
-        'id': 1,
-    }
-
-    command_history = CommandHistory.from_dict(data)
-
-    assert command_history.command == 'ls'
-    assert command_history.hostname == 'test-server'
-    assert command_history.status == 'pending'
-    assert command_history.timestamp == '2025-06-03T18:25:35.418746Z'
-    assert command_history.result == 'ok'
-    assert command_history.id == 1
-
-
-def test_command_history_missing_data():
-    """
-    Test that error is raised on command history input with missing
-    fields.
-    """
-    parameters = [
-        {
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises(TypeError):
-            CommandHistory.from_dict(data)
-
-
-def test_command_history_bad_input_error():
-    """Test that error is raised on bad command history input."""
-    parameters = [
-        {
-            'command': None,
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': None,
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': 'bad date',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises((TypeError, ValueError)):
-            CommandHistory.from_dict(data)
 
 
 def test_type_checks_on_init():
@@ -514,7 +443,8 @@ def test_fetch_command_from_controller_error(
 def test_maybe_add_to_queue_adds_item():
     """Test that good command history input is added to queue."""
     data = {
-        'command': 'ls',
+        'type': 'linux',
+        'params': {'shell': 'ls'},
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -522,9 +452,10 @@ def test_maybe_add_to_queue_adds_item():
 
     agent = MockAgent(port=12345)
 
-    agent.maybe_add_command_to_queue(data)
+    agent.maybe_add_command_to_queue(data.copy())
 
-    assert agent.queue.qsize() == 1
+    with agent.command_queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.command_queue.queue
 
 
 def test_maybe_add_to_queue_full_logged(
@@ -534,21 +465,20 @@ def test_maybe_add_to_queue_full_logged(
     Test that trying to add command to the full queue is properly handled
     and logged.
     """
-    import datetime
-
     agent = MockAgent(whitelist_commands=['cmd'], command_queue_size=1)
 
-    cmd = CommandHistory(
-        command='cmd',
-        hostname='mock-server',
-        status='pending',
-        timestamp=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    )
+    cmd = {
+        'type': 'linux',
+        'params': {'shell': 'cmd'},
+        'hostname': 'mock-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
 
-    agent.maybe_add_command_to_queue(cmd)
+    agent.maybe_add_command_to_queue(cmd.copy())
     agent.maybe_add_command_to_queue(cmd)
 
-    assert agent.queue.qsize() == 1
+    assert agent.command_queue.qsize() == 1
 
     assert_msg_in_logfile('Queue is full - could not append command')
 
@@ -556,7 +486,7 @@ def test_maybe_add_to_queue_full_logged(
 def test_get_command_from_queue_has_item():
     agent = MockAgent()
 
-    agent.queue.put('cmd')
+    agent.command_queue.put('cmd')
     assert agent.get_command_from_queue(block=True) == 'cmd'
 
 
@@ -593,7 +523,8 @@ def test_maybe_add_to_queue_logs_bad_input(
 
     assert_msg_in_logfile('Command validation failed due to error')
 
-    assert agent.queue.qsize() == 0
+    with agent.command_queue.mutex:
+        assert len(agent.command_queue.queue) == 0
 
 
 def test_status_to_dict_keys():

@@ -2,7 +2,7 @@ import os
 
 import psutil
 
-PLUGIN_NAME = 'disk_usage'
+PLUGIN_NAME = 'check_disk_usage'
 PLUGIN_CATEGORY = 'metric'
 
 

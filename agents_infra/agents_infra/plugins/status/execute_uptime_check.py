@@ -2,7 +2,7 @@ import time
 
 import psutil
 
-PLUGIN_NAME = 'uptime'
+PLUGIN_NAME = 'check_uptime'
 PLUGIN_CATEGORY = 'status'
 
 

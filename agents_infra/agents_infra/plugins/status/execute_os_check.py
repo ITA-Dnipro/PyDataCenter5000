@@ -1,6 +1,6 @@
 import platform
 
-PLUGIN_NAME = 'os'
+PLUGIN_NAME = 'check_os'
 PLUGIN_CATEGORY = 'status'
 
 

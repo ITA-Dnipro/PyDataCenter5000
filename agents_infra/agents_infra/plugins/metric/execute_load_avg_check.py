@@ -1,6 +1,6 @@
 import os
 
-PLUGIN_NAME = 'load_avg'
+PLUGIN_NAME = 'check_load_avg'
 PLUGIN_CATEGORY = 'metric'
 
 

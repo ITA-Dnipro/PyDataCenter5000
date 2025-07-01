@@ -1,0 +1,60 @@
+import socket
+import warnings
+
+from ...utils.helpers import is_valid_ip
+
+PLUGIN_NAME = 'check_port'
+PLUGIN_CATEGORY = 'health'
+
+
+def execute(
+    parent=None,
+    port=-1,
+    ip=None,
+    protocol='tcp',
+    timeout=2,
+    payload=None,
+    packet_size=0,
+    *args,
+    **kwargs
+):
+    if not isinstance(port, int):
+        raise TypeError('Port number must be an integer, not %s' % type(port))
+
+    is_port_open = False
+
+    if not is_valid_ip(ip):
+        warnings.warn(
+            '%s is not a valid IP address. Falling back to local IP address.'
+            % str(ip)
+        )
+        ip = '127.0.0.1'
+
+    s = socket.socket(
+        socket.AF_INET,
+        (socket.SOCK_STREAM if protocol == 'tcp' else socket.SOCK_DGRAM),
+    )
+    s.settimeout(timeout)
+
+    try:
+        if protocol == 'tcp':
+            s.connect((ip, port))
+        else:
+            s.sendto(payload or b'', (ip, port))
+
+        if packet_size > 0:
+            data, _ = s.recvfrom(packet_size)
+            if len(data) != packet_size:
+                warnings.warn(
+                    (
+                        'UDP response size mismatch: expected '
+                        '%d bytes, got %d bytes' % (packet_size, len(data))
+                    )
+                )
+        is_port_open = True
+    except (socket.error, socket.timeout) as e:
+        warnings.warn('Port check failed due to error: %s' % str(e))
+    finally:
+        s.close()
+
+        return {'port_open': is_port_open}

@@ -2,7 +2,7 @@ import datetime
 
 import pytz
 
-PLUGIN_NAME = 'timestamp'
+PLUGIN_NAME = 'check_timestamp'
 PLUGIN_CATEGORY = 'status'
 
 

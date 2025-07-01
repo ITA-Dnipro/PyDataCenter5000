@@ -7,6 +7,7 @@ import re
 import socket
 import subprocess
 import time
+import warnings
 from collections import Sequence
 
 import ConfigParser
@@ -330,69 +331,6 @@ class ServerAgent(object):
                     self.logger,
                 )
 
-    def is_port_open(self, timeout=2, payload=None, packet_size=0):
-        """
-        Check if the port is open.
-
-        Returns:
-            bool: Port status.
-
-        Raises:
-            ValueError: If the port not assigned a valid number.
-        """
-        if self.port == -1:
-            raise ValueError(
-                'Port not set: server agent must assign a valid port number'
-            )
-
-        if not self.ip:
-            return False
-
-        if not self.protocol:
-            raise ValueError(
-                'Protocol not set: server agent must set a valid transfer '
-                'protocol (TCP or UDP)'
-            )
-
-        s = socket.socket(
-            socket.AF_INET,
-            (
-                socket.SOCK_STREAM if self.protocol == 'tcp'
-                else socket.SOCK_DGRAM
-            ),
-        )
-        s.settimeout(timeout)
-
-        try:
-            if self.protocol == 'tcp':
-                s.connect((self.ip, self.port))
-            else:
-                s.sendto(payload or b'', (self.ip, self.port))
-
-            if packet_size > 0:
-                data, _ = s.recvfrom(packet_size)
-                if len(data) != packet_size:
-                    maybe_log_message(
-                        (
-                            'UDP response size mismatch: expected '
-                            '%d bytes, got %d bytes' % (packet_size, len(data))
-                        ),
-                        logger=self.logger,
-                    )
-
-                    return False
-
-            return True
-        except (socket.error, socket.timeout) as e:
-            maybe_log_message(
-                'Port check failed due to error: %s' % str(e),
-                logger=self.logger,
-            )
-
-            return False
-        finally:
-            s.close()
-
     def _is_process_running(self):
         try:
             output = subprocess.Popen(['ps', '-eo', 'comm'],
@@ -441,12 +379,34 @@ class ServerAgent(object):
             return False
 
     @abc.abstractmethod
-    def is_service_healthy(self):
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._is_process_running() and self.is_ssh_service_active()
+        with warnings.catch_warnings(record=True) as records:
+            # Check port status via plugin.
+            port_status = self.check_port(
+                port=self.port,
+                ip=self.ip,
+                protocol=self.protocol,
+                timeout=timeout,
+                payload=payload,
+                packet_size=packet_size,
+            )
+
+            for record in records:
+                maybe_log_message(
+                    'Warning while checking port status: %s' % record.message,
+                    logger=self.logger,
+                    level=logging.WARNING,
+                )
+
+        return (
+            port_status
+            and self._is_process_running()
+            and self.is_ssh_service_active()
+        )
 
     @abc.abstractmethod
     def maybe_restart_service(self):

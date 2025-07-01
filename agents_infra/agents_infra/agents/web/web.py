@@ -51,29 +51,20 @@ class WebAgent(ServerAgent):
                                                 'WEB_SERVER_NAME')
         self.health_url = self._build_url('health')
 
-    def is_service_healthy(
-            self, timeout=2, payload=None, packet_size=0
-    ):
+    def is_service_healthy(self, timeout=2):
         """
         Check if the web service is healthy.
 
         Returns:
             bool: True if the service is healthy, False otherwise.
         """
-        try:
-            if not self._check_http_health(timeout):
-                return False
+        port_and_process_status = super(WebAgent, self).is_service_healthy(
+            timeout=timeout
+        )
 
-            status = super(WebAgent, self).is_service_healthy()
-            return status and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
-            )
-        except Exception as e:
-            maybe_log_message(
-                'Health check failed with error: %s' % str(e),
-                logger=self.logger,
-            )
-            return False
+        http_status = self._check_http_health(timeout)
+
+        return port_and_process_status and http_status
 
     def _check_http_health(self, timeout=2):
         """

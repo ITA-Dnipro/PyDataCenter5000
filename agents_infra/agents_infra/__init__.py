@@ -3,6 +3,7 @@ from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
 from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
+from .plugins.health import execute_port_check
 from .plugins.metric import (execute_cpu_check, execute_disk_check,
                              execute_load_avg_check, execute_ram_check)
 from .plugins.plugin import register_plugin
@@ -14,6 +15,7 @@ register_plugin(execute_cpu_check, agent.ServerAgent)
 register_plugin(execute_ram_check, agent.ServerAgent)
 register_plugin(execute_load_avg_check, agent.ServerAgent)
 register_plugin(execute_disk_check, agent.ServerAgent)
+register_plugin(execute_port_check, agent.ServerAgent)
 register_plugin(execute_timestamp_check, agent.ServerAgent)
 register_plugin(execute_uptime_check, agent.ServerAgent)
 

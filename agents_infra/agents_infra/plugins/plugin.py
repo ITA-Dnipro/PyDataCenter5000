@@ -24,12 +24,6 @@ def _validate_plugin_module(module):
             '"execute" does not support required positional arguments'
         )
 
-    result = module.execute()
-    if not isinstance(result, dict):
-        raise PluginValidationError(
-            'execute callable must return a dict, not %s' % type(result)
-        )
-
     return module
 
 

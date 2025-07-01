@@ -1,6 +1,6 @@
 import psutil
 
-PLUGIN_NAME = 'ram_percent'
+PLUGIN_NAME = 'check_ram_percent'
 PLUGIN_CATEGORY = 'metric'
 
 

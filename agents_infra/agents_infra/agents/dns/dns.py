@@ -68,13 +68,12 @@ class DNSAgent(ServerAgent):
             return False
 
     def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
-        process_status = super(DNSAgent, self).is_service_healthy()
-        port = self.is_port_open(
+        port_and_process_status = super(DNSAgent, self).is_service_healthy(
             timeout=timeout, payload=payload, packet_size=packet_size
         )
         dns_status = self.is_dns_running()
 
-        return process_status and port and dns_status
+        return port_and_process_status and dns_status
 
     def maybe_restart_service(self):
         inactive_services = []

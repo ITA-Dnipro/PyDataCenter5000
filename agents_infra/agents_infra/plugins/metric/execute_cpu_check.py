@@ -1,6 +1,6 @@
 import psutil
 
-PLUGIN_NAME = 'cpu_percent'
+PLUGIN_NAME = 'check_cpu_percent'
 PLUGIN_CATEGORY = 'metric'
 
 

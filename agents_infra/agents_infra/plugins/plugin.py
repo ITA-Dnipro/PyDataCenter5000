@@ -73,7 +73,7 @@ class Plugin(object):
 
 
 @singledispatch
-def register_plugin(source, obj):
+def register_plugin(source, obj, **kwargs):
     """Allows to dynamically register plugins as object's methods."""
     raise NotImplementedError(
         'Plugin registration not supported for a source of type %s'
@@ -82,12 +82,12 @@ def register_plugin(source, obj):
 
 
 @register_plugin.register(types.ModuleType)
-def _(source, obj):
+def _(source, obj, **kwargs):
     plugin = Plugin.from_module(source)
     setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
 
 
 @register_plugin.register(Callable)
-def _(source, obj):
-    plugin = Plugin.from_callable(source)
+def _(source, obj, **kwargs):
+    plugin = Plugin.from_callable(source, **kwargs)
     setattr(obj, plugin.name, types.MethodType(plugin, None, obj))

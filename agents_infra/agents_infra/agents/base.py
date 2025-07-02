@@ -294,11 +294,13 @@ class ServerAgent(object):
             'agent_name': self.server_name,
             'level': level,
             'message': message,
-            'timestamp': datetime.datetime.utcnow().isoformat(),
+            'timestamp': (
+                datetime.datetime.now(datetime.timezone.utc).isoformat()
+            ),
             'context': context or {},
         }
 
-        self.post_data('/api/v1/logs/', payload=log_data, to_controller=True)
+        self.post_data('/logs/', payload=log_data, to_controller=True)
 
     def log_with_controller(
             self,

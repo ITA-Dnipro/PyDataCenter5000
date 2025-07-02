@@ -128,7 +128,9 @@ def test_get_ram_usage_handles_psutil_error_and_logs():
         raise psutil.Error('Mocked psutil error')
 
     with mock.patch('psutil.virtual_memory', side_effect=raise_error):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             usage = get_ram_usage(logger)
             assert usage == -1.0, 'Expected RAM usage to be -1.0 on error'
             mock_log.assert_called_once()
@@ -160,7 +162,9 @@ def test_get_cpu_usage_psutil_error_logged():
         raise psutil.Error('Mocked error')
 
     with mock.patch('psutil.cpu_percent', side_effect=raise_error):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             usage = get_cpu_usage(logger)
             assert usage == -1.0, 'Expected -1.0 on psutil error'
             mock_log.assert_called_once()
@@ -181,7 +185,9 @@ def test_get_cpu_usage_value_error_logged():
         raise ValueError('Invalid interval')
 
     with mock.patch('psutil.cpu_percent', side_effect=raise_value_error):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             usage = get_cpu_usage(logger)
             assert usage == -1.0, 'Expected -1.0 on ValueError'
             mock_log.assert_called_once()
@@ -213,7 +219,9 @@ def test_get_load_average_oserror_logged():
         raise OSError('Mocked OSError')
 
     with mock.patch('os.getloadavg', side_effect=raise_oserror):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             result = get_load_average(logger)
             assert result == -1.0, 'Expected -1.0 on OSError'
             mock_log.assert_called_once()
@@ -234,7 +242,9 @@ def test_get_load_average_attributeerror_logged():
         raise AttributeError('Mocked AttributeError')
 
     with mock.patch('os.getloadavg', side_effect=raise_attribute_error):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             result = get_load_average(logger)
             assert result == -1.0, 'Expected -1.0 on AttributeError'
             mock_log.assert_called_once()
@@ -268,7 +278,9 @@ def test_get_disk_usage_error_logged():
         raise psutil.Error('Mocked psutil error')
 
     with mock.patch('psutil.disk_usage', side_effect=raise_psutil_error):
-        with mock.patch('agents.utils.sysinfo.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.utils.sysinfo.maybe_log_message'
+        ) as mock_log:
             result = get_disk_usage(logger)
             assert result == -1.0, 'Expected -1.0 on psutil error'
             mock_log.assert_called_once()
@@ -287,18 +299,21 @@ def test_generate_report_success():
     """Test that generate_report returns all expected keys with valid data."""
     logger = mock.Mock()
 
-    with mock.patch('agents.utils.sysinfo.get_cpu_usage', return_value=42.0):
+    with mock.patch(
+        'agents_infra.utils.sysinfo.get_cpu_usage', return_value=42.0
+    ):
         with mock.patch(
-            'agents.utils.sysinfo.get_ram_usage', return_value=65.5
+            'agents_infra.utils.sysinfo.get_ram_usage', return_value=65.5
         ):
             with mock.patch(
-                'agents.utils.sysinfo.get_disk_usage', return_value=78.2
+                'agents_infra.utils.sysinfo.get_disk_usage', return_value=78.2
             ):
                 with mock.patch(
-                    'agents.utils.sysinfo.get_load_average', return_value=0.98
+                    'agents_infra.utils.sysinfo.get_load_average',
+                    return_value=0.98
                 ):
                     with mock.patch(
-                        'agents.utils.sysinfo.datetime'
+                        'agents_infra.utils.sysinfo.datetime'
                     ) as mock_datetime:
 
                         mock_datetime.datetime.now.return_value = (
@@ -327,18 +342,21 @@ def test_generate_report_with_errors():
     """Test generate_report returns fallback values when functions fail."""
     logger = mock.Mock()
 
-    with mock.patch('agents.utils.sysinfo.get_cpu_usage', return_value=-1.0):
+    with mock.patch(
+        'agents_infra.utils.sysinfo.get_cpu_usage', return_value=-1.0
+    ):
         with mock.patch(
-            'agents.utils.sysinfo.get_ram_usage', return_value=-1.0
+            'agents_infra.utils.sysinfo.get_ram_usage', return_value=-1.0
         ):
             with mock.patch(
-                'agents.utils.sysinfo.get_disk_usage', return_value=-1.0
+                'agents_infra.utils.sysinfo.get_disk_usage', return_value=-1.0
             ):
                 with mock.patch(
-                    'agents.utils.sysinfo.get_load_average', return_value=-1.0
+                    'agents_infra.utils.sysinfo.get_load_average',
+                    return_value=-1.0
                 ):
                     with mock.patch(
-                        'agents.utils.sysinfo.datetime'
+                        'agents_infra.utils.sysinfo.datetime'
                     ) as mock_datetime:
 
                         mock_datetime.datetime.now.return_value = (

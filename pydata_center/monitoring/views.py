@@ -132,7 +132,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrOperatorForWrite]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
-    search_fields = ['hostname', 'status']
+    search_fields = ['type', 'hostname', 'status']
     ordering_fields = ['timestamp']
 
     def partial_update(self, request, *args, **kwargs):
@@ -294,7 +294,7 @@ def dashboard_view(request):
     Render the monitoring dashboard page.
     Standard Django HTML view, not part of API.
     """
-    agents = get_latest_agents()
+    agents = get_latest_agents(query_params=request.GET)
 
     return render(
         request,

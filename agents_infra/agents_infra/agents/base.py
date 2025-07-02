@@ -11,15 +11,15 @@ import subprocess
 import time
 from collections import Sequence
 
-import attr
 import ConfigParser
 import pkg_resources
 import psutil
 import Queue
 import urllib2
-from dateutil import parser
 from urlparse import urljoin, urlparse
 
+from ..command import CommandHistory, CommandStatus, dispatch_command
+from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import get_config_option, parse_csv_list
 
@@ -55,23 +55,6 @@ def get_linux_uptime():
     """Get uptime on Linux OS."""
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0])
-
-
-@attr.s
-class CommandHistory(object):
-    """Helper class used to validate command fields."""
-    command = attr.ib(validator=attr.validators.instance_of(basestring))
-    hostname = attr.ib(validator=attr.validators.instance_of(basestring))
-    status = attr.ib(validator=attr.validators.instance_of(basestring))
-    timestamp = attr.ib(
-        validator=lambda instance, attribute, value: parser.parse(value)
-    )
-    result = attr.ib(default=None)
-    id = attr.ib(default=None)
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(**data)
 
 
 class ServerAgent(object):
@@ -130,7 +113,10 @@ class ServerAgent(object):
         self.uptime = self.timestamp = None
 
         # Thread-safe queue to store pending commands.
-        self.queue = Queue.Queue(maxsize=max(command_queue_size, 0))
+        self.command_queue = Queue.Queue(maxsize=max(command_queue_size, 0))
+
+        # Initialize tags
+        self.tags = {}
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -414,6 +400,20 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
+            # Read tags from the [server] section
+            tags = {}
+            for tag_key in ['env', 'role', 'region']:
+                tag_value = get_config_option(
+                    config,
+                    'server',
+                    tag_key,
+                    logger=self.logger,
+                )
+                if tag_value and tag_value.strip():
+                    tags[tag_key] = tag_value.strip().lower()
+            if tags:
+                self.tags = tags
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
@@ -594,7 +594,7 @@ class ServerAgent(object):
         pass
 
     def status_to_dict(self):
-        return {
+        status_data = {
             'os': self.os_type,
             'hostname': self.hostname,
             'ip': self.ip,
@@ -603,6 +603,10 @@ class ServerAgent(object):
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
+        if self.tags:
+            status_data['tags'] = self.tags
+
+        return status_data
 
     def status_to_json(self, log=False):
         """
@@ -846,34 +850,76 @@ class ServerAgent(object):
         Add command to queue if it passes field validation and if
         whitelisted by the server.
         """
-        if not isinstance(data, CommandHistory):
+        if not isinstance(data, dict):
+            maybe_log_message(
+                'Expected data as a dict, got %s' % type(data),
+                logger=self.logger,
+            )
+
+            return
+
+        try:
+            command_history = CommandHistory.from_dict(data)
+        except (TypeError, ValueError) as e:
+            maybe_log_message(
+                'Command validation failed due to error: %s' % str(e),
+                logger=self.logger,
+            )
+
+            return
+
+        if command_history.command.tag in self.whitelist_commands:
             try:
-                data = CommandHistory.from_dict(data)
-            except (TypeError, ValueError) as e:
-                maybe_log_message(
-                    'Command validation failed due to error: %s' % str(e),
-                    logger=self.logger,
+                self.command_queue.put(
+                    command_history, block=block, timeout=timeout
                 )
-
-                return
-
-        if data.command in self.whitelist_commands:
-            try:
-                self.queue.put(data, block=block, timeout=timeout)
             except Queue.Full:
                 maybe_log_message(
                     'Queue is full - could not append command',
                     logger=self.logger,
                 )
+        else:
+            maybe_log_message(
+                'Command %s not permitted' % command_history.command.tag,
+                logger=self.logger,
+                fallback_logger=self.fallback_logger,
+                level=logging.WARNING,
+            )
 
     def get_command_from_queue(self, block=False, timeout=None):
         try:
-            return self.queue.get(block=block, timeout=timeout)
+            return self.command_queue.get(block=block, timeout=timeout)
         except Queue.Empty:
             maybe_log_message(
                 'Queue is empty - could not retrieve command',
                 logger=self.logger,
             )
+
+    def execute_command(self, **kwargs):
+        """
+        Pull command from the queue and delegate execution to
+        CommandDispatcher.
+        """
+        command_history = self.get_command_from_queue(**kwargs)
+
+        if command_history:
+            try:
+                result = dispatch_command(command_history.command, self)
+
+                command_history.status = CommandStatus.DONE
+            except BadProcessReturnCode as e:
+                maybe_log_message(
+                    'Command failed due to error: %s.\nstderr: %s' % (
+                        str(e), result
+                    ),
+                    logger=self.logger,
+                )
+
+                command_history.status = CommandStatus.FAILED
+
+            command_history.result = result
+
+            return command_history
 
     def get_cpu_usage(self, interval=60):
         """

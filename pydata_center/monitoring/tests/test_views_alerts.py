@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
@@ -26,6 +26,8 @@ def authenticated_client(db):
     user = User.objects.create_user(username='test_user')
     # add user to Operator group
     operator_group, _ = Group.objects.get_or_create(name='Operator')
+    permission = Permission.objects.get(codename='add_serverstatus')
+    operator_group.permissions.add(permission)
     user.groups.add(operator_group)
     client = APIClient()
     client.force_authenticate(user=user)
@@ -129,7 +131,8 @@ class TestCommandHistoryAPI:
     def setup_method(self, method):
         self.command = CommandHistory.objects.create(
             hostname='agent-setup',
-            command='initial_command',
+            type='linux',
+            params={'shell': 'initial_command'},
             notify_on_success=False
         )
         self.detail_url = reverse(
@@ -340,7 +343,8 @@ class TestCommandHistoryAPI:
         client = APIClient()
         command = CommandHistory.objects.create(
             hostname='test',
-            command='test'
+            type='linux',
+            params={'shell': 'cmd'},
         )
         url = reverse('monitoring:commandhistory-detail', args=[command.id])
         response = client.patch(url, data={})

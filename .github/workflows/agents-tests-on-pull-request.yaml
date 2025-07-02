@@ -3,16 +3,17 @@ name: agents tests
 on:
   pull_request:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     branches:
-      - main
-      - develop
+      - 'main'
+      - 'develop'
+      - 'fix-codecov'
 
 jobs:
   test:

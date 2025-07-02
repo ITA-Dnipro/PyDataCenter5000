@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   mongodb:
     image: mongo:6.0
@@ -7,6 +9,11 @@ services:
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.0'
 
   datanode:
     image: graylog/graylog-datanode:6.2.2
@@ -31,6 +38,11 @@ services:
       - graylog_datanode:/var/lib/graylog-datanode
     networks:
       - graylog
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.0'
 
   graylog:
     image: graylog/graylog:6.2.2
@@ -60,6 +72,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.0'
 
 networks:
   graylog:

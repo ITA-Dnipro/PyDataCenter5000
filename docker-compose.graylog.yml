@@ -22,7 +22,7 @@ services:
     environment:
       GRAYLOG_DATANODE_NODE_ID_FILE: /var/lib/graylog-datanode/node-id
       GRAYLOG_DATANODE_PASSWORD_SECRET: "${GRAYLOG_PASSWORD_SECRET}"
-      GRAYLOG_DATANODE_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+      GRAYLOG_MONGODB_URI: "${GRAYLOG_MONGODB_URI}"
     ulimits:
       memlock:
         soft: -1
@@ -61,8 +61,9 @@ services:
       GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
       GRAYLOG_ENABLE_GELF_TCP: "true"
     ports:
-      - "9000:9000"
-      - "12201:12201"
+      - "${GRAYLOG_HTTP_PORT:-9000}:9000"
+      - "${GRAYLOG_GELF_TCP_PORT:-12201}:12201"
+
     volumes:
       - graylog_data:/usr/share/graylog/data/data
     networks:

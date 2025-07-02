@@ -22,6 +22,9 @@ In the project root, create a .env file with the following content:
 ```
 GRAYLOG_PASSWORD_SECRET=<secret_token>
 GRAYLOG_ROOT_PASSWORD_SHA2=<sha256_hash_of_password>
+GRAYLOG_MONGODB_URI=<mongo_db_url>
+GRAYLOG_HTTP_PORT=<graylog_http_port>
+GRAYLOG_GELF_TCP_PORT=<graylog_gelf_tcp_port>
 ```
 
 - __Root user password: *<YOUR_PASSWORD>*__

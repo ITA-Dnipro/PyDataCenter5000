@@ -9,7 +9,7 @@ from .utils import configtools
 
 cfg = configtools.load_global_config()
 
-if cfg:
+if cfg is not None:
     urls = configtools.get_config_option(cfg, 'controller', 'urls')
 
     if isinstance(urls, str):

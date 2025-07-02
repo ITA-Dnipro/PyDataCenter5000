@@ -82,8 +82,6 @@ class ServerAgent(object):
 
     __metaclass__ = abc.ABCMeta
 
-    controller_urls = []
-    current_controller = None
     api_prefix = 'api/'
     auth_token_type = 'Bearer'
     whitelist_commands = None
@@ -101,12 +99,16 @@ class ServerAgent(object):
             protocol=None,
             whitelist_commands=None,
             command_queue_size=0,
+            controller_urls=None,
+            current_controller=None
     ):
+        if controller_urls is None:
+            self.controller_urls = []
         self.server_name = server_name
         self.port = port if port is not None else self.port
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
-
+        self.current_controller = current_controller
         if protocol is not None:
             self.protocol = protocol
 
@@ -221,7 +223,7 @@ class ServerAgent(object):
 
         self._protocol = value
 
-    def _ping_controller(self, url, api_key, timeout=3, ):
+    def _ping_controller(self, url, api_key, timeout=3):
         """
             Check if a controller is reachable and healthy.
         """
@@ -937,7 +939,7 @@ class ServerAgent(object):
 
     def send_metrics_to_controller(
             self,
-            suffix='agent/metrics/',
+            endpoint_path='agent/metrics/',
             api_key=None,
             max_retries=3,
             delay=5,
@@ -955,7 +957,7 @@ class ServerAgent(object):
             )
             return
         base_api_url = urljoin(self.current_controller, self.api_prefix)
-        metrics_api_url = urljoin(base_api_url, suffix)
+        metrics_api_url = urljoin(base_api_url, endpoint_path)
         url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
 
         payload = self.generate_report()

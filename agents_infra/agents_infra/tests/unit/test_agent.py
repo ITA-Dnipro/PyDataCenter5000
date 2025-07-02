@@ -1670,6 +1670,10 @@ def test_status_to_dict_timestamp_format():
 
 
 def test_ping_controller_success():
+    """
+    Test _ping_controller when the controller is healthy.
+    Simulates connection and response from the controller.
+    """
     agent = MockAgent(port=12345)
 
     class MockResponse(object):
@@ -1706,6 +1710,11 @@ def test_ping_controller_tcp_fail():
 
 
 def test_ping_controller_health_check_fail():
+    """
+    Test that _ping_controller returns False
+    when the HTTP health check fails, even though
+    the TCP connection succeeds.
+    """
     agent = MockAgent(port=12345)
 
     # TCP succeeds
@@ -1755,12 +1764,13 @@ def test_try_revert_primary_controller_success(monkeypatch):
         if it becomes healthy.
     """
 
+    fixed_time = 100000
     agent = MockAgent(port=12345)
     agent.set_controller_urls(
         ['http://primary', 'http://secondary']
     )
     agent.current_controller = 'http://secondary'
-    agent.last_success_time = time.time() - 1000
+    agent.last_success_time = fixed_time - 1000
     agent.revert_interval = 1
 
     def mock_ping(url, api_key):
@@ -1776,8 +1786,8 @@ def test_try_revert_primary_controller_success(monkeypatch):
 
 def test_try_revert_primary_controller_fail_due_to_time():
     """
-        Test that try_revert_primary_controller does not attempt
-        to revert if the revert interval has not passed.
+    Test that try_revert_primary_controller does not attempt
+    to revert if the revert interval has not passed.
     """
     agent = MockAgent(port=12345)
     agent.set_controller_urls(['http://primary', 'http://secondary'])
@@ -1791,6 +1801,11 @@ def test_try_revert_primary_controller_fail_due_to_time():
 
 
 def test_ensure_active_controller_switches_to_healthy():
+    """
+    Test that ensure_active_controller switches to
+    the next healthy controller when the current
+    controller is unresponsive.
+    """
     agent = MockAgent(port=12345)
     agent.set_controller_urls(
         ['http://mock1', 'http://mock2']
@@ -1829,6 +1844,10 @@ def test_ensure_active_controller_success_current(monkeypatch):
 
 
 def test_ensure_active_controller_fails_all():
+    """
+    Test that ensure_active_controller returns None when
+    all controllers are unresponsive.
+    """
     agent = MockAgent(port=12345)
     agent.set_controller_urls(
         ['http://mock1', 'http://mock2']

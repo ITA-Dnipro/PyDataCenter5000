@@ -34,12 +34,9 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m ensurepip || true && \
-              pip install --upgrade pip && \
-              pip install wheel && \
               pip install -r agents_infra/requirements.txt && \
               pip install pytest pytest-cov && \
-              pytest \
+              python -m pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 -m 'not integration' \
                 agents_infra/agents_infra \
@@ -56,12 +53,9 @@ jobs:
             python:2.7 \
             bash -c "
               cd /pydata && \
-              python -m ensurepip || true && \
-              pip install --upgrade pip && \
-              pip install wheel && \
               pip install -r agents_infra/requirements.txt && \
               pip install pytest pytest-cov && \
-              pytest \
+              python -m pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 -m 'not coro' \
                 agents_infra/agents_infra \

@@ -13,6 +13,12 @@ graylog_gelf_tcp_port = int(os.getenv('GRAYLOG_GELF_TCP_PORT', '12201'))
 tcp_handler = graypy.GELFTCPHandler(graylog_host, graylog_gelf_tcp_port)
 graylog_logger.addHandler(tcp_handler)
 
+if not any(
+    isinstance(h, graypy.GELFTCPHandler) for h in graylog_logger.handlers
+):
+    tcp_handler = graypy.GELFTCPHandler(graylog_host, graylog_gelf_tcp_port)
+    graylog_logger.addHandler(tcp_handler)
+
 
 @shared_task
 def send_log_to_graylog(level, message, agent_name, timestamp_iso, context):

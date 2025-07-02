@@ -50,6 +50,12 @@ def send_log_to_graylog(level, message, agent_name, timestamp_iso, context):
         'WARNING': graylog_logger.warning,
         'ERROR': graylog_logger.error,
         'CRITICAL': graylog_logger.critical,
-    }.get(level, graylog_logger.info)
+    }.get(level.upper())
+
+    if not level_method:
+        graylog_logger.warning(
+            "Invalid log level '%s' provided. Defaulting to INFO.", level
+        )
+        level_method = graylog_logger.info
 
     level_method(message, extra=extra)

@@ -1121,7 +1121,7 @@ class ReceiveLogEndpointTest(TestCase):
         )
 
 
-class SendLogToGraylogTest(TestCase):
+class SendLogToGraylogTaskTest(TestCase):
     @patch('monitoring.graylog.graylog_logger')
     def test_send_log_calls_correct_level_method(self, mock_logger):
         """

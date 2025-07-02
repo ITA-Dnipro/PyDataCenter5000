@@ -29,23 +29,34 @@ def _validate_plugin_module(module):
 
 class Plugin(object):
     """
-    Wrapper class for plugin modules. Responsible for plugin validation
-    and execution.
+    Wrapper class for plugin modules. Responsible for plugin creation,
+    validation, and execution.
 
     Attributes:
-        module (Module): Plugin module containing the 'execute' callable.
+        callable (Callable): Plugin's callable.
+        name (str): Plugin name by which it will be registered within a
+            class.
+        category (str): Plugin category. If not provided, defaults to
+            'unknown'.
+        is_plugin (bool): Plugin identifying flag. Always True.
+        enabled (bool): Whether the plugin is enabled. If False, the plugin
+            is ignored by `aggregate_reports`.
+        built_in (bool): Whether the plugin is protected from deletion.
     """
     def __init__(
-        self, executable, name, category=None, enabled=True, built_in=False
+        self, callable, name, category=None, enabled=True, built_in=False
     ):
-        self.executable = executable
+        self.callable = callable
         self.name = name
 
         self.category = category or 'unknown'
 
-        self.is_plugin = True
         self.enabled = enabled  # By default, plugin is enabled.
         self.built_in = built_in
+
+    @property
+    def is_plugin(self):
+        return True
 
     @classmethod
     def from_module(cls, module, **kwargs):
@@ -75,7 +86,7 @@ class Plugin(object):
         )
 
     def __call__(self, parent=None, **kwargs):
-        return self.executable(parent, **kwargs)
+        return self.callable(parent, **kwargs)
 
 
 @singledispatch
@@ -100,6 +111,16 @@ def _(source, obj, **kwargs):
 
 
 def unregister_plugin(name, obj):
+    """
+    Unregister plugin from class.
+
+    Parameters:
+        name (str): Plugin name.
+        obj (Any): Target class.
+
+    Raises:
+        PluginProtectedError: If deletion of a built-in plugin is attempted.
+    """
     plugin = getattr(obj, name, None)
     if not plugin:
         return

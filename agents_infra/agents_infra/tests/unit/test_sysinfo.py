@@ -4,10 +4,10 @@ import socket
 import mock
 import psutil
 import pytest
-from agents.utils.sysinfo import (generate_report, get_cpu_usage,
-                                  get_disk_usage, get_ip_from_interface,
-                                  get_linux_uptime, get_load_average,
-                                  get_ram_usage)
+
+from ...utils.sysinfo import (generate_report, get_cpu_usage, get_disk_usage,
+                              get_ip_from_interface, get_linux_uptime,
+                              get_load_average, get_ram_usage)
 
 # TESTS FOR get_ip_from_interface()
 

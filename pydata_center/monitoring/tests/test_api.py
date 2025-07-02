@@ -1083,8 +1083,16 @@ class ReceiveLogEndpointTest(TestCase):
             response.data['agent_name'], 'agent-01',
             msg='Response data does not contain the correct agent_name'
         )
+        mock_send_log.assert_called_once_with(
+            'ERROR',
+            'Failed to restart ssh service',
+            'agent-01',
+            '2025-06-25T12:30:00+00:00',
+            {'uptime': 123.45, 'ip': '192.168.1.100'}
+        )
 
-    def test_log_post_by_unauthorized_user(self):
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_by_unauthorized_user(self, mock_send_log):
         """Viewer user cannot post logs (permission denied)."""
         self.client.force_authenticate(user=self.viewer_user)
         response = self.client.post(
@@ -1094,8 +1102,10 @@ class ReceiveLogEndpointTest(TestCase):
             response.status_code, status.HTTP_403_FORBIDDEN,
             msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
         )
+        mock_send_log.assert_not_called()
 
-    def test_log_post_by_unauthenticated_user(self):
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_by_unauthenticated_user(self, mock_send_log):
         """Unauthenticated users cannot post logs."""
         response = self.client.post(
             self.url, self.valid_payload, format='json'
@@ -1104,8 +1114,10 @@ class ReceiveLogEndpointTest(TestCase):
             response.status_code, status.HTTP_403_FORBIDDEN,
             msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
         )
+        mock_send_log.assert_not_called()
 
-    def test_log_post_with_invalid_payload(self):
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_with_invalid_payload(self, mock_send_log):
         """Posting log with invalid payload returns 400 Bad Request."""
         self.client.force_authenticate(user=self.operator_user)
         response = self.client.post(
@@ -1119,6 +1131,7 @@ class ReceiveLogEndpointTest(TestCase):
             'timestamp', response.data,
             msg="Response data does not contain error missing 'timestamp'"
         )
+        mock_send_log.assert_not_called()
 
 
 class SendLogToGraylogTaskTest(TestCase):

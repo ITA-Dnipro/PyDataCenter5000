@@ -2,7 +2,6 @@ import logging
 import socket
 
 from ...utils.helpers import restart_service
-from ...utils.logtools import maybe_log_message
 from ..base import ServerAgent
 
 
@@ -46,9 +45,9 @@ class SMTPAgent(ServerAgent):
             sock.connect((self.ip, self.port))
             banner = sock.recv(1024)
         except (socket.error, socket.timeout) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Banner check failed due to error: %s' % str(e),
-                logger=self.logger,
+                level=logging.ERROR
             )
         finally:
             sock.close()
@@ -75,20 +74,16 @@ class SMTPAgent(ServerAgent):
 
         if inactive_services:
             for service in inactive_services:
-                restart_service(self.logger, self.fallback_logger, service)
+                restart_service(service, logger=self.logger)
 
-            maybe_log_message(
+            self.log_with_controller(
                 'Finished attempts to restart services',
-                self.logger,
-                fallback_logger=self.fallback_logger,
-                level=logging.INFO
-                )
+                level=logging.INFO,
+            )
             return False
 
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            fallback_logger=self.fallback_logger,
-            level=logging.INFO
-            )
+        self.log_with_controller(
+            'All services are healthy and running',
+            level=logging.INFO,
+        )
         return True

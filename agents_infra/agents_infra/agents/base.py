@@ -271,6 +271,73 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
+            try:
+                self.send_logs_to_controller = config.getboolean(
+                    'logging', 'send_logs_to_controller'
+                )
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                self.send_logs_to_controller = False
+
+    def send_log_to_controller(self, level, message, context=None):
+        """
+        Sends a log message to the controller's /logs/ endpoint.
+
+        Parameters:
+            level (str): Log level (e.g. "INFO", "ERROR", etc.).
+            message (str): Log message.
+            context (dict, optional): Additional log context.
+        """
+        if not self.controller_url:
+            raise ValueError('Controller URL is not set')
+
+        log_data = {
+            'agent_name': self.server_name,
+            'level': level,
+            'message': message,
+            'timestamp': datetime.datetime.utcnow().isoformat(),
+            'context': context or {},
+        }
+
+        self.post_data('/api/v1/logs/', payload=log_data, to_controller=True)
+
+    def log_with_controller(
+            self,
+            message,
+            level=logging.INFO,
+            context=None,
+            fallback_logger=None,
+            **kwargs
+    ):
+        """
+        Logs a message locally and optionally sends it to the controller.
+
+        Parameters:
+            message (str): The log message.
+            level (int): Logging level.
+            context (dict): Optional log context.
+        """
+        maybe_log_message(
+            message,
+            logger=self.logger,
+            fallback_logger=fallback_logger,
+            level=level,
+            **kwargs
+        )
+
+        if getattr(self, 'send_logs_to_controller', False):
+            try:
+                self.send_log_to_controller(
+                    level=logging.getLevelName(level),
+                    message=message,
+                    context=context
+                )
+            except Exception as e:
+                maybe_log_message(
+                    'Failed to send log to controller: %s' % str(e),
+                    logger=self.logger,
+                    level=logging.ERROR,
+                )
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
@@ -278,7 +345,9 @@ class ServerAgent(object):
         """
         system = platform.system()
         if not system:
-            maybe_log_message('Could not deduce OS type', logger=self.logger)
+            self.log_with_controller(
+                'Could not deduce OS type', level=logging.WARNING
+            )
 
         self.os_type = system.lower() or 'unknown'
 
@@ -286,9 +355,8 @@ class ServerAgent(object):
             self.hostname = socket.gethostname()
         except socket.error as e:
             self.hostname = 'unknown'
-
-            maybe_log_message(
-                'Could not get hostname: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Could not get hostname: %s' % str(e), level=logging.WARNING
             )
 
         self.ip = None
@@ -297,21 +365,21 @@ class ServerAgent(object):
             try:
                 self.ip = get_ip_from_interface(self.interface)
             except (KeyError, AttributeError) as e:
-                maybe_log_message(
+                self.log_with_controller(
                     (
-                        'Could not deduce IP address from interface '
-                        '%s: %s' % (self.interface, str(e))
+                            'Could not deduce IP address from interface '
+                            '%s: %s' % (self.interface, str(e))
                     ),
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
             try:
                 self.ip = socket.gethostbyname(self.hostname)
             except (socket.gaierror, socket.error) as e:
-                maybe_log_message(
+                self.log_with_controller(
                     'Could not deduce IP address from hostname: %s' % str(e),
-                    self.logger,
+                    level=logging.WARNING,
                 )
 
         self.uptime = -1
@@ -320,8 +388,8 @@ class ServerAgent(object):
             self.uptime = get_linux_uptime()
 
         if self.uptime < 0:
-            maybe_log_message(
-                "Could not get system's uptime", logger=self.logger
+            self.log_with_controller(
+                "Could not get system's uptime", level=logging.WARNING
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -370,21 +438,21 @@ class ServerAgent(object):
             if packet_size > 0:
                 data, _ = s.recvfrom(packet_size)
                 if len(data) != packet_size:
-                    maybe_log_message(
+                    self.log_with_controller(
                         (
                             'UDP response size mismatch: expected '
                             '%d bytes, got %d bytes' % (packet_size, len(data))
                         ),
-                        logger=self.logger,
+                        level=logging.WARNING,
                     )
 
                     return False
 
             return True
         except (socket.error, socket.timeout) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Port check failed due to error: %s' % str(e),
-                logger=self.logger,
+                level=logging.WARNING,
             )
 
             return False
@@ -408,9 +476,9 @@ class ServerAgent(object):
                 )
 
         except OSError as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Process check failed: %s' % e,
-                logger=self.logger,
+                level=logging.ERROR,
                 exc_info=True,
             )
 
@@ -433,8 +501,10 @@ class ServerAgent(object):
             return stdout == 'active'
 
         except OSError as e:
-            maybe_log_message(
-                'SSH service check failed: %s' % e, self.logger, exc_info=True
+            self.log_with_controller(
+                'SSH service check failed: %s' % e,
+                level=logging.ERROR,
+                exc_info=True
             )
             return False
 
@@ -541,12 +611,12 @@ class ServerAgent(object):
         """
         if to_controller:
             if not self.controller_url:
-                maybe_log_message(
+                self.log_with_controller(
                     (
                         "Couldn't send POST request to controller: "
                         'controller URL is not set'
                     ),
-                    logger=self.logger,
+                    level=logging.ERROR,
                 )
                 return
 
@@ -566,9 +636,8 @@ class ServerAgent(object):
 
         for attempt in range(1, max_retries + 1):
             try:
-                maybe_log_message(
+                self.log_with_controller(
                     '[Attempt %d] Sending data to %s' % (attempt, url),
-                    logger=self.logger,
                     level=logging.INFO
                 )
 
@@ -578,42 +647,37 @@ class ServerAgent(object):
                 result = response.read()
                 status_code = response.getcode()
 
-                maybe_log_message(
+                self.log_with_controller(
                     'POST request status: %d' % status_code,
-                    logger=self.logger,
                     level=logging.INFO
                 )
 
                 response.close()
 
-                maybe_log_message(
+                self.log_with_controller(
                     'POST request succeeded on attempt %d: %s' % (
                         attempt, result
                     ),
-                    logger=self.logger,
                     level=logging.INFO,
                 )
 
                 return result
             except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-                maybe_log_message(
+                self.log_with_controller(
                     'Attempt %d failed: %s' % (attempt, e),
-                    logger=self.logger,
                     level=logging.ERROR,
                 )
 
                 if attempt < max_retries:
-                    maybe_log_message(
+                    self.log_with_controller(
                         'Retrying in %d seconds...' % delay,
-                        logger=self.logger,
                         level=logging.WARNING,
                     )
                     time.sleep(delay * attempt)
                 else:
-                    maybe_log_message(
+                    self.log_with_controller(
                         'All %d attempts failed. Data not sent. '
                         'Last error: %s' % (max_retries, e),
-                        logger=self.logger,
                         level=logging.CRITICAL,
                     )
 
@@ -630,12 +694,12 @@ class ServerAgent(object):
         command for a given server.
         """
         if not self.controller_url or not self.hostname:
-            maybe_log_message(
+            self.log_with_controller(
                 (
                     "Couldn't fetch controller command: controller URL or "
                     'hostname not set'
                 ),
-                logger=self.logger,
+                level=logging.ERROR,
             )
             return
 
@@ -661,19 +725,17 @@ class ServerAgent(object):
 
             status_code = response.getcode()
 
-            maybe_log_message(
+            self.log_with_controller(
                 (
                     'GET request to controller succeded with '
                     'status: %s' % status_code
                 ),
-                logger=self.logger,
                 level=logging.INFO,
             )
 
             if status_code == 204 or not data.strip():
-                maybe_log_message(
+                self.log_with_controller(
                     'No pending commands for server %s' % self.hostname,
-                    logger=self.logger,
                     level=logging.INFO,
                 )
 
@@ -683,18 +745,18 @@ class ServerAgent(object):
 
             return data
         except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 (
-                    'Failed to fetch command - GET request failed '
-                    'due to error: %s' % str(e)
+                        'Failed to fetch command - GET request failed '
+                        'due to error: %s' % str(e)
                 ),
-                logger=self.logger,
+                level=logging.ERROR,
                 exc_info=True,
             )
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'GET request failed due to unexpected error: %s' % str(e),
-                logger=self.logger,
+                level=logging.ERROR,
                 exc_info=True,
             )
 
@@ -704,19 +766,18 @@ class ServerAgent(object):
         whitelisted by the server.
         """
         if not isinstance(data, dict):
-            maybe_log_message(
+            self.log_with_controller(
                 'Expected data as a dict, got %s' % type(data),
-                logger=self.logger,
+                level=logging.WARNING,
             )
-
             return
 
         try:
             command_history = CommandHistory.from_dict(data)
         except (TypeError, ValueError) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Command validation failed due to error: %s' % str(e),
-                logger=self.logger,
+                level=logging.WARNING,
             )
 
             return
@@ -727,15 +788,13 @@ class ServerAgent(object):
                     command_history, block=block, timeout=timeout
                 )
             except Queue.Full:
-                maybe_log_message(
+                self.log_with_controller(
                     'Queue is full - could not append command',
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
         else:
-            maybe_log_message(
+            self.log_with_controller(
                 'Command %s not permitted' % command_history.command.tag,
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.WARNING,
             )
 
@@ -743,9 +802,9 @@ class ServerAgent(object):
         try:
             return self.command_queue.get(block=block, timeout=timeout)
         except Queue.Empty:
-            maybe_log_message(
+            self.log_with_controller(
                 'Queue is empty - could not retrieve command',
-                logger=self.logger,
+                level=logging.INFO,
             )
 
     def execute_command(self, **kwargs):
@@ -761,11 +820,11 @@ class ServerAgent(object):
 
                 command_history.status = CommandStatus.DONE
             except BadProcessReturnCode as e:
-                maybe_log_message(
+                self.log_with_controller(
                     'Command failed due to error: %s.\nstderr: %s' % (
                         str(e), result
                     ),
-                    logger=self.logger,
+                    level=logging.ERROR,
                 )
 
                 command_history.status = CommandStatus.FAILED
@@ -781,8 +840,9 @@ class ServerAgent(object):
         try:
             return psutil.cpu_percent(interval=interval)
         except (psutil.Error, ValueError) as e:
-            maybe_log_message(
-                'Error getting CPU usage: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Error getting CPU usage: %s' % str(e),
+                level=logging.WARNING
             )
             return -1.0
 
@@ -794,8 +854,9 @@ class ServerAgent(object):
             mem = psutil.virtual_memory()
             return mem.percent
         except psutil.Error as e:
-            maybe_log_message(
-                'Error getting RAM usage: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Error getting RAM usage: %s' % str(e),
+                level=logging.WARNING
             )
             return -1.0
 
@@ -806,8 +867,9 @@ class ServerAgent(object):
         try:
             return os.getloadavg()[0]
         except (OSError, AttributeError) as e:
-            maybe_log_message(
-                'Error getting load average: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Error getting load average: %s' % str(e),
+                level=logging.WARNING
             )
             return -1.0
 
@@ -819,8 +881,9 @@ class ServerAgent(object):
             usage = psutil.disk_usage('/')
             return usage.percent
         except psutil.Error as e:
-            maybe_log_message(
-                'Error getting disk usage: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Error getting disk usage: %s' % str(e),
+                level=logging.WARNING,
             )
             return -1.0
 

@@ -4,7 +4,6 @@ import logging
 import urllib2
 
 from ...utils.helpers import get_env_or_param, restart_service
-from ...utils.logtools import maybe_log_message
 from ..base import ServerAgent
 
 
@@ -45,12 +44,6 @@ class WebAgent(ServerAgent):
                                                 'WEB_SERVER_NAME')
         self.health_url = self._build_url('health')
 
-        self.web_server_host = get_env_or_param(web_server_host,
-                                                'WEB_SERVER_HOST')
-        self.web_server_name = get_env_or_param(web_server_name,
-                                                'WEB_SERVER_NAME')
-        self.health_url = self._build_url('health')
-
     def is_service_healthy(
             self, timeout=2, payload=None, packet_size=0
     ):
@@ -69,9 +62,9 @@ class WebAgent(ServerAgent):
                 timeout=timeout, payload=payload, packet_size=packet_size
             )
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Health check failed with error: %s' % str(e),
-                logger=self.logger,
+                level=logging.ERROR,
             )
             return False
 
@@ -87,37 +80,37 @@ class WebAgent(ServerAgent):
             response = urllib2.urlopen(request, timeout=timeout)
 
             if not (200 <= response.getcode() < 300):
-                maybe_log_message(
+                self.log_with_controller(
                     'Server responded with status code %d' % (
                         response.getcode()
                     ),
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             response_data = json.loads(response.read())
             if 'status' not in response_data:
-                maybe_log_message(
+                self.log_with_controller(
                     'Health check failed: Response missing status key',
-                    self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             server_health_status = response_data['status']
             if server_health_status != 'ok':
-                maybe_log_message(
+                self.log_with_controller(
                     'Health check failed: Server status is %s' % (
                         server_health_status
                     ),
-                    self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             return True
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'HTTP health check failed with error: %s' % str(e),
-                self.logger,
+                level=logging.ERROR,
             )
             return False
 
@@ -146,16 +139,14 @@ class WebAgent(ServerAgent):
             for service in inactive_services:
                 restart_service(service, logger=self.logger)
 
-            maybe_log_message(
+            self.log_with_controller(
                 'Finished attempts to restart services',
-                logger=self.logger,
                 level=logging.INFO,
             )
             return False
 
-        maybe_log_message(
+        self.log_with_controller(
             'All services are healthy and running',
-            logger=self.logger,
             level=logging.INFO,
         )
         return True

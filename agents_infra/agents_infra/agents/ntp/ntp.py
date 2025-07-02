@@ -1,7 +1,6 @@
 import logging
 
 from ...utils.helpers import restart_service
-from ...utils.logtools import maybe_log_message
 from ..base import ServerAgent
 
 
@@ -66,15 +65,16 @@ class NTPAgent(ServerAgent):
             inactive_services.append('ntp')
 
         if not inactive_services:
-            maybe_log_message(
+            self.log_with_controller(
                 'All services are healthy and running',
-                self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.INFO
             )
             return True
 
         # Attempt restarts
+        for service in inactive_services:
+            restart_service(service, logger=self.logger)
+
         ssh_ok = self.is_ssh_service_active()
         ntp_ok = any(
             self._is_process_running(proc_name=proc)
@@ -82,19 +82,15 @@ class NTPAgent(ServerAgent):
         )
         services_str = ', '.join(inactive_services)
         if ssh_ok and ntp_ok:
-            maybe_log_message(
+            self.log_with_controller(
                 'Services recovered after restart: {}'.format(services_str),
-                self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.INFO
             )
             return True
         else:
-            maybe_log_message(
+            self.log_with_controller(
                 'Restart attempts finished but some services still down: {}'
                 .format(services_str),
-                self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.ERROR
             )
             return False

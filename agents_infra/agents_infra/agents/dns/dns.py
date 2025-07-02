@@ -2,7 +2,6 @@ import logging
 import subprocess
 
 from ...utils.helpers import is_valid_ip, restart_service
-from ...utils.logtools import maybe_log_message
 from ..base import ServerAgent
 
 
@@ -62,8 +61,10 @@ class DNSAgent(ServerAgent):
 
         except OSError as e:
             # Command not found or failed to execute
-            maybe_log_message(
-                'DNS check failed: %s' % e, self.logger, exc_info=True
+            self.log_with_controller(
+                'DNS check failed: %s' % e,
+                level=logging.ERROR,
+                exc_info=True,
             )
             return False
 
@@ -88,16 +89,14 @@ class DNSAgent(ServerAgent):
             for service in inactive_services:
                 restart_service(service, logger=self.logger)
 
-            maybe_log_message(
+            self.log_with_controller(
                 'Finished attempts to restart services',
-                self.logger,
                 level=logging.INFO,
             )
             return False
 
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
+        self.log_with_controller(
+            'All services are healthy and running',
             level=logging.INFO,
         )
         return True

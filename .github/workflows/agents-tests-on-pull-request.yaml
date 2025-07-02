@@ -1,5 +1,5 @@
 name: agents tests
-
+# 🖊️ CI trigger
 on:
   pull_request:
     paths:

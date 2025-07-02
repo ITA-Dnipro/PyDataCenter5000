@@ -26,6 +26,14 @@ Here, `my_plugin` is your plugin module or callable. Subsequently, every instanc
 result = agent.my_plugin(<your_args_or_kwargs>)
 ```
 
+To unregister a plugin from a class, you can then run:
+
+```
+unregister_plugin('my_plugin', MyAgent)
+```
+
+As long as `my_plugin` is not marked as *built-in*, `MyAgent` will no longer have the corresponding method.
+
 ## HOW-TO: Working With Plugins
 
 ### Create Your Own
@@ -92,6 +100,37 @@ result = agent.check_plugin_number()
 In the current implementation of plugins, `result = {'nplugins': 8}` (7 built-in plugins + `check_plugin_number`).
 
 Note, that in this case we can pass plugin name and category as keyword parameters to `register_plugin`. As in the above example no custom name has been provided, it simply defaulted to the name of the function. If the category is not provided, it will default to `'unknown'`.
+
+### Built-in plugins
+
+Agents currently come with the following built-in plugins:
+
+#### Category `status`
+* `check_timestamp`
+* `check_uptime`
+
+#### Category `metric`
+* `check_cpu_percent`
+* `check_ram_percent`
+* `check_load_avg`
+* `check_disk_usage`
+
+#### Category `health`
+* `check_port`
+
+Built-in plugins are **protected from deletion**. Once registered, they cannot be unregistered from a class with `unregister_plugin`. For instance, running
+
+```python
+unregister_plugin('check_port', MyAgent)
+```
+
+will raise the `PluginProtectedError`.
+
+To register your own protected plugin, simply run
+
+```python
+register_plugin(my_plugin, MyAgent, built_in=True)
+```
 
 ### Report Aggregation
 

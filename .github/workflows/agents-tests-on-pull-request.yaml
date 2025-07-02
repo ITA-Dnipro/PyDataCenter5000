@@ -1,5 +1,5 @@
 name: agents tests
-# 🖊️ CI trigger
+
 on:
   pull_request:
     paths:
@@ -33,7 +33,12 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m pytest \
+              python -m ensurepip || true && \
+              pip install --upgrade pip && \
+              pip install wheel && \
+              pip install -r agents_infra/requirements.txt && \
+              pip install pytest pytest-cov && \
+              pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 -m 'not integration' \
                 agents_infra/agents_infra \
@@ -50,9 +55,12 @@ jobs:
             python:2.7 \
             bash -c "
               cd /pydata && \
+              python -m ensurepip || true && \
+              pip install --upgrade pip && \
+              pip install wheel && \
               pip install -r agents_infra/requirements.txt && \
-              pip install pytest-cov && \
-              python -m pytest \
+              pip install pytest pytest-cov && \
+              pytest \
                 -c agents_infra/agents_infra/pytest.ini \
                 -m 'not coro' \
                 agents_infra/agents_infra \

@@ -6,18 +6,18 @@ from .agents.web.web import WebAgent
 from .plugins.health import execute_port_check
 from .plugins.metric import (execute_cpu_check, execute_disk_check,
                              execute_load_avg_check, execute_ram_check)
-from .plugins.plugin import register_plugin
+from .plugins.plugin import register_plugin, unregister_plugin
 from .plugins.status import execute_timestamp_check, execute_uptime_check
 from .utils import configtools
 
 # Register default plugins.
-register_plugin(execute_cpu_check, agent.ServerAgent)
-register_plugin(execute_ram_check, agent.ServerAgent)
-register_plugin(execute_load_avg_check, agent.ServerAgent)
-register_plugin(execute_disk_check, agent.ServerAgent)
-register_plugin(execute_port_check, agent.ServerAgent)
-register_plugin(execute_timestamp_check, agent.ServerAgent)
-register_plugin(execute_uptime_check, agent.ServerAgent)
+register_plugin(execute_cpu_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_ram_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_load_avg_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_disk_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_port_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_timestamp_check, agent.ServerAgent, built_in=True)
+register_plugin(execute_uptime_check, agent.ServerAgent, built_in=True)
 
 # Make sure all global configurations (from agents/config.ini) are
 # parsed before any concrete child is instantiated.

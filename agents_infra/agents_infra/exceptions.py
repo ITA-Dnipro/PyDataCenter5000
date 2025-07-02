@@ -4,3 +4,7 @@ class BadProcessReturnCode(Exception):
 
 class PluginValidationError(Exception):
     pass
+
+
+class PluginProtectedError(Exception):
+    pass

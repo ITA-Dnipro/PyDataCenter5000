@@ -4,7 +4,7 @@ from collections import Callable
 
 from singledispatch import singledispatch
 
-from ..exceptions import PluginValidationError
+from ..exceptions import PluginProtectedError, PluginValidationError
 
 
 def _validate_plugin_module(module):
@@ -35,17 +35,20 @@ class Plugin(object):
     Attributes:
         module (Module): Plugin module containing the 'execute' callable.
     """
-    def __init__(self, executable, name, category=None):
+    def __init__(
+        self, executable, name, category=None, enabled=True, built_in=False
+    ):
         self.executable = executable
         self.name = name
 
         self.category = category or 'unknown'
 
         self.is_plugin = True
-        self.enabled = True  # By default, plugin is enabled.
+        self.enabled = enabled  # By default, plugin is enabled.
+        self.built_in = built_in
 
     @classmethod
-    def from_module(cls, module):
+    def from_module(cls, module, **kwargs):
         """Create plugin from a module with a valid 'execute' callable."""
         module = _validate_plugin_module(module)
         name = getattr(
@@ -54,10 +57,10 @@ class Plugin(object):
 
         category = getattr(module, 'PLUGIN_CATEGORY', 'unknown')
 
-        return cls(module.execute, name, category=category)
+        return cls(module.execute, name, category=category, **kwargs)
 
     @classmethod
-    def from_callable(cls, func, name=None, category=None):
+    def from_callable(cls, func, name=None, category=None, **kwargs):
         """Create plugin from a callable."""
         if not isinstance(func, Callable):
             raise PluginValidationError(
@@ -65,7 +68,10 @@ class Plugin(object):
             )
 
         return cls(
-            func, name if name else func.__name__, category or 'unknown'
+            func,
+            name if name else func.__name__,
+            category or 'unknown',
+            **kwargs
         )
 
     def __call__(self, parent=None, **kwargs):
@@ -83,7 +89,7 @@ def register_plugin(source, obj, **kwargs):
 
 @register_plugin.register(types.ModuleType)
 def _(source, obj, **kwargs):
-    plugin = Plugin.from_module(source)
+    plugin = Plugin.from_module(source, **kwargs)
     setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
 
 
@@ -91,3 +97,16 @@ def _(source, obj, **kwargs):
 def _(source, obj, **kwargs):
     plugin = Plugin.from_callable(source, **kwargs)
     setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
+
+
+def unregister_plugin(name, obj):
+    plugin = getattr(obj, name, None)
+    if not plugin:
+        return
+
+    if getattr(plugin, 'built_in', False):
+        raise PluginProtectedError(
+            'Plugin %s is protected from deletion' % name
+        )
+
+    delattr(obj, name)

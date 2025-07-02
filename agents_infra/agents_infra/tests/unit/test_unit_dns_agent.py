@@ -131,9 +131,7 @@ def test_maybe_restart_service_when_all_services_active(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=True)
     dns_agent.is_ssh_service_active = MagicMock(return_value=True)
 
-    with patch(
-        'agents_infra.agents.dns.dns.maybe_log_message'
-    ) as mock_log:
+    with patch(dns_agent, 'log_with_controller') as mock_log:
         with patch(
             'agents_infra.agents.dns.dns.restart_service'
         ) as mock_restart:
@@ -146,11 +144,11 @@ def test_maybe_restart_service_when_all_services_active(dns_agent):
                 'when services are running.'
             )
 
-            mock_log.assert_called_with(
-                'All services are heathy and running',
-                dns_agent.logger,
-                level=logging.INFO,
-            )
+            mock_log.assert_called_once()
+            msg, = mock_log.call_args[0]
+            level = mock_log.call_args[1].get('level')
+            assert 'healthy and running' in msg
+            assert level == logging.INFO
 
 
 def test_maybe_restart_service_when_dns_inactive(dns_agent):
@@ -160,9 +158,7 @@ def test_maybe_restart_service_when_dns_inactive(dns_agent):
     dns_agent.is_dns_running = MagicMock(return_value=False)
     dns_agent.is_ssh_service_active = MagicMock(return_value=True)
 
-    with patch(
-        'agents_infra.agents.dns.dns.maybe_log_message'
-    ) as mock_log:
+    with patch(dns_agent, 'log_with_controller') as mock_log:
         with patch(
             'agents_infra.agents.dns.dns.restart_service'
         ) as mock_restart:
@@ -176,7 +172,6 @@ def test_maybe_restart_service_when_dns_inactive(dns_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                dns_agent.logger,
                 level=logging.INFO,
             )
 
@@ -202,7 +197,6 @@ def test_maybe_restart_service_when_ssh_inactive(dns_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                dns_agent.logger,
                 level=logging.INFO,
             )
 
@@ -229,6 +223,5 @@ def test_maybe_restart_service_when_both_services_inactive(dns_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                dns_agent.logger,
                 level=logging.INFO,
             )

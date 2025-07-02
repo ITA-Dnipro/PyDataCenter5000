@@ -11,8 +11,7 @@ import mock
 import psutil
 import pytest
 import urllib2
-from agents_infra.agents.base import ServerAgent
-from agents_infra.command import CommandHistory
+from agents_infra.agents.base import Config, ServerAgent
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -134,7 +133,7 @@ def test_type_checks_on_init():
 
 def test_critical_processes_parsing(mock_config_file):
     agent = MockAgent.from_config_file(mock_config_file)
-    expected = ['ssh', 'sshd', 'nginx', 'postgres']
+    expected = ['sshd', 'nginx', 'postgres']
     actual = agent.config.critical_processes
 
     for proc in expected:
@@ -310,7 +309,7 @@ def test_post_data_to_controller_missing_url(
 
     agent = MockAgent.from_config_file(mock_config_file)
 
-    agent.controller_url = None
+    agent.config.url = None
 
     agent.post_data(
         url='',
@@ -327,7 +326,7 @@ def test_post_data_to_controller_missing_url(
 def test_post_data_headers_update(mock_config_file):
     """Test that post_data correctly adds Authorization header."""
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.auth_token_type = 'Bearer'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
@@ -392,7 +391,7 @@ def test_get_data_success_logged(
         )
 
         agent = MockAgent.from_config_file(mock_config_file)
-        agent.controller_url = 'http://mock/'
+        agent.config.url = 'http://mock/'
 
         result = agent.get_data('server/command/', to_controller=True)
 
@@ -429,7 +428,7 @@ def test_get_data_empty_response(
 
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.config.url = 'http://mock/'
 
     result = agent.get_data('server/command/', to_controller=True)
 
@@ -445,7 +444,7 @@ def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
     """
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.controller_url = None
+    agent.config.url = None
 
     result = agent.get_data('server/status/', to_controller=True)
 
@@ -463,7 +462,7 @@ def test_get_data_error_logged(
     Test proper handling and logging of different GET request errors.
     """
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.controller_url = 'http://mock/'
+    agent.config.url = 'http://mock/'
 
     errors = [
         HTTP_ERROR_OUTPUT,
@@ -489,7 +488,10 @@ def test_get_data_error_logged(
 def test_maybe_add_to_queue_adds_item(mock_config_file):
     """Test that good command history input is added to queue."""
     data = {
-        'command': 'ls',
+        'type': 'linux',
+        'params': {
+            'shell': 'ls',
+        },
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -499,7 +501,7 @@ def test_maybe_add_to_queue_adds_item(mock_config_file):
 
     agent.maybe_add_command_to_queue(data)
 
-    assert agent.queue.qsize() == 1
+    assert agent.command_queue.qsize() == 1
 
 
 def test_maybe_add_to_queue_full_logged(
@@ -512,33 +514,62 @@ def test_maybe_add_to_queue_full_logged(
     import datetime
 
     import Queue
+    from agents_infra.command import (AgentCommand, CommandHistory,
+                                      CommandStatus)
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.queue = Queue.Queue(maxsize=1)
+    agent.command_queue = Queue.Queue(maxsize=1)
 
+    # Ensure 'cmd' is whitelisted
     if 'cmd' not in agent.config.whitelist_commands:
         agent.config.whitelist_commands.append('cmd')
 
-    cmd = CommandHistory(
-        command='cmd',
-        hostname='mock-server',
-        status='pending',
-        timestamp=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    )
+    timestamp = datetime.datetime.now().isoformat()
 
-    agent.maybe_add_command_to_queue(cmd)
-    agent.maybe_add_command_to_queue(cmd)
+    # Fill queue
+    agent.maybe_add_command_to_queue({
+        'type': 'agent',
+        'params': {'method': 'cmd'},
+        'hostname': 'mock-server',
+        'status': 'pending',
+        'timestamp': timestamp,
+    })
 
-    assert agent.queue.qsize() == 1
+    # Try to add another (should fail due to full queue)
+    agent.maybe_add_command_to_queue({
+        'type': 'agent',
+        'params': {'method': 'cmd'},
+        'hostname': 'mock-server',
+        'status': 'pending',
+        'timestamp': timestamp,
+    })
+
+    assert agent.command_queue.qsize() == 1
 
     assert_msg_in_logfile('Queue is full - could not append command')
 
 
 def test_get_command_from_queue_has_item(mock_config_file):
+    import datetime
+
+    from agents_infra.command import (AgentCommand, CommandHistory,
+                                      CommandStatus)
+
     agent = MockAgent.from_config_file(mock_config_file)
 
-    agent.queue.put('cmd')
-    assert agent.get_command_from_queue(block=True) == 'cmd'
+    command = AgentCommand(method='cmd')
+    cmd_history = CommandHistory(
+        command=command,
+        hostname='test-host',
+        status=CommandStatus.PENDING,
+        timestamp=datetime.datetime.now().isoformat(),
+    )
+
+    agent.command_queue.put(cmd_history)
+
+    result = agent.get_command_from_queue(block=True)
+    assert isinstance(result, CommandHistory)
+    assert result.command.tag == 'cmd'
 
 
 def test_get_command_from_queue_no_item_logged(
@@ -547,6 +578,9 @@ def test_get_command_from_queue_no_item_logged(
     import threading
 
     agent = MockAgent.from_config_file(mock_config_file)
+
+    while not agent.command_queue.empty():
+        agent.command_queue.get()
 
     with threading.Lock():
         agent.get_command_from_queue()
@@ -561,8 +595,9 @@ def test_maybe_add_to_queue_logs_bad_input(
     Test that bad command history input is logged by server agent and
     not added to queue.
     """
+    # Incorrect fields - there are no 'params'
     data = {
-        'command': None,
+        'type': 'agent',
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -573,8 +608,7 @@ def test_maybe_add_to_queue_logs_bad_input(
     agent.maybe_add_command_to_queue(data)
 
     assert_msg_in_logfile('Command validation failed due to error')
-
-    assert agent.queue.qsize() == 0
+    assert agent.command_queue.qsize() == 0
 
 
 def test_status_to_dict_keys(mock_config_file):
@@ -782,8 +816,8 @@ def test_collect_server_metadata_os_detection(monkeypatch, mock_config_file):
 
     monkeypatch.setattr(platform, 'system', mock_system)
 
-    from agents import agent
-    monkeypatch.setattr(agent,
+    from agents_infra.agents import base
+    monkeypatch.setattr(base,
                         'get_linux_uptime',
                         mock_get_linux_uptime)
 
@@ -1106,74 +1140,50 @@ whitelist_commands =
 
 
 def test_config_file_whitelist_commands_extends_default():
-    """
-    Test that config whitelist_commands merges global and local config lists.
-    """
-
     import os
     import tempfile
 
-    global_ini_content = """
-[controller]
-whitelist_commands = default_cmd1, default_cmd2
-"""
+    MockAgent.config = Config(
+        name='mock',
+        api_prefix='api/',
+        url='',
+        critical_processes=[],
+        whitelist_commands=['default_cmd1', 'default_cmd2'],
+        port=0,
+        auth_token_type=None,
+        interface=None
+    )
 
-    local_config_content = """
-[server]
-name = test_server
-port = 12345
+    config_content = (
+        '[server]\n'
+        'name = test_server\n'
+        'port = 12345\n'
+        '[controller]\n'
+        'whitelist_commands = config_cmd1,config_cmd2\n'
+    )
 
-[controller_agent]
-whitelist_commands = config_cmd1,config_cmd2
-"""
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+        tmp_path = tmp.name
 
-    orig_resource_filename = None
-    tmp_global = tempfile.NamedTemporaryFile('w+', delete=False)
-    tmp_local = tempfile.NamedTemporaryFile('w+', delete=False)
     try:
-        # Write global.ini
-        tmp_global.write(global_ini_content)
-        tmp_global.flush()
-        global_path = tmp_global.name
-        tmp_global.close()
+        agent = MockAgent.from_config_file(tmp_path)
 
-        # Write local.ini
-        tmp_local.write(local_config_content)
-        tmp_local.flush()
-        local_path = tmp_local.name
-        tmp_local.close()
+        expected_commands = [
+            'default_cmd1', 'default_cmd2', 'config_cmd1', 'config_cmd2'
+        ]
 
-        # Patch resource_filename
-        globals_dict = MockAgent._parse_config_file.__globals__
-        pkg_resources = globals_dict['pkg_resources']
-        orig_resource_filename = pkg_resources.resource_filename
+        for cmd in expected_commands:
+            assert cmd in agent.config.whitelist_commands
 
-        def fake_resource_filename(package, resource):
-            if resource == 'global.ini':
-                return global_path
-            return orig_resource_filename(package, resource)
-
-        pkg_resources.resource_filename = fake_resource_filename
-        agent = MockAgent.from_config_file(local_path)
-
-        actual_commands = set(getattr(
-            agent.config, 'whitelist_commands', []) or []
-        )
-
-        for cmd in ['default_cmd1', 'default_cmd2']:
-            assert cmd in actual_commands, 'Missing global command: %s' % cmd
-
-        for cmd in ['config_cmd1', 'config_cmd2']:
-            assert cmd in actual_commands, 'Missing local command: %s' % cmd
+        assert len(agent.config.whitelist_commands) == len(set(
+            agent.config.whitelist_commands
+        ))
 
     finally:
-        if orig_resource_filename is not None:
-            globals_dict = MockAgent._parse_config_file.__globals__
-            pkg_resources = globals_dict['pkg_resources']
-            pkg_resources.resource_filename = orig_resource_filename
-            os.remove(global_path)
-        if os.path.exists(local_path):
-            os.remove(local_path)
+        os.remove(tmp_path)
+        MockAgent.config = None
 
 
 def test_get_data_headers_default(mock_config_file):
@@ -1208,9 +1218,9 @@ def test_get_data_headers_with_api_key(mock_config_file):
     agent = MockAgent.from_config_file(mock_config_file)
 
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.api_prefix = 'api/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
@@ -1239,9 +1249,9 @@ def test_get_data_headers_with_kwargs(mock_config_file):
     """Test that additional headers from kwargs are added correctly."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.api_prefix = 'api/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
@@ -1281,9 +1291,9 @@ def test_get_data_headers_kwargs_override(mock_config_file):
     """Test that kwargs headers override default headers in get_data."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.api_prefix = 'api/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
@@ -1321,9 +1331,9 @@ def test__get_data_headers_update(mock_config_file):
     """Test that headers.update correctly adds Authorization header."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.api_prefix = 'api/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
@@ -1358,9 +1368,11 @@ def test_are_all_critical_processes_active_sucseed(mock_config_file):
     agent.config.critical_processes = ['nginx', 'named']
 
     with mock.patch(
-        'agents.agent.is_process_active', return_value=True
+        'agents_infra.agents.base.is_process_active', return_value=True
     ) as mock_is_active:
-        with mock.patch('agents.agent.restart_service') as mock_restart:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
 
             result = agent._are_all_critical_processes_active(restart=True)
 
@@ -1382,9 +1394,11 @@ def test_are_all_critical_processes_active_fails_without_restart(
     agent.config.critical_processes = ['nginx', 'named']
 
     with mock.patch(
-        'agents.agent.is_process_active', side_effect=[True, False]
+        'agents_infra.agents.base.is_process_active', side_effect=[True, False]
     ) as mock_is_active:
-        with mock.patch('agents.agent.restart_service') as mock_restart:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
 
             result = agent._are_all_critical_processes_active(restart=False)
 
@@ -1407,9 +1421,11 @@ def test_are_all_critical_processes_active_fails_with_restart(
     agent.config.critical_processes = ['nginx', 'named']
 
     with mock.patch(
-        'agents.agent.is_process_active', side_effect=[False, True]
+        'agents_infra.agents.base.is_process_active', side_effect=[False, True]
     ) as mock_is_active:
-        with mock.patch('agents.agent.restart_service') as mock_restart:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
 
             result = agent._are_all_critical_processes_active(restart=True)
 
@@ -1433,9 +1449,11 @@ def test_are_all_critical_processes_active_raises_oserror(mock_config_file):
         raise OSError('Mocked OSError')
 
     with mock.patch(
-        'agents.agent.is_process_active', side_effect=raise_oserror
+        'agents_infra.agents.base.is_process_active', side_effect=raise_oserror
     ):
-        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.agents.base.maybe_log_message'
+        ) as mock_log:
             result = agent._are_all_critical_processes_active(restart=False)
 
             assert result is False, (
@@ -1458,9 +1476,12 @@ def test_are_all_critical_processes_active_raises_generic_exception(
         raise Exception('Mocked generic exception')
 
     with mock.patch(
-        'agents.agent.is_process_active', side_effect=raise_exception
+        'agents_infra.agents.base.is_process_active',
+        side_effect=raise_exception
     ):
-        with mock.patch('agents.agent.maybe_log_message') as mock_log:
+        with mock.patch(
+            'agents_infra.agents.base.maybe_log_message'
+        ) as mock_log:
 
             result = agent._are_all_critical_processes_active(restart=False)
 

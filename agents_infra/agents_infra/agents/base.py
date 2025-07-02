@@ -7,6 +7,7 @@ import platform
 import socket
 import time
 
+import attr
 import ConfigParser
 import pkg_resources
 import Queue
@@ -45,6 +46,36 @@ class Config(object):
     def get(self, key, default=None):
         return getattr(self, key, default)
 
+    def update(self, updates):
+        """
+        Update existing config with new values.
+
+        Special handling for:
+        - whitelist_commands: extend without duplicates
+        - critical_processes: extend without duplicates
+        """
+        if isinstance(updates, Config):
+            updates = attr.asdict(updates)
+
+        for key, value in updates.items():
+            if value is None:
+                continue
+
+            if key in ('whitelist_commands', 'critical_processes'):
+                original = getattr(self, key, [])
+                if not isinstance(value, list):
+                    raise TypeError(
+                        'Expected list for %s, got %s' % (key, type(value))
+                    )
+                merged = original + [v for v in value if v not in original]
+                setattr(self, key, merged)
+            elif hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                # For unknown keys, optionally skip or log
+                # Maybe extend later
+                pass
+
 
 class ServerAgent(object):
     """
@@ -54,9 +85,19 @@ class ServerAgent(object):
 
     __metaclass__ = abc.ABCMeta
 
-    controller_url = None
-    api_prefix = 'api/'
-    auth_token_type = 'Bearer'
+    defaults = {
+        'name': 'default',
+        'api_prefix': 'api/',
+        'url': '',
+        'critical_processes': [],
+        'whitelist_commands': [],
+        'port': 0,
+        'auth_token_type': None,
+        'interface': None,
+    }
+
+    # Global config parsed once at import-level (__init__.py)
+    config = None  # Will hold default/global config
 
     def __init__(
         self,
@@ -66,17 +107,29 @@ class ServerAgent(object):
         config=None
     ):
         self.server_name = server_name
-        self.config = config or {}  # temp
 
-        if isinstance(self.config, dict):
-            # We want to ensure that config is a valid instance of Config
-            self.config = Config(**self.config)
+        # If not provided, use class-level default config
+        base_config = ServerAgent.config or {}
 
-        # Type check to prevent unexpected values from slipping through
-        if not isinstance(self.config, Config):
+        if isinstance(base_config, dict):
+            merged = dict(ServerAgent.defaults)
+            merged.update(base_config)
+            base_config = Config(**merged)
+
+        if config is None:
+            config = {}
+
+        if isinstance(config, dict):
+            config = Config(**config)
+
+        if not isinstance(config, Config):
             raise TypeError(
                 "Expected 'config' to be instance of Config or dict"
             )
+
+        # Merge global + instance config
+        base_config.update(attr.asdict(config))
+        self.config = base_config
 
         if protocol is not None:
             self.protocol = protocol
@@ -92,29 +145,28 @@ class ServerAgent(object):
     def from_config_file(cls, filename=None, log_path=None):
         """
         Create an agent from configuration file.
+        Merges global config (ServerAgent.config) with local config.ini.
         """
-        config_dict = cls._parse_config_file(filename)
-        defaults = {
-            'name': None,
-            'api_prefix': '',
-            'url': '',
-            'critical_processes': [],
-            'whitelist_commands': [],
-            'port': 0,
-            'auth_token_type': None,
-            'interface': None,
-        }
 
-        for key in defaults.keys():
-            if key in config_dict:
-                defaults[key] = config_dict[key]
+        base_config = cls.config or {}
 
-        config_obj = Config(**defaults)
+        if isinstance(base_config, Config):
+            config_obj = type(base_config)(**attr.asdict(base_config))
+        elif isinstance(base_config, dict):
+            merged = dict(ServerAgent.defaults)
+            merged.update(base_config)
+            config_obj = Config(**merged)
+        else:
+            raise TypeError('Expected class-level config to be Config or dict')
+
+        local_config = cls._parse_config_file(filename)
+        config_obj.update(local_config)
 
         agent = cls(
             server_name=config_obj.name,
-            config=config_obj
+            config=config_obj,
         )
+
         agent.setup_logging(log_path)
         return agent
 
@@ -167,44 +219,47 @@ class ServerAgent(object):
     @staticmethod
     def _parse_config_file(filename=None):
         """
-        Load and parse config file(s), return config dict.
+        Load and parse agent-specific config file.
+        Merges config.ini with global_config using Config.update().
+        Returns a Config instance.
         """
         config_files = [
-            pkg_resources.resource_filename('agents', 'global.ini'),
-            filename or pkg_resources.resource_filename(
-                __name__, 'config.ini'
-            )
+            filename or pkg_resources.resource_filename(__name__, 'config.ini')
         ]
 
-        config = ConfigParser.ConfigParser()
-        config.read(config_files)
+        parser = ConfigParser.ConfigParser()
+        parser.read(config_files)
 
         type_casts = {
             'port': int,
             'critical_processes': parse_csv_list,
             'whitelist_commands': parse_csv_list,
         }
-        list_merge_keys = ['critical_processes', 'whitelist_commands']
 
-        config_dict = {}
-        for section in config.sections():
-            for key, value in config.items(section):
-                cast = type_casts.get(key, str)
+        base = ServerAgent.config or {}
+
+        if isinstance(base, Config):
+            config_obj = type(base)(**attr.asdict(base))
+        elif isinstance(base, dict):
+            merged = dict(ServerAgent.defaults)
+            merged.update(base)
+            config_obj = Config(**merged)
+        else:
+            raise TypeError("Expected 'base' to be Config or dict")
+
+        temp_dict = {}
+
+        for section in parser.sections():
+            for key, value in parser.items(section):
+                caster = type_casts.get(key, str)
                 try:
-                    parsed = cast(value) or None
-                    if key in list_merge_keys:
-                        if parsed:
-                            config_dict.setdefault(key, [])
-                            config_dict[key].extend([
-                                x for x in parsed if x not in config_dict[key]
-                            ])
-                    else:
-                        config_dict[key] = parsed
+                    parsed = caster(value) or None
+                    temp_dict[key] = parsed
                 except Exception:
-                    # Logging skipped here (no logger yet)
-                    pass
+                    continue  # Skip incorrect data
 
-        return config_dict
+        config_obj.update(temp_dict)
+        return config_obj
 
     def collect_server_metadata(self):
         """
@@ -419,7 +474,7 @@ class ServerAgent(object):
             **kwargs: Key-value pairs to be appended to the header.
         """
         if to_controller:
-            if not self.controller_url:
+            if not self.config.url:
                 maybe_log_message(
                     (
                         "Couldn't send POST request to controller: "
@@ -429,13 +484,15 @@ class ServerAgent(object):
                 )
                 return
 
-            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            base_api_url = urljoin(self.config.url, self.config.api_prefix)
             url = urljoin(base_api_url, url)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
-                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+                {'Authorization': '%s %s' % (
+                    self.config.auth_token_type, api_key
+                )}
             )
         if kwargs:
             headers.update(kwargs)
@@ -538,7 +595,7 @@ class ServerAgent(object):
             RuntimeError: If all attempts fail and `fail_silently` is False.
         """
         if to_controller:
-            if not self.controller_url:
+            if not self.config.url:
                 maybe_log_message(
                     (
                         "Couldn't send GET request to controller: "
@@ -548,13 +605,13 @@ class ServerAgent(object):
                 )
                 return
 
-            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            base_api_url = urljoin(self.config.url, self.config.api_prefix)
             url = urljoin(base_api_url, url)
 
         headers = {'Accept': 'application/json'}
         if api_key:
             headers['Authorization'] = '%s %s' % (
-                self.auth_token_type, api_key
+                self.config.auth_token_type, api_key
             )
         if kwargs:
             headers.update(kwargs)

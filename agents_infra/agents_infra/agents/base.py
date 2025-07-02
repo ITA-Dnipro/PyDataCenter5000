@@ -384,18 +384,33 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        with warnings.catch_warnings(record=True) as records:
-            # Check port status via plugin.
-            port_status = self.check_port(
-                timeout=timeout, payload=payload, packet_size=packet_size
-            )['port_open']
+        if self.port < 0 or self.ip is None or self.protocol is None:
+            return False
 
-            for record in records:
-                maybe_log_message(
-                    'Warning while checking port status: %s' % record.message,
-                    logger=self.logger,
-                    level=logging.WARNING,
-                )
+        port_status = False
+
+        try:
+            with warnings.catch_warnings(record=True) as records:
+                # Check port status via plugin.
+                port_status = self.check_port(
+                    timeout=timeout, payload=payload, packet_size=packet_size
+                )['port_open']
+
+                for record in records:
+                    maybe_log_message(
+                        (
+                            'Warning while checking port status: %s'
+                            % record.message
+                        ),
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+            )
+
         return (
             port_status
             and self._is_process_running()

@@ -53,23 +53,26 @@ def execute(
     try:
         if protocol == 'tcp':
             s.connect((ip, port))
+
+            port_status = True
         else:
             s.sendto(payload or b'', (ip, port))
 
-        if packet_size > 0:
-            data, _ = s.recvfrom(packet_size)
-            if len(data) != packet_size:
-                warnings.warn(
-                    (
-                        'UDP response size mismatch: expected '
-                        '%d bytes, got %d bytes' % (packet_size, len(data))
-                    )
-                )
+            if packet_size > 0:
+                data, _ = s.recvfrom(packet_size)
 
-        port_status = True
-    except (socket.error, socket.timeout) as e:
-        warnings.warn('Port check failed due to error: %s' % str(e))
+                if len(data) != packet_size:
+                    warnings.warn(
+                        (
+                            'UDP response size mismatch: expected '
+                            '%d bytes, got %d bytes' % (packet_size, len(data))
+                        )
+                    )
+                else:
+                    port_status = True
+            else:
+                port_status = True
     finally:
         s.close()
 
-        return {'port_open': port_status}
+    return {'port_open': port_status}

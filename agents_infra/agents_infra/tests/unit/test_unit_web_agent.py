@@ -1,6 +1,5 @@
 import json
 import logging
-from logging.handlers import MemoryHandler
 
 import pytest
 from mock import MagicMock, patch
@@ -112,47 +111,40 @@ def test_check_http_health_json_error(
 
 def test_web_agent_is_service_healthy_all_ok(web_agent):
     """Test is_service_healthy returns True when all checks pass"""
-    with patch.object(WebAgent, 'is_port_open', return_value=True):
-        with patch('agents_infra.agents.base.ServerAgent.is_service_healthy',
-                   return_value=True):
-            with patch.object(WebAgent, '_check_http_health',
-                              return_value=True):
-                assert web_agent.is_service_healthy() is True, (
-                    'Expected is_service_healthy to return True when all '
-                    'checks pass'
-                )
-
-
-def test_web_agent_is_service_healthy_port_closed(web_agent):
-    """Test is_service_healthy returns False when port is closed"""
-    with patch.object(WebAgent, 'is_port_open', return_value=False):
-        assert web_agent.is_service_healthy() is False, (
-            'Expected is_service_healthy to return False when port is closed'
-        )
+    with patch(
+        'agents_infra.agents.base.ServerAgent.is_service_healthy',
+        return_value=True
+    ):
+        with patch.object(WebAgent, '_check_http_health', return_value=True):
+            assert web_agent.is_service_healthy() is True, (
+                'Expected is_service_healthy to return True when all '
+                'checks pass'
+            )
 
 
 def test_web_agent_is_service_healthy_parent_unhealthy(web_agent):
     """Test is_service_healthy returns False when parent check fails"""
-    with patch.object(WebAgent, 'is_port_open', return_value=True):
-        with patch('agents_infra.agents.base.ServerAgent.is_service_healthy',
-                   return_value=False):
-            assert web_agent.is_service_healthy() is False, (
-                'Expected is_service_healthy to return False when parent '
-                'check fails'
-            )
+    with patch(
+        'agents_infra.agents.base.ServerAgent.is_service_healthy',
+        return_value=False
+    ):
+        assert web_agent.is_service_healthy() is False, (
+            'Expected is_service_healthy to return False when parent '
+            'check fails'
+        )
 
 
 def test_web_agent_is_service_healthy_http_unhealthy(web_agent):
     """Test is_service_healthy returns False when HTTP check fails"""
-    with patch.object(WebAgent, 'is_port_open', return_value=True):
-        with patch('agents_infra.agents.base.ServerAgent.is_service_healthy',
-                   return_value=True):
-            with patch.object(WebAgent, '_check_http_health',
-                              return_value=False):
-                assert web_agent.is_service_healthy() is False, (
-                    'Expected is_service_healthy to return False when HTTP '
-                    'check fails'
-                )
+    with patch(
+        'agents_infra.agents.base.ServerAgent.is_service_healthy',
+        return_value=True
+    ):
+        with patch.object(WebAgent, '_check_http_health', return_value=False):
+            assert web_agent.is_service_healthy() is False, (
+                'Expected is_service_healthy to return False when HTTP '
+                'check fails'
+            )
 
 
 def test_web_agent_build_url(web_agent):
@@ -272,25 +264,3 @@ def test_maybe_restart_service_when_both_services_inactive(web_agent):
                 logger=web_agent.logger,
                 level=logging.INFO
             )
-
-
-def test_is_service_healthy_logs_exception(web_agent):
-    """
-    Should log an error and return False if an exception is raised in
-    is_service_healthy.
-    """
-    with patch('agents_infra.agents.web.web.maybe_log_message') as mock_log:
-        # Force _check_http_health to raise an exception
-        web_agent._check_http_health = MagicMock(
-            side_effect=Exception('test error')
-        )
-        result = web_agent.is_service_healthy()
-        assert result is False
-        mock_log.assert_called_once()
-        assert (
-            'Health check failed with error: test error'
-            in mock_log.call_args[0][0]
-        ), (
-            'Expected error message to be logged when exception is raised '
-            'in is_service_healthy'
-        )

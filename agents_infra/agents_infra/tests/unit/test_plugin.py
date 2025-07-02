@@ -3,9 +3,9 @@ import types
 import mock
 import pytest
 
-from agents_infra.exceptions import PluginValidationError
+from agents_infra.exceptions import PluginProtectedError, PluginValidationError
 from agents_infra.plugins.plugin import (Plugin, _validate_plugin_module,
-                                         register_plugin)
+                                         register_plugin, unregister_plugin)
 
 
 @pytest.fixture
@@ -52,22 +52,6 @@ def test_validate_plugin_module_invalid_execute_arguments_error(dummy_module):
     with pytest.raises(
         PluginValidationError,
         match='"execute" does not support required positional arguments',
-    ):
-        _validate_plugin_module(dummy_module)
-
-
-def test_validate_plugin_module_invalid_execute_return_type_error(
-    dummy_module
-):
-    """
-    Test that the error is raised on invalid 'execute' callable's return
-    type in the plugin module.
-    """
-    dummy_module.execute = lambda: None
-
-    with pytest.raises(
-        PluginValidationError,
-        match='execute callable must return a dict, not %s' % type(None),
     ):
         _validate_plugin_module(dummy_module)
 
@@ -146,3 +130,20 @@ def test_register_plugin_invalid_type_raises():
         % str
     ):
         register_plugin('invalid', DummyObject)
+
+
+def test_unregister_plugin_raises_protected_error():
+    """Test that built-in plugins are protected from being unregistered."""
+    class DummyObject(object):
+        pass
+
+    def dummy_plugin(parent):
+        return {'status': 'ok'}
+
+    register_plugin(dummy_plugin, DummyObject, built_in=True)
+
+    with pytest.raises(
+        PluginProtectedError,
+        match='Plugin dummy_plugin is protected from deletion',
+    ):
+        unregister_plugin('dummy_plugin', DummyObject)

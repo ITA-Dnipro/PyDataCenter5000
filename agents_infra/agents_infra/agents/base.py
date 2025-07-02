@@ -70,6 +70,7 @@ class ServerAgent(object):
     auth_token_type = 'Bearer'
     whitelist_commands = None
     critical_processes = None
+    post_agent_log_url = 'logs/'
 
     def __init__(
         self,
@@ -271,13 +272,6 @@ class ServerAgent(object):
                     if cmd not in self.whitelist_commands
                 )
 
-            try:
-                self.send_logs_to_controller = config.getboolean(
-                    'logging', 'send_logs_to_controller'
-                )
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                self.send_logs_to_controller = False
-
     def send_log_to_controller(self, level, message, context=None):
         """
         Sends a log message to the controller's /logs/ endpoint.
@@ -287,8 +281,8 @@ class ServerAgent(object):
             message (str): Log message.
             context (dict, optional): Additional log context.
         """
-        if not self.controller_url:
-            raise ValueError('Controller URL is not set')
+        if not self.post_agent_log_url:
+            raise ValueError('Post agent log controller URL is not set')
 
         log_data = {
             'agent_name': self.server_name,
@@ -300,7 +294,9 @@ class ServerAgent(object):
             'context': context or {},
         }
 
-        self.post_data('/logs/', payload=log_data, to_controller=True)
+        self.post_data(
+            self.post_agent_log_url, payload=log_data, to_controller=True
+        )
 
     def log_with_controller(
             self,

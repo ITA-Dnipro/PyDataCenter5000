@@ -40,3 +40,18 @@ if cfg:
         'critical_processes',
         cast=configtools.parse_csv_list,
     )
+
+    agent.ServerAgent.post_agent_log_url = configtools.get_config_option(
+        cfg,
+        'logging',
+        'post_agent_log_url',
+        default='/logs/',
+    )
+
+    agent.ServerAgent.send_logs_to_controller = configtools.get_config_option(
+        cfg,
+        'logging',
+        'send_logs_to_controller',
+        cast=lambda v: str(v).lower() in ('true', '1', 'yes'),
+        default=False,
+    )

@@ -1,4 +1,4 @@
-import logging
+import abc
 import subprocess
 
 from ...utils.helpers import is_valid_ip
@@ -7,6 +7,8 @@ from ..base import ServerAgent
 
 
 class DNSAgent(ServerAgent):
+
+    __metaclass__ = abc.ABCMeta
 
     def __init__(
         self,
@@ -67,3 +69,36 @@ class DNSAgent(ServerAgent):
         dns_status = self.is_dns_running()
 
         return process_status and port and dns_status
+
+
+class DNSAgentNamed(DNSAgent):
+    """
+    DNSAgentNamed is a specialized subclass of DNSAgent designed to monitor
+    and manage a DNS server running with the 'named' process.
+
+    Attributes:
+        server_name (str): Name identifier for the agent instance.
+            Defaults to 'dns_named'.
+        protocol (str): Protocol used for DNS queries. Defaults to 'udp'.
+        command_queue_size (int): Size of the command queue for
+            asynchronous command processing.
+        config (Config or dict, optional): Configuration object or
+            dictionary to override defaults.
+
+    Methods:
+        Inherits all methods from DNSAgent without modification.
+    """
+
+    def __init__(
+        self,
+        server_name='dns_named',
+        protocol='udp',
+        command_queue_size=0,
+        config=None
+    ):
+        super(DNSAgentNamed, self).__init__(
+            server_name=server_name,
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
+        )

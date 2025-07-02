@@ -1,6 +1,5 @@
 import mock
 import pytest
-
 from agents_infra.command import (COMMAND_REGISTRY, AgentCommand,
                                   CommandHistory, CommandStatus, LinuxCommand,
                                   dispatch_command, execute_shell_command)

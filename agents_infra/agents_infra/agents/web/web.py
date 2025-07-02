@@ -1,3 +1,4 @@
+import abc
 import json
 import logging
 
@@ -12,6 +13,7 @@ class WebAgent(ServerAgent):
     """
     Agent for monitoring web server health and status.
     """
+    __metaclass__ = abc.ABCMeta
 
     def __init__(
         self,
@@ -151,3 +153,26 @@ class WebAgent(ServerAgent):
             level=logging.INFO,
         )
         return True
+
+
+class WebAgentUvicorn(WebAgent):
+    """
+    Agent subclass for monitoring Uvicorn web server health and status.
+    """
+    def __init__(
+        self,
+        server_name='web_uvicorn',
+        protocol='tcp',
+        command_queue_size=0,
+        config=None,
+        web_server_host=None,
+        web_server_name=None,
+    ):
+        super(WebAgentUvicorn, self).__init__(
+            server_name=server_name,
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
+            web_server_host=web_server_host,
+            web_server_name=web_server_name,
+        )

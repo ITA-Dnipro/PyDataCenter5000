@@ -1,10 +1,11 @@
+import abc
+
 from ..base import ServerAgent
 
 
 class NTPAgent(ServerAgent):
-    """
-    Agent subclass for monitoring and managing an NTP daemon.
-    """
+
+    __metaclass__ = abc.ABCMeta
 
     def __init__(
         self,
@@ -32,3 +33,25 @@ class NTPAgent(ServerAgent):
                 timeout=timeout, payload=payload, packet_size=packet_size
             )
         return base_ok and port_ok
+
+
+class NTPAgenttNTPD(NTPAgent):
+    """
+    Specialized NTPAgent subclass for monitoring the 'ntpd' daemon.
+
+    Inherits all functionality from NTPAgent, configured for 'ntpd'.
+    """
+
+    def __init__(
+        self,
+        server_name='ntp_ntpd',
+        protocol='udp',
+        command_queue_size=0,
+        config=None
+    ):
+        super(NTPAgenttNTPD, self).__init__(
+            server_name=server_name,
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
+        )

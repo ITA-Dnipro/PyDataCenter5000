@@ -1,3 +1,4 @@
+import abc
 import socket
 
 from ...utils.logtools import maybe_log_message
@@ -5,6 +6,9 @@ from ..base import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
+
+    __metaclass__ = abc.ABCMeta
+
     DEFAULT_PROCESSES = ['postfix', 'exim', 'sendmail', 'master']
     """
     SMTPAgent performs health checks for an SMTP server:
@@ -56,3 +60,25 @@ class SMTPAgent(ServerAgent):
         status['banner'] = banner if banner else None
 
         return status
+
+
+class SMTPAgentPostfix(SMTPAgent):
+    """
+    Specialized SMTPAgent subclass for managing the 'postfix' service.
+
+    Inherits SMTPAgent functionality, configured for Postfix SMTP server.
+    """
+
+    def __init__(
+        self,
+        server_name='smtp_postfix',
+        protocol='tcp',
+        command_queue_size=0,
+        config=None
+    ):
+        super(SMTPAgentPostfix, self).__init__(
+            server_name=server_name,
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
+        )

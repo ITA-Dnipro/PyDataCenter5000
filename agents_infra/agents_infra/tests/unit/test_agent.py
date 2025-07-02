@@ -1435,10 +1435,7 @@ def test_is_process_running_with_error():
     agent = MockAgent(processes=['nginx'])
 
     with mock.patch('subprocess.Popen', side_effect=OSError('boom')):
-        with mock.patch(
-            'agents_infra.agents.base.maybe_log_message'
-        ) as mock_log:
-
+        with mock.patch.object(agent, 'log_with_controller') as mock_log:
             result = agent._is_process_running()
 
             assert not result, (
@@ -1446,11 +1443,15 @@ def test_is_process_running_with_error():
                 'when OSError is raised.'
             )
 
-            mock_log.assert_called_once_with(
-                'Process check failed: boom',
-                logger=agent.logger,
-                exc_info=True,
-            )
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args[0]
+            call_kwargs = mock_log.call_args[1]
+
+            assert 'Process check failed' in call_args[0]
+            assert 'boom' in call_args[0]
+
+            assert call_kwargs.get('level') == logging.ERROR
+            assert call_kwargs.get('exc_info') is True
 
 
 def test_is_ssh_service_active_returns_true_when_active():
@@ -1502,20 +1503,22 @@ def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
     agent = MockAgent()
 
     with mock.patch(
-                   'agents_infra.agents.base.subprocess.Popen',
-                   side_effect=OSError('boom')
+       'agents_infra.agents.base.subprocess.Popen',
+       side_effect=OSError('boom')
     ):
-        with mock.patch(
-            'agents_infra.agents.base.maybe_log_message'
-        ) as mock_log:
+        with mock.patch.object(agent, 'log_with_controller') as mock_log:
             result = agent.is_ssh_service_active()
 
             assert result is False, 'Expected return False, when OSError'
-            mock_log.assert_called_once_with(
-                'SSH service check failed: boom',
-                agent.logger,
-                exc_info=True
-                )
+
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args[0]
+            call_kwargs = mock_log.call_args[1]
+
+            assert 'SSH service check failed' in call_args[0]
+            assert 'boom' in call_args[0]
+            assert call_kwargs.get('level') == logging.ERROR
+            assert call_kwargs.get('exc_info') is True
 
 
 def test_status_to_dict_format():

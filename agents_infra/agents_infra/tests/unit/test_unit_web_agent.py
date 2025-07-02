@@ -191,7 +191,6 @@ def test_maybe_restart_service_when_all_services_active(web_agent):
 
             mock_log.assert_called_with(
                 'All services are healthy and running',
-                logger=web_agent.logger,
                 level=logging.INFO
             )
 
@@ -217,7 +216,6 @@ def test_maybe_restart_service_when_web_inactive(web_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                logger=web_agent.logger,
                 level=logging.INFO
             )
 
@@ -243,7 +241,6 @@ def test_maybe_restart_service_when_ssh_inactive(web_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                logger=web_agent.logger,
                 level=logging.INFO
             )
 
@@ -269,7 +266,6 @@ def test_maybe_restart_service_when_both_services_inactive(web_agent):
 
             mock_log.assert_any_call(
                 'Finished attempts to restart services',
-                logger=web_agent.logger,
                 level=logging.INFO
             )
 

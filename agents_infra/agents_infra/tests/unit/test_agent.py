@@ -160,6 +160,7 @@ def test_post_data_success_logged(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     agent = MockAgent(port=12345)
+    agent.current_controller = 'http://mock'
 
     class MockResponse:
         def getcode(self):
@@ -175,7 +176,7 @@ def test_post_data_success_logged(
         urllib2, 'urlopen', lambda req, timeout=None: MockResponse()
     )
 
-    agent.post_data('http://mock/api', {'test': 'data'})
+    agent.post_data('/api', {'test': 'data'})
 
     assert_msg_in_logfile('POST request status: 200')
     assert_msg_in_logfile(
@@ -187,6 +188,7 @@ def test_post_data_retry(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     agent = MockAgent(port=12345)
+    agent.current_controller = 'http://mock'
 
     call_count = {'count': 0}
 
@@ -211,7 +213,7 @@ def test_post_data_retry(
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent.post_data(
-        'http://mock/endpoint', {'retry': 'test'}, max_retries=3, delay=0
+        '/endpoint', {'retry': 'test'}, max_retries=3, delay=0
     )
 
     assert_msg_in_logfile(
@@ -225,6 +227,7 @@ def test_post_data_max_retries_fail(
     monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     agent = MockAgent(port=12345)
+    agent.current_controller = 'http://mock'
 
     monkeypatch.setattr(
         urllib2,
@@ -236,7 +239,7 @@ def test_post_data_max_retries_fail(
 
     with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):
         agent.post_data(
-            'http://mock/api',
+            '/api',
             {'fail': True},
             max_retries=3,
             delay=0,
@@ -251,13 +254,14 @@ def test_post_data_error_logged(
     setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     agent = MockAgent(port=12345)
+    agent.current_controller = 'http://mock'
 
     errors = [HTTP_ERROR_OUTPUT, URL_ERROR_OUTPUT, TIMEOUT_ERROR_OUTPUT]
 
     for error, msg in errors:
         with mock.patch('urllib2.urlopen', side_effect=error):
             agent.post_data(
-                'http://mock/api',
+                '/api',
                 {'fail': True},
                 max_retries=1,
                 fail_silently=True,
@@ -292,8 +296,7 @@ def test_post_data_to_controller_success_logged(
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent = MockAgent(port=12345)
-
-    agent.controller_url = 'http://mock/controller/'
+    agent.current_controller = 'http://mock'
 
     agent.post_data(
         'server/status/', {'to_controller': 'test'}, to_controller=True
@@ -1387,7 +1390,10 @@ def test_fetch_command_from_controller_headers_update():
 
 def test_post_data_headers_update():
     """Test that post_data correctly adds Authorization header."""
+    print('Start')
     agent = MockAgent(port=12345)
+    agent.current_controller = 'http://mock'
+
     agent.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
@@ -1407,7 +1413,7 @@ def test_post_data_headers_update():
                 return_value=True
         ):
             agent.post_data(
-                url='http://mock/api',
+                url='/api',
                 payload={'test': 'data'},
                 api_key='test-token'
             )

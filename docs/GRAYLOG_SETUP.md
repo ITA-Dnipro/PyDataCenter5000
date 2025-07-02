@@ -20,8 +20,8 @@ docker compose version
 
 In the project root, create a .env file with the following content:
 ```
-GRAYLOG_PASSWORD_SECRET=
-GRAYLOG_ROOT_PASSWORD_SHA2=
+GRAYLOG_PASSWORD_SECRET=<secret_token>
+GRAYLOG_ROOT_PASSWORD_SHA2=<sha256_hash_of_password>
 ```
 
 - __Root user password: *<YOUR_PASSWORD>*__
@@ -32,11 +32,11 @@ GRAYLOG_ROOT_PASSWORD_SHA2=
 
 - __Secret token (must be at least 64 characters in hex)__
     ```
-    python3 -c "import secrets; print(secrets.token_hex(32))"
+    python3 -c "import hashlib; print(hashlib.sha256(b'<YOUR_PASSWORD>').hexdigest())"
     ```
     pass this value into GRAYLOG_PASSWORD_SECRET
 
-❗ The admin password will be: *<YOUR_PASSWORD>*
+⚠️ The password you choose in <YOUR_PASSWORD> will be used for the default admin user.
 ## 📄 3. Launch Graylog
 
 Run the following command:

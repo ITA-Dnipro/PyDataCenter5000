@@ -36,6 +36,14 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
+def load_agent_from_config(config_content):
+    """Helper to create a MockAgent from a string config."""
+    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+        return MockAgent.from_config_file(tmp.name)
+
+
 class MockAgent(ServerAgent):
 
     def __init__(
@@ -99,18 +107,16 @@ def test_type_checks_on_init():
 
 def test_critical_processes_parsing():
     """Test that critical_processes are correctly parsed from config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(
-            '[server]\n'
-            'name=mock\n'
-            'port=123\n'
-            'processes=proc1\n'
-            'critical_processes=sshd, nginx, postgres\n'
-        )
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(tmp.name)
-        assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
+    config_content = """
+[server]
+name = mock
+port = 123
+processes = proc1
+interface = eth0
+critical_processes = sshd, nginx, postgres
+"""
+    agent = load_agent_from_config(config_content)
+    assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
 
 
 def test_status_to_json_type_error(
@@ -1097,8 +1103,7 @@ def test_class_whitelist_commands():
 
 def test_config_file_parsing():
     """Test parsing of config file options."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1108,61 +1113,49 @@ interface = eth0
 [controller]
 whitelist_commands = cmd1,cmd2,cmd3
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert agent.server_name == 'test_server'
-        assert agent.port == 12345
-        assert agent.processes == ['proc1', 'proc2', 'proc3']
-        assert agent.interface == 'eth0'
-        assert all(
-            cmd in agent.whitelist_commands
-            for cmd in ['cmd1', 'cmd2', 'cmd3']
-        )
+    assert agent.server_name == 'test_server'
+    assert agent.port == 12345
+    assert agent.processes == ['proc1', 'proc2', 'proc3']
+    assert agent.interface == 'eth0'
+    assert all(
+        cmd in agent.whitelist_commands
+        for cmd in ['cmd1', 'cmd2', 'cmd3']
+    )
 
 
 def test_config_file_missing_options():
     """Test handling of missing config file options."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert agent.server_name == 'test_server'
-        assert agent.port == 12345
-        assert agent.processes == []
-        assert agent.interface is None
-        assert agent.whitelist_commands == []
+    assert agent.server_name == 'test_server'
+    assert agent.port == 12345
+    assert agent.processes == []
+    assert agent.interface is None
+    assert agent.whitelist_commands == []
 
 
 def test_config_file_empty_processes():
     """Test handling of empty processes list in config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
 processes =
 """
-        tmp.write(config_content)
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(tmp.name)
-        assert agent.processes == []
+    agent = load_agent_from_config(config_content)
+    assert agent.processes == []
 
 
 def test_config_file_empty_whitelist_commands():
     """Test handling of empty whitelist_commands in config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1170,19 +1163,15 @@ port = 12345
 [controller]
 whitelist_commands =
 """
-        tmp.write(config_content)
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(filename=tmp.name)
-        assert agent.whitelist_commands == []
+    agent = load_agent_from_config(config_content)
+    assert agent.whitelist_commands == []
 
 
 def test_config_file_whitelist_commands_extends_default():
     """Test that config whitelist_commands extends default list."""
     MockAgent.whitelist_commands = ['default_cmd1', 'default_cmd2']
 
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1190,15 +1179,12 @@ port = 12345
 [controller]
 whitelist_commands = config_cmd1,config_cmd2
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert 'default_cmd1' in agent.whitelist_commands
-        assert 'default_cmd2' in agent.whitelist_commands
-        assert 'config_cmd1' in agent.whitelist_commands
-        assert 'config_cmd2' in agent.whitelist_commands
+    assert 'default_cmd1' in agent.whitelist_commands
+    assert 'default_cmd2' in agent.whitelist_commands
+    assert 'config_cmd1' in agent.whitelist_commands
+    assert 'config_cmd2' in agent.whitelist_commands
 
     MockAgent.whitelist_commands = None
 
@@ -1551,3 +1537,121 @@ def test_status_to_dict_timestamp_format():
         "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
         % timestamp
     )
+
+
+def test_tag_parsing_full_config():
+    """
+    Test that all tags (env, role, region) are correctly parsed
+    from the config file.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+region = eu-central
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+        'region': 'eu-central',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_tag_parsing_partial_config():
+    """
+    Test that only provided tags are parsed, and missing ones are ignored.
+    """
+    config_content = """
+[server]
+name = test_server
+env = staging
+role = db
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'staging',
+        'role': 'db',
+    }
+    assert agent.tags == expected_tags
+    assert 'region' not in agent.tags
+
+
+def test_tag_parsing_ignores_empty_values():
+    """
+    Test that tags with empty values in the config are not included.
+    """
+    config_content = """
+[server]
+name = test_server
+env = dev
+role =
+region = us-east
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'dev',
+        'region': 'us-east',
+    }
+    assert agent.tags == expected_tags
+    assert 'role' not in agent.tags
+
+
+def test_tag_parsing_normalizes_values():
+    """
+    Tests that tag values are correctly normalized:
+    - Whitespace is stripped from both ends.
+    - Value is converted to lowercase.
+    """
+    config_content = """
+[server]
+name = test_server
+env =   Production
+role =   WEB
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_status_dict_includes_tags_when_present():
+    """
+    Test that status_to_dict() includes the 'tags' key
+    when tags are configured.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert 'tags' in status
+    assert status['tags'] == {'env': 'production', 'role': 'web'}
+
+
+def test_status_dict_omits_tags_for_backward_compatibility():
+    """
+    Test that status_to_dict() does not include the 'tags' key
+    when no tags are configured, ensuring backward compatibility.
+    """
+    config_content = """
+[server]
+name = old_agent_server
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert agent.tags == {}
+    assert 'tags' not in status

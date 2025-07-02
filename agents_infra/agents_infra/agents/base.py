@@ -117,6 +117,9 @@ class ServerAgent(object):
         # Thread-safe queue to store pending commands.
         self.command_queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
+        # Initialize tags
+        self.tags = {}
+
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
@@ -287,6 +290,20 @@ class ServerAgent(object):
                     cmd for cmd in whitelist_commands
                     if cmd not in self.whitelist_commands
                 )
+
+            # Read tags from the [server] section
+            tags = {}
+            for tag_key in ['env', 'role', 'region']:
+                tag_value = get_config_option(
+                    config,
+                    'server',
+                    tag_key,
+                    logger=self.logger,
+                )
+                if tag_value and tag_value.strip():
+                    tags[tag_key] = tag_value.strip().lower()
+            if tags:
+                self.tags = tags
 
     def collect_server_metadata(self):
         """
@@ -468,7 +485,7 @@ class ServerAgent(object):
         pass
 
     def status_to_dict(self):
-        return {
+        status_data = {
             'os': self.os_type,
             'hostname': self.hostname,
             'ip': self.ip,
@@ -477,6 +494,10 @@ class ServerAgent(object):
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
+        if self.tags:
+            status_data['tags'] = self.tags
+
+        return status_data
 
     def status_to_json(self, log=False):
         """

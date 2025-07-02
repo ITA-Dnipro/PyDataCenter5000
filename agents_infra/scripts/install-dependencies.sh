@@ -193,6 +193,11 @@ if ! python -c "import singledispatch"; then
     install_python_package_from_src singledispatch
 fi
 
+if ! python -c "import pytz"; then
+    get_package_src_from_tar pytz "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz"
+    install_python_package_from_src pytz
+fi
+
 if ! python -c "import coverage"; then
     get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
     install_python_package_from_src coverage

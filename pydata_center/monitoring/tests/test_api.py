@@ -258,6 +258,67 @@ class ReceiveStatusEndpointTests(APITestCase):
             'Saved server_name does not match'
         )
 
+    def test_receive_status_with_tags(self):
+        """
+        Test that a status update with a valid 'tags' payload
+        is correctly received and stored.
+        """
+        valid_data = self._get_valid_status_data()
+
+        expected_tags = {'env': 'production', 'role': 'db'}
+        valid_data['tags'] = expected_tags
+
+        response = self.client.post(self.url, data=valid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f'Expected 201 CREATED, '
+            f'got {response.status_code} with {response.data}'
+        )
+        self.assertTrue(
+            ServerStatus.objects
+            .filter(hostname=valid_data['hostname'])
+            .exists()
+        )
+
+        status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
+        self.assertDictEqual(
+            status_obj.tags,
+            expected_tags,
+            'Tags were not stored correctly'
+        )
+
+    def test_receive_status_without_tags_is_backward_compatible(self):
+        """
+        Test that a status update without a 'tags' payload is processed
+        correctly for backward compatibility.
+        """
+        valid_data = self._get_valid_status_data()
+        # 'tags' key is intentionally omitted from the payload
+
+        response = self.client.post(self.url, data=valid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f'Expected 201 CREATED for payload without tags, '
+            f'got {response.status_code}'
+        )
+        self.assertTrue(
+            ServerStatus.objects
+            .filter(hostname=valid_data['hostname'])
+            .exists()
+        )
+
+        status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
+        # We set default=dict in the model, so we expect an empty dict
+        self.assertDictEqual(
+            status_obj.tags,
+            {},
+            'Tags should be empty when not provided'
+        )
+
     def test_receive_invalid_status(self):
         invalid_data = {
             'hostname': '',
@@ -331,6 +392,29 @@ class ReceiveStatusEndpointTests(APITestCase):
             'hostname',
             response.data,
             "'hostname' should be reported as missing"
+        )
+
+    def test_receive_status_with_invalid_tags_format(self):
+        """
+        Test that a status update with an invalid format for 'tags'
+        (e.g., a string instead of a dict) returns a 400 Bad Request.
+        """
+        invalid_data = self._get_valid_status_data()
+        invalid_data['tags'] = 'This is not a valid json object'
+
+        response = self.client.post(self.url, data=invalid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            f'Expected 400 BAD REQUEST for invalid tags format, '
+            f'got {response.status_code}'
+        )
+        self.assertIn('tags', response.data)
+        self.assertTrue(
+            any('dictionary' in str(msg) for msg in response.data['tags']),
+            f'Expected a dictionary-related error message, '
+            f'got: {response.data["tags"]}'
         )
 
     def test_missing_ip_field(self):

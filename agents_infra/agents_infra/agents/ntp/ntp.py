@@ -72,9 +72,6 @@ class NTPAgent(ServerAgent):
             return True
 
         # Attempt restarts
-        for service in inactive_services:
-            restart_service(service, logger=self.logger)
-
         ssh_ok = self.is_ssh_service_active()
         ntp_ok = any(
             self._is_process_running(proc_name=proc)

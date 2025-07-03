@@ -1,3 +1,4 @@
+import logging
 import time
 
 from .agents import base as agent
@@ -7,6 +8,7 @@ from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
 from .utils import configtools
 
+logger = logging.getLogger('agent')
 cfg = configtools.load_global_config()
 
 if cfg is not None:
@@ -17,6 +19,7 @@ if cfg is not None:
             url.strip() for url in urls.split(',') if url.strip()
         ]
     else:
+        logger.warning('Controllers are not string. Default set to []')
         controller_urls = []
 
     agent.ServerAgent.controller_urls = controller_urls

@@ -22,8 +22,8 @@
         src: "{{ item }}"
         dest: /opt/agents_infra/
         recursive: yes
-        owner: root
-        group: root
+        owner: yes
+        group: yes
         mode: push
       loop:
         - agents_infra/

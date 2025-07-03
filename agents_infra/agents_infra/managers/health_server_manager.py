@@ -1,5 +1,4 @@
 import logging
-import threading
 
 from BaseHTTPServer import HTTPServer
 
@@ -13,7 +12,6 @@ class HealthServerManager(ServerManager):
         self.agent = agent
         self.port = port if port is not None else agent.health_port
         self.server = None
-        self.thread = None
 
     @property
     def logger(self):
@@ -22,31 +20,26 @@ class HealthServerManager(ServerManager):
         )
 
     def start(self):
-        def run():
-            try:
-                self.server = HTTPServer(('', self.port), HealthHandler)
-                self.server.server_name = self.agent.server_name
-                self.server.uptime = self.agent.uptime
-                self.server.is_service_healthy_callback = (
-                    self.agent.is_service_healthy
-                )
+        try:
+            self.server = HTTPServer(('', self.port), HealthHandler)
+            self.server.server_name = self.agent.server_name
+            self.server.uptime = self.agent.uptime
+            self.server.is_service_healthy_callback = (
+                self.agent.is_service_healthy
+            )
 
-                maybe_log_message(
-                    'Health server running at /health on port %s' % self.port,
-                    logger=self.logger,
-                    level=logging.INFO
-                )
-                self.server.serve_forever()
-            except Exception as e:
-                maybe_log_message(
-                    'Failed to start health server: %s' % e,
-                    logger=self.logger,
-                    exc_info=True
-                )
-
-        self.thread = threading.Thread(target=run, name='HealthServerThread')
-        self.thread.setDaemon(True)
-        self.thread.start()
+            maybe_log_message(
+                'Health server running at /health on port %s' % self.port,
+                logger=self.logger,
+                level=logging.INFO
+            )
+            self.server.serve_forever()
+        except Exception as e:
+            maybe_log_message(
+                'Failed to start health server: %s' % e,
+                logger=self.logger,
+                exc_info=True
+            )
 
     def stop(self):
         if self.server is not None:
@@ -58,7 +51,6 @@ class HealthServerManager(ServerManager):
             try:
                 self.server.shutdown()
                 self.server.server_close()
-                self.thread.join()
 
                 maybe_log_message(
                     'Health server shut down successfully.',
@@ -71,6 +63,3 @@ class HealthServerManager(ServerManager):
                     logger=self.logger,
                     level=logging.ERROR
                 )
-            finally:
-                del self.server
-                del self.thread

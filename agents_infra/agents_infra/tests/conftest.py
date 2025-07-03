@@ -1,28 +1,27 @@
 import logging
-import logging.config
 import os
 import sys
 import tempfile
+from io import StringIO
 
 import mock
 import pytest
-from StringIO import StringIO
 
 
-@pytest.fixture
-def setup_temp_file_logging_with_fallback(request):
-    import logging
-    import logging.config
-
-    original_stderr = sys.stderr
+@pytest.yield_fixture
+def setup_temp_file_logging_with_fallback():
+    """
+    Setup the primary file logger and the fallback stream logger for
+    tests.
+    """
+    # Temporarily redirect stderr (fallback logging destination).
+    stderr = sys.stderr
     sys.stderr = StringIO()
 
-    config_file = tempfile.NamedTemporaryFile(delete=False)
-    log_file = tempfile.NamedTemporaryFile(delete=False)
-    config_path = config_file.name
-    log_path = log_file.name
+    config = tempfile.NamedTemporaryFile(delete=False)
+    log = tempfile.NamedTemporaryFile(delete=False)
 
-    config_content = """
+    config.write("""
 [loggers]
 keys=root,fallback,supervisor
 
@@ -56,63 +55,48 @@ args=(sys.stderr,)
 [handler_file]
 class=FileHandler
 formatter=minimal
-args=('%s', 'w')
+args=('%(filename)s', 'w')
 
 [formatter_minimal]
 class=logging.Formatter
-format=%%(asctime)s - %%(name)s - %%(levelname)s - %%(message)s
-""" % log_path
+    """)
 
-    config_file.write(config_content)
-    config_file.close()
-    log_file.close()
+    config.close()
+    log.close()
 
-    try:
-        logging.config.fileConfig(config_path, disable_existing_loggers=False)
-    except Exception as e:
-        print('fileConfig failed: %s' % e)
+    logging.config.fileConfig(
+        config.name, defaults={'filename': log.name}
+    )
 
-    logger = logging.getLogger('mock-logger')
-    if not logger.handlers:
-        handler = logging.FileHandler(log_path)
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+    yield
 
-    def teardown():
-        if os.path.exists(config_path):
-            os.remove(config_path)
-        if os.path.exists(log_path):
-            os.remove(log_path)
-        sys.stderr = original_stderr
+    os.remove(config.name)
+    os.remove(log.name)
 
-    request.addfinalizer(teardown)
-
-    return log_path
+    sys.stderr = stderr
 
 
 @pytest.fixture
 def assert_msg_in_logfile(setup_temp_file_logging_with_fallback):
     def wrapped(msg):
         logger = logging.getLogger('mock-logger')
-        handler = None
-        for h in logger.handlers:
-            if isinstance(h, logging.FileHandler):
-                handler = h
-                break
 
-        if not handler:
-            raise RuntimeError('No file handler found in mock-logger')
+        if (
+            not len(logger.handlers) == 1
+            or not isinstance(logger.handlers[0], logging.FileHandler)
+        ):
+            raise RuntimeError(
+                'Something went wrong with temp file logging setup'
+            )
 
-        with open(handler.baseFilename, 'r') as f:
+        with open(logger.handlers[0].baseFilename, 'r') as f:
+            f.seek(0)
             contents = f.read()
 
         assert msg in contents, (
-            'Expected log message "%s" not found. Log contents:\n%s'
-            % (msg, contents)
+            'Expected log message %s not found. Log contents:\n %s' % (
+                msg, contents
+            )
         )
 
     return wrapped
@@ -122,10 +106,11 @@ def assert_msg_in_logfile(setup_temp_file_logging_with_fallback):
 def dummy_supervisor(setup_temp_file_logging_with_fallback, monkeypatch):
     from ..supervisor import AgentSupervisor
 
-    def get_logger(self):
+    @property
+    def mock_logger(self):
         return logging.getLogger('mock-logger')
 
-    monkeypatch.setattr(AgentSupervisor, 'logger', property(get_logger))
+    monkeypatch.setattr(AgentSupervisor, 'logger', mock_logger)
 
     agent = mock.MagicMock()
     supervisor = AgentSupervisor(agent)

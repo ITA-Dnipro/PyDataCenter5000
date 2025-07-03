@@ -41,6 +41,7 @@ class AgentMetricSerializer(serializers.ModelSerializer):
 
 class ServerStatusSerializer(serializers.ModelSerializer):
     metrics = AgentMetricSerializer(many=True, read_only=True)
+    tags = serializers.JSONField(required=False)
 
     class Meta:
         model = ServerStatus
@@ -57,6 +58,13 @@ class ServerStatusSerializer(serializers.ModelSerializer):
     def validate_server_name(self, value):
         if not value.isidentifier():
             raise serializers.ValidationError('Invalid server name format.')
+        return value
+
+    def validate_tags(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(
+                'Invalid data. Expected a dictionary object.'
+            )
         return value
 
 

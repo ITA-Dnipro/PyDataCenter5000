@@ -91,3 +91,4 @@ yarl==1.15.2
 zipp==3.20.2
 zope.event==5.0
 zope.interface==7.2
+beautifulsoup4==4.13.4

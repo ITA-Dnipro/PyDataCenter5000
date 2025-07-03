@@ -11,9 +11,9 @@ from StringIO import StringIO
 
 @pytest.fixture
 def setup_temp_file_logging_with_fallback(request):
-    """
-    Setup a temporary file logger and fallback stderr logger for tests.
-    """
+    import logging
+    import logging.config
+
     original_stderr = sys.stderr
     sys.stderr = StringIO()
 
@@ -67,7 +67,20 @@ format=%%(asctime)s - %%(name)s - %%(levelname)s - %%(message)s
     config_file.close()
     log_file.close()
 
-    logging.config.fileConfig(config_path)
+    try:
+        logging.config.fileConfig(config_path, disable_existing_loggers=False)
+    except Exception as e:
+        print('fileConfig failed: %s' % e)
+
+    logger = logging.getLogger('mock-logger')
+    if not logger.handlers:
+        handler = logging.FileHandler(log_path)
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
 
     def teardown():
         if os.path.exists(config_path):

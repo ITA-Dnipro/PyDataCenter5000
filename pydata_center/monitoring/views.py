@@ -452,7 +452,6 @@ def metrics_graphing_page(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAdminOrOperatorForWrite])
-@throttle_classes([])
 def receive_log(request):
     """POST endpoint for receiving logs from agents."""
     serializer = AgentLogEntrySerializer(data=request.data)

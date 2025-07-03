@@ -24,10 +24,13 @@ logger.info(f'PASSWORD: {PASSWORD}')
 class AgentUser(HttpUser):
     """Simulated user that sends log messages at random intervals."""
     wait_time = between(0.1, 0.3)
+    token = None
 
     def on_start(self):
         """Get authentication token when user starts."""
-        self.token = self.get_token()
+        if not AgentUser.token:
+            AgentUser.token = self.get_token()
+        self.token = AgentUser.token
 
     def get_token(self):
         import requests

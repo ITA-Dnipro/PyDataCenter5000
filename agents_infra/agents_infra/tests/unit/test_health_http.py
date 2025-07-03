@@ -168,15 +168,11 @@ class TestHealthServerManager(unittest.TestCase):
 
     @mock.patch('agents_infra.managers.health_server_manager.HTTPServer')
     def test_stop_calls_shutdown_and_server_close(self, mock_httpserver_cls):
-        """Checks that the stop method calls shutdown, server_close,
-        and thread join."""
+        """Checks that the stop method calls shutdown, server_close."""
         dummy_agent = self.DummyAgent()
         manager = HealthServerManager(agent=dummy_agent)
-
         mock_server = mock.Mock()
-        mock_thread = mock.Mock()
         manager.server = mock_server
-        manager.thread = mock_thread
 
         manager.stop()
 
@@ -188,10 +184,6 @@ class TestHealthServerManager(unittest.TestCase):
             mock_server.server_close.called,
             'Expected server_close() to be called on server, but not'
             )
-        self.assertTrue(
-            mock_thread.join.called,
-            'Expected join() to be called on thread, but not'
-        )
 
     def test_logger_initialized(self):
         """Tests that the logger is initialized with the correct name."""

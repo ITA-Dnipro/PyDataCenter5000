@@ -9,6 +9,14 @@
         msg: "agents_infra only supports Linux OS."
       when: ansible_facts['os_family'] not in ['Debian', 'RedHat']
 
+    - name: Allow passwordless sudo
+      copy:
+        dest: "/etc/sudoers.d/{{ ansible_user }}"
+        content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL"
+        owner: root
+        group: root
+        mode: '0440'
+
     - name: Initialize agents_infra directory
       file:
         path: /opt/agents_infra

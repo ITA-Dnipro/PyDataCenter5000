@@ -14,33 +14,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = None
-
 USERNAME = os.getenv('LOCUST_USERNAME', 'user')
 PASSWORD = os.getenv('LOCUST_PASSWORD', 'password')
 
 logger.info(f'USERNAME: {USERNAME}')
 logger.info(f'PASSWORD: {PASSWORD}')
-
-
-def get_token_once():
-    """Get authentication token from API.
-    Returns cached token if available."""
-    global TOKEN
-    if TOKEN:
-        return TOKEN
-    import requests
-    response = requests.post('http://127.0.0.1:8000/api/v1/token/', json={
-        'username': USERNAME,
-        'password': PASSWORD
-    })
-    if response.status_code == 200:
-        TOKEN = response.json()['access']
-        logger.info(f'TOKEN: {TOKEN[:20]}...')
-        return TOKEN
-    else:
-        logger.error(f'Login failed: {response.status_code}')
-        return None
 
 
 class AgentUser(HttpUser):
@@ -49,7 +27,21 @@ class AgentUser(HttpUser):
 
     def on_start(self):
         """Get authentication token when user starts."""
-        self.token = get_token_once()
+        self.token = self.get_token()
+
+    def get_token(self):
+        import requests
+        response = requests.post('http://127.0.0.1:8000/api/v1/token/', json={
+            'username': USERNAME,
+            'password': PASSWORD
+        })
+        if response.status_code == 200:
+            token = response.json()['access']
+            logger.info(f'TOKEN: {token[:20]}...')
+            return token
+        else:
+            logger.error(f'Login failed: {response.status_code}')
+            return None
 
     @task
     def send_log(self):

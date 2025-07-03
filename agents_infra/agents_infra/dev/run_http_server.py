@@ -70,6 +70,21 @@ def main():
         health_manager = HealthServerManager(agent=agent)
         supervisor = AgentSupervisor(agent=agent, managers=[health_manager])
 
+        # --- Signal handling for graceful shutdown ---
+        def shutdown_handler(signum, frame):
+            logging.info(
+                'Received signal %s, shutting down gracefully...', signum
+            )
+            try:
+                supervisor.stop_managers()
+            except Exception as e:
+                logging.warning('Error while stopping managers: %s', e)
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, shutdown_handler)
+        signal.signal(signal.SIGTERM, shutdown_handler)
+
+        # --- Schedule and start ---
         supervisor.schedule_exit(min_delay=1, max_delay=3)
 
         def start_health_server():

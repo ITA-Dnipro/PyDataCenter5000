@@ -288,9 +288,7 @@ class ServerAgent(object):
             'agent_name': self.server_name,
             'level': level,
             'message': message,
-            'timestamp': (
-                datetime.datetime.now(datetime.timezone.utc).isoformat()
-            ),
+            'timestamp': self.timestamp,
             'context': context or {},
         }
 
@@ -609,12 +607,12 @@ class ServerAgent(object):
         """
         if to_controller:
             if not self.controller_url:
-                self.log_with_controller(
+                maybe_log_message(
                     (
                         "Couldn't send POST request to controller: "
                         'controller URL is not set'
                     ),
-                    level=logging.ERROR,
+                    logger=self.logger,
                 )
                 return
 
@@ -634,8 +632,9 @@ class ServerAgent(object):
 
         for attempt in range(1, max_retries + 1):
             try:
-                self.log_with_controller(
+                maybe_log_message(
                     '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
                     level=logging.INFO
                 )
 
@@ -645,37 +644,42 @@ class ServerAgent(object):
                 result = response.read()
                 status_code = response.getcode()
 
-                self.log_with_controller(
+                maybe_log_message(
                     'POST request status: %d' % status_code,
+                    logger=self.logger,
                     level=logging.INFO
                 )
 
                 response.close()
 
-                self.log_with_controller(
+                maybe_log_message(
                     'POST request succeeded on attempt %d: %s' % (
                         attempt, result
                     ),
+                    logger=self.logger,
                     level=logging.INFO,
                 )
 
                 return result
             except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-                self.log_with_controller(
+                maybe_log_message(
                     'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
                     level=logging.ERROR,
                 )
 
                 if attempt < max_retries:
-                    self.log_with_controller(
+                    maybe_log_message(
                         'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
                         level=logging.WARNING,
                     )
                     time.sleep(delay * attempt)
                 else:
-                    self.log_with_controller(
+                    maybe_log_message(
                         'All %d attempts failed. Data not sent. '
                         'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
                         level=logging.CRITICAL,
                     )
 

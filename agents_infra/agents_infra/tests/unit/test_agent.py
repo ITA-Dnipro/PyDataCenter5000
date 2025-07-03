@@ -789,6 +789,7 @@ def test_is_port_open_tcp_failure(monkeypatch):
 
     agent.ip = '127.0.0.1'
     agent.protocol = 'tcp'
+    agent.send_logs_to_controller = False
 
     mock_socket = mock.MagicMock()
     mock_socket.connect = mock.MagicMock(
@@ -1192,7 +1193,7 @@ def test_fetch_command_from_controller_headers_default():
     agent = MockAgent(port=12345)
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
-
+    agent.send_logs_to_controller = False
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
@@ -1215,10 +1216,10 @@ def test_fetch_command_from_controller_headers_default():
 def test_fetch_command_from_controller_headers_with_api_key():
     """Test that headers include Authorization when api_key is provided."""
     agent = MockAgent(port=12345)
-
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
     agent.auth_token_type = 'Bearer'
+    agent.send_logs_to_controller = False
 
     captured_request = {'headers': None}
 
@@ -1249,6 +1250,7 @@ def test_fetch_command_from_controller_headers_with_kwargs():
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
     agent.auth_token_type = 'Bearer'
+    agent.send_logs_to_controller = False
 
     captured_request = {'headers': None}
 
@@ -1285,6 +1287,7 @@ def test_fetch_command_from_controller_headers_kwargs_override():
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
     agent.auth_token_type = 'Bearer'
+    agent.send_logs_to_controller = False
 
     captured_request = {'headers': None}
 
@@ -1318,6 +1321,7 @@ def test_fetch_command_from_controller_headers_update():
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
     agent.auth_token_type = 'Bearer'
+    agent.send_logs_to_controller = False
 
     captured_request = {'headers': None}
 

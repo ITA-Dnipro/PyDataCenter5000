@@ -1,5 +1,5 @@
 ---
-- name: Install agents_infra
+- name: Install agents-infra
   hosts: all
   become: yes
 
@@ -17,23 +17,24 @@
         group: root
         mode: '0755'
 
-    - name: Copy agents_infra
-      copy:
+    - name: Copy agents_infra source
+      synchronize:
         src: "{{ item }}"
         dest: /opt/agents_infra/
+        recursive: yes
         owner: root
         group: root
-        mode: '0755'
+        mode: push
       loop:
         - agents_infra/
         - scripts/
         - requirements.txt
 
-    # --- Linux systemd task ---
+    # --- Copy systemd service file to run agents_infra as a service ---
     - name: Copy systemd service file
       copy:
-        src: agents_infra.service
-        dest: /etc/systemd/system/agents_infra.service
+        src: agents-infra.service
+        dest: /etc/systemd/system/agents-infra.service
         owner: root
         group: root
         mode: '0644'
@@ -45,8 +46,8 @@
       systemd:
         daemon_reload: yes
 
-    - name: Enable and start agents_infra service
+    - name: Enable and start agents-infra service
       systemd:
-        name: agents_infra
+        name: agents-infra
         enabled: yes
         state: started

@@ -1,0 +1,20 @@
+- name: Uninstall agents-infra
+  hosts: all
+  become: yes
+
+  tasks:
+  - name: Stop and disable systemd service
+    systemd:
+      name: agents-infra
+      enabled: no
+      state: stopped
+
+  - name: Remove systemd service file (Linux)
+    file:
+      path: /etc/systemd/system/agents-infra.service
+      state: absent
+
+  - name: Remove agents_infra directory
+    file:
+      path: /opt/agents_infra
+      state: absent

@@ -1,5 +1,6 @@
 import logging
 import os
+import signal
 import sys
 
 
@@ -69,11 +70,22 @@ def main():
         health_manager = HealthServerManager(agent=agent)
         supervisor = AgentSupervisor(agent=agent, managers=[health_manager])
 
-        logging.info('Starting all managers and entering signal pause...')
-        supervisor.start_managers()
+        supervisor.schedule_exit(min_delay=1, max_delay=3)
+
+        def start_health_server():
+            health_manager.start()
+
+        supervisor.schedule(
+            start_health_server,
+            max_retries=1,
+            weak=False,
+        )
+
+        logging.info('Supervisor started, event loop running...')
+        supervisor.start()
 
     except Exception as e:
-        logging.exception('Error while running agent: %s' % e)
+        logging.exception('Error while running agent: %s', e)
         sys.exit(1)
 
 

@@ -1,6 +1,5 @@
 import itertools
 import logging
-import signal
 import threading
 
 import coro
@@ -34,9 +33,6 @@ class AgentSupervisor(object):
 
         self.counter = itertools.count(1)
 
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-
     @property
     def logger(self):
         return logging.getLogger(
@@ -63,7 +59,6 @@ class AgentSupervisor(object):
             logger=self.logger,
             level=logging.INFO
         )
-        signal.pause()
 
     def stop_managers(self):
         """Stops the managers."""
@@ -361,12 +356,3 @@ class AgentSupervisor(object):
 
         coroutine = coro.spawn(exit)
         self.put_coro(0, coroutine)
-
-    def _signal_handler(self, signum, frame):
-        maybe_log_message(
-            'Received signal %s, shutting down...' % signum,
-            logger=self.logger,
-            level=logging.INFO
-        )
-        self.stop_health_server()
-        sys.exit(0)

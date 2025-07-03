@@ -1,0 +1,52 @@
+---
+- name: Install agents_infra
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Fail if not Linux
+      fail:
+        msg: "agents_infra only supports Linux OS."
+      when: ansible_facts['os_family'] not in ['Debian', 'RedHat']
+
+    - name: Initialize agents_infra directory
+      file:
+        path: /opt/agents_infra
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy agents_infra
+      copy:
+        src: "{{ item }}"
+        dest: /opt/agents_infra/
+        owner: root
+        group: root
+        mode: '0755'
+      loop:
+        - agents_infra/
+        - scripts/
+        - requirements.txt
+
+    # --- Linux systemd task ---
+    - name: Copy systemd service file
+      copy:
+        src: agents_infra.service
+        dest: /etc/systemd/system/agents_infra.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install dependencies
+      script: scripts/install-dependencies.sh
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start agents_infra service
+      systemd:
+        name: agents_infra
+        enabled: yes
+        state: started

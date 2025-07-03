@@ -1,0 +1,14 @@
+from datetime import timedelta
+
+from .settings import REST_FRAMEWORK, SIMPLE_JWT
+
+REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] = []
+REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES'] = [
+    'rest_framework.permissions.AllowAny',
+]
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {}
+
+
+SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'] = timedelta(days=7)
+SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'] = timedelta(days=30)

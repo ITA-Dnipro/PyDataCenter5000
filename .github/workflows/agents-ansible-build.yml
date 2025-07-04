@@ -1,0 +1,38 @@
+name: Agents Ansible Build and Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 156-build-package-installer-for-agents
+  pull_request:
+    branches:
+      - main
+      - develop
+
+defaults:
+  run:
+    working-directory: agents_infra
+
+jobs:
+  ansible-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build --platform linux/amd64 \
+            -t agents-infra-ansible-build \
+            -f .ci/Dockerfile .
+
+      - name: Run Tests
+        run: |
+          docker run --rm agents-infra-ansible-build \
+          bash -c "
+            python -m pytest -m 'not integration' agents_infra
+          "

@@ -1,8 +1,10 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
-COPY ../scripts/config.env /tmp/config.env
-COPY ../scripts/environment/docker.env /tmp/docker.env
-COPY ../scripts/install-dependencies.sh /tmp/install-dependencies.sh
+RUN apt update && \
+    apt install -y ansible rsync sudo
 
-RUN chmod +x /tmp/install-dependencies.sh && \
-    /tmp/install-dependencies.sh
+WORKDIR /workspace
+
+COPY . /workspace
+
+RUN ansible-playbook -i "localhost," playbooks/install.yaml -c local

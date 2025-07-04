@@ -2,6 +2,8 @@
 - name: Install agents-infra
   hosts: all
   become: yes
+  vars:
+    proj_root: "{{ playbook_dir }}/.."
 
   tasks:
     - name: Fail if not Linux
@@ -27,7 +29,7 @@
 
     - name: Copy agents_infra source
       synchronize:
-        src: "{{ item }}"
+        src: "{{ proj_root }}/{{ item }}"
         dest: /opt/agents_infra/
         recursive: yes
         owner: yes

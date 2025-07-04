@@ -156,11 +156,11 @@ class ServerAgent(object):
         Parameters:
             category (str, optional): Report category.
         """
-        reports = {'server_name': self.server_name}
+        report_data = {'server_name': self.server_name}
 
         # Update report with server's identity data.
         if category == 'status':
-            reports.update({'hostname': self.hostname, 'ip': self.ip})
+            report_data.update({'hostname': self.hostname, 'ip': self.ip})
 
         for name, p in inspect.getmembers(
             type(self),
@@ -170,14 +170,15 @@ class ServerAgent(object):
         ):
             if p.enabled and (category is None or p.category == category):
                 try:
-                    reports[p.name] = p(self)
+                    report_data[p.name] = p(self)
                 except Exception as e:
                     maybe_log_message(
                         'Plugin %s failed due to error: %s' % (name, str(e)),
                         logger=self.logger,
+                        exc_info=True,
                     )
 
-        return reports
+        return report_data
 
     @property
     def logger(self):

@@ -35,14 +35,14 @@
     # --- Copy systemd service file to run agents_infra as a service ---
     - name: Copy systemd service file
       copy:
-        src: agents-infra.service
+        src: "{{ proj_root }}/agents-infra.service"
         dest: /etc/systemd/system/agents-infra.service
         owner: root
         group: root
         mode: '0644'
 
     - name: Install dependencies
-      script: scripts/install-dependencies.sh
+      script: "{{ proj_root }}/scripts/install-dependencies.sh"
 
     - name: Reload systemd
       systemd:

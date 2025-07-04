@@ -17,6 +17,7 @@ class AgentSimulator(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):
+        # Authenticate
         resp = self.client.post(
             f'{API_PREFIX}/token/',
             json={'username': USERNAME, 'password': PASSWORD}
@@ -26,8 +27,12 @@ class AgentSimulator(HttpUser):
         token = resp.json()['access']
         self.client.headers.update({'Authorization': f'Bearer {token}'})
 
+        # Init agent state
         self.hostname = random_hostname()
-        self.ip = f'192.168.1.{random.randint(2,254)}'
+        self.ip = f'192.168.1.{random.randint(2, 254)}'
+
+        # Preload valid command IDs
+        self.valid_ids = list(range(117, 200))
 
     @task(3)
     def send_status(self):
@@ -53,10 +58,11 @@ class AgentSimulator(HttpUser):
 
     @task(1)
     def submit_result(self):
-        fake_id = random.randint(1, 100)
+        fake_id = random.choice(self.valid_ids)
         self.client.patch(
-            f'{API_PREFIX}/command/result/{fake_id}/',
+            f'{API_PREFIX}/command/result/',
             json={
+                'id': fake_id,
                 'status': random.choice(['done', 'failed']),
                 'result': 'simulated-result',
             }

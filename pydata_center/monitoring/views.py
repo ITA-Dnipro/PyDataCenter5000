@@ -10,7 +10,7 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -20,7 +20,8 @@ from .alerts import (alert_if_command_failed, alert_if_unhealthy,
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
-                          ServerStatusSerializer, TriggeredAlertSerializer)
+                          ServerStatusSerializer, SetTagsSerializer,
+                          TriggeredAlertSerializer)
 from .utils import extract_status_data, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -431,3 +432,55 @@ def metrics_graphing_page(request):
         'historical_metrics.html',
         {'hostnames': hostnames}
     )
+
+
+@extend_schema(
+    tags=['Agents'],
+    request=SetTagsSerializer,
+    responses={
+        202: OpenApiResponse(
+            description='Command to set tags has been queued.'
+        ),
+        400: OpenApiResponse(
+            description='Invalid or missing tags.'
+        ),
+        404: OpenApiResponse(
+            description='Agent not found.'
+        ),
+    },
+    description='Queues a "set_tags" command for a specific agent.'
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminOrOperatorForWrite])
+def set_agent_tags(request, hostname):
+    """
+    Creates a 'set_tags' command for a given agent.
+    The agent will pick up this command on its next check-in.
+    """
+    if not ServerStatus.objects.filter(hostname=hostname).exists():
+        return Response(
+            {'error': f'Agent with hostname "{hostname}" not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    serializer = SetTagsSerializer(data=request.data)
+    if serializer.is_valid():
+        CommandHistory.objects.create(
+            hostname=hostname,
+            type='agent',
+            status='pending',
+            params={
+                'command': 'set_tags',
+                'args': serializer.validated_data
+            }
+        )
+        return Response(
+            {
+                'message': (
+                    f"Command to set tags for agent '{hostname}' "
+                    f'has been queued.'
+                )
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

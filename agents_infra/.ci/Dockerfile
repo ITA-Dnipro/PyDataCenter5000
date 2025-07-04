@@ -11,4 +11,4 @@ WORKDIR /workspace
 
 COPY . /workspace
 
-RUN ansible-playbook -i hosts playbooks/install.yaml -l ci
+RUN ansible-playbook -i hosts playbooks/install.yaml -l local

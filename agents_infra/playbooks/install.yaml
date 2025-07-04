@@ -11,14 +11,18 @@
         msg: "agents_infra only supports Linux OS."
       when: ansible_facts['os_family'] not in ['Debian', 'RedHat']
 
-    - name: Set system and env vars
+    - name: Set system vars
       set_fact:
         has_systemd: >-
           {{
             (ansible_facts['systemd'] is defined)
             and ansible_facts['systemd']
           }}
-        env_file: "{{ proj_root }}/scripts/environments/agents-infra.sh"
+
+    - name: Load env file
+      community.general.read_dotenv:
+        path: "{{ proj_root }}/scripts/environments/agents-infra.sh"
+      register: env_vars
 
     - name: Initialize agents_infra directory
       file:
@@ -52,15 +56,14 @@
 
     - name: Install dependencies
       script: "{{ proj_root }}/scripts/install-dependencies.sh"
-      environment:
-        ENV_FILE: env_file
+      environment: "{{ lookup('envs') }}"
 
     - name: Run tests
-      shell: |
-        set -a
-        source "{{ env_file }}"
-        set +a
-        "${PYTHON_DIR}/bin/python -m pytest -m 'not integration' agents_infra"
+      command: >
+        ${PYTHON_DIR}/bin/python -m pytest
+        -m 'not integration' agents_infra
+      environment:
+        PYTHON_DIR: "{{ lookup('env', 'PYTHON_DIR') }}"
       args:
         chdir: "{{ proj_root }}"
       when: run_tests | default(false)

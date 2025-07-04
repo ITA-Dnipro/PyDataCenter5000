@@ -4,6 +4,7 @@ ARG RUN_TESTS=true
 
 RUN apt update && \
     apt install -y ansible rsync sudo
+RUN ansible-galaxy collection install community.general
 
 WORKDIR /workspace
 

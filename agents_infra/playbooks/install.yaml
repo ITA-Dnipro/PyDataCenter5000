@@ -34,7 +34,7 @@
       loop:
         - agents_infra/
         - scripts/
-        - requirements.txt
+        - main.py
 
     # --- Copy systemd service file to run agents_infra as a service ---
     - name: Copy systemd service file

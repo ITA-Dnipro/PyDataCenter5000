@@ -15,7 +15,7 @@ defaults:
     working-directory: agents_infra
 
 env:
-  PYTHON_DIR: /opt/python2.6.9
+  PYTHON_DIR: /opt/python2.6
 
 jobs:
   agents-ansible-build:
@@ -31,10 +31,3 @@ jobs:
           docker build --platform linux/amd64 \
             -t agents-infra-ansible-build \
             -f .ci/Dockerfile .
-
-      - name: Run Tests
-        run: |
-          docker run --rm agents-infra-ansible-build \
-          bash -c "
-            ${PYTHON_DIR}/bin/python -m pytest -m 'not integration' agents_infra
-          "

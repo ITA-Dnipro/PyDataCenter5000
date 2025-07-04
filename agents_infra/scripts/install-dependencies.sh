@@ -1,20 +1,12 @@
 #!/bin/bash
 set -e
-
-scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-set -a
-if [ -f "$scripts_dir/config.env" ]; then
-    source "$scripts_dir/config.env"
-fi
-
 if [ -z "$ENV_FILE" ]; then
     echo "[WARN] $ENV_FILE is not set - falling back to default values."
 else
-    if [ ! -f "$scripts_dir/${ENV_FILE}" ]; then
+    if [ ! -f "${ENV_FILE}" ]; then
         echo "[WARN] Environment file ${ENV_FILE} not found in ${scripts_dir}."
     else
-        source "$scripts_dir/${ENV_FILE}"
+        source "${ENV_FILE}"
     fi
 fi
 set +a

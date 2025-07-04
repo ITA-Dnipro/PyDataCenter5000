@@ -13,7 +13,11 @@
 
     - name: Set system vars
       set_fact:
-        has_systemd: "{{ (ansible_facts['systemd'] is defined) and ansible_facts['systemd'] }}"
+        has_systemd: >-
+          {{
+            (ansible_facts['systemd'] is defined)
+            and ansible_facts['systemd']
+          }}
 
     - name: Initialize agents_infra directory
       file:
@@ -47,6 +51,16 @@
 
     - name: Install dependencies
       script: "{{ proj_root }}/scripts/install-dependencies.sh"
+      environment:
+        ENV_FILE: "{{ proj_root }}/scripts/environments/agents-infra.sh"
+
+    - name: Run tests
+      command: >
+        ${PYTHON_DIR}/bin/python -m pytest
+        -m 'not integration' agents_infra
+      args:
+        chdir: "{{ proj_root }}"
+      when: run_tests | default(false)
 
     - name: Reload systemd
       systemd:

@@ -1,22 +1,21 @@
 name: Agents Ansible Build and Tests
 
 on:
+  schedule:
+    - cron: '0 2 * * *'
   push:
     branches:
       - main
       - develop
       - 156-build-package-installer-for-agent
-  pull_request:
-    branches:
-      - main
-      - develop
+  workflow_dispatch:
 
 defaults:
   run:
     working-directory: agents_infra
 
 jobs:
-  ansible-build:
+  agents-ansible-build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

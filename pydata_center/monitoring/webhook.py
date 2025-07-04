@@ -1,6 +1,4 @@
-import hashlib
 import logging
-import sys
 from dataclasses import dataclass
 
 import requests

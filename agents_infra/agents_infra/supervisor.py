@@ -24,8 +24,9 @@ class AgentSupervisor(object):
             exit.
     """
 
-    def __init__(self, agent):
+    def __init__(self, agent, managers=None):
         self.agent = agent
+        self.managers = managers or []
 
         self._coros = {}  # Store coroutine IDs and references
         self._lock = threading.Lock()
@@ -48,6 +49,21 @@ class AgentSupervisor(object):
             )
 
         coro.event_loop(timeout)
+
+    def start_managers(self):
+        """Starts the managers. Blocks until explicitly stopped."""
+        for manager in self.managers:
+            manager.start()
+        maybe_log_message(
+            'All managers started. Running main loop...',
+            logger=self.logger,
+            level=logging.INFO
+        )
+
+    def stop_managers(self):
+        """Stops the managers."""
+        for manager in self.managers:
+            manager.stop()
 
     def sleep(self, interval):
         """

@@ -1,5 +1,6 @@
 import random
 import string
+from datetime import datetime
 
 from locust import HttpUser, between, task
 
@@ -34,9 +35,12 @@ class AgentSimulator(HttpUser):
             f'{API_PREFIX}/server/status/',
             json={
                 'hostname': self.hostname,
-                'ip':       self.ip,
-                'uptime':   round(random.uniform(0, 10000), 2),
-                'healthy':  random.choice([True, False]),
+                'ip': self.ip,
+                'uptime': round(random.uniform(0, 10000), 2),
+                'healthy': random.choice([True, False]),
+                'timestamp': datetime.utcnow().isoformat(),
+                'os': random.choice(['Linux', 'Windows', 'macOS']),
+                'server_name': self.hostname.replace('-', '_'),
             }
         )
 
@@ -51,9 +55,8 @@ class AgentSimulator(HttpUser):
     def submit_result(self):
         fake_id = random.randint(1, 100)
         self.client.patch(
-            f'{API_PREFIX}/command/result/',
+            f'{API_PREFIX}/command/result/{fake_id}/',
             json={
-                'id':     fake_id,
                 'status': random.choice(['done', 'failed']),
                 'result': 'simulated-result',
             }

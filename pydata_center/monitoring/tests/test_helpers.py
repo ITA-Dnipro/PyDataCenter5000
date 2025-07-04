@@ -135,3 +135,191 @@ class TestGetLatestAgents:
 
         assert len(agents) == 1
         assert agents[0]['offline'] is expected_status
+
+    def setup_filtering_data(self):
+        """
+        Helper method to create a standard set of agents for filtering tests.
+        """
+        ServerStatus.objects.all().delete()
+
+        self.right_now = now()
+        self.past_time = self.right_now - timedelta(minutes=10)
+
+        ServerStatus.objects.create(
+            hostname='web-server-01',
+            ip='192.168.1.1',
+            uptime=100,
+            healthy=True,
+            timestamp=self.right_now,
+            tags={'env': 'production', 'role': 'web'}
+        )
+
+        ServerStatus.objects.create(
+            hostname='db-server-01',
+            ip='192.168.1.2',
+            uptime=200,
+            healthy=True,
+            timestamp=self.right_now,
+            tags={'env': 'production', 'role': 'db'}
+        )
+
+        ServerStatus.objects.create(
+            hostname='staging-web-01',
+            ip='192.168.2.1',
+            uptime=300,
+            healthy=False,
+            timestamp=self.right_now,
+            tags={'env': 'staging', 'role': 'web'}
+        )
+
+        ServerStatus.objects.create(
+            hostname='offline-server',
+            ip='192.168.3.1',
+            uptime=400,
+            healthy=True,
+            timestamp=self.past_time
+        )
+
+    def test_filter_by_hostname_icontains(self):
+        """
+        Tests filtering by a partial, case-insensitive hostname.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'hostname': 'SERVER-01'}
+        )
+
+        assert len(agents) == 2
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'db-server-01'}
+
+    def test_filter_by_ip_icontains(self):
+        """
+        Tests filtering by a partial IP address.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'ip': '192.168.1'}
+        )
+
+        assert len(agents) == 2
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'db-server-01'}
+
+    def test_filter_by_tag_icontains_and_case_insensitivity(self):
+        """
+        Tests that tag filtering uses 'icontains' and is case-insensitive.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'tag_env': 'prod', 'tag_role': 'WEB'}
+        )
+
+        assert len(agents) == 1
+        assert agents[0]['hostname'] == 'web-server-01'
+
+    def test_filter_by_healthy_status(self):
+        """
+        Tests filtering by 'healthy' status.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'healthy': 'false'}
+        )
+
+        assert len(agents) == 1
+        assert agents[0]['hostname'] == 'staging-web-01'
+
+        agents = get_latest_agents(
+            query_params={'healthy': 'true'}
+        )
+        assert len(agents) == 3
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'db-server-01', 'offline-server'}
+
+    def test_filter_ignores_invalid_healthy_value(self):
+        """
+        Tests that an invalid value for the 'healthy' filter is ignored.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'healthy': 'maybe'}
+        )
+
+        assert len(agents) == 4
+
+    def test_filter_by_online_offline_status(self):
+        """
+        Tests filtering by 'online'/'offline' status.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'status': 'offline'}
+        )
+        assert len(agents) == 1
+        assert agents[0]['hostname'] == 'offline-server'
+
+        agents = get_latest_agents(
+            query_params={'status': 'online'}
+        )
+        assert len(agents) == 3
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'db-server-01', 'staging-web-01'}
+
+    def test_filter_ignores_invalid_status_value(self):
+        """
+        Tests that an invalid value for the 'status' filter is ignored.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'status': 'dead'}
+        )
+
+        assert len(agents) == 4
+
+    def test_combined_filters_work_together(self):
+        """
+        Tests a combination of multiple different filters.
+        """
+        self.setup_filtering_data()
+        params = {
+            'tag_env': 'production',
+            'healthy': 'true',
+            'status': 'online'
+        }
+        agents = get_latest_agents(query_params=params)
+
+        assert len(agents) == 2
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'db-server-01'}
+
+    def test_filter_strips_whitespace_from_values(self):
+        """
+        Tests that leading/trailing whitespace is ignored in filter values.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'tag_role': '  web  '}
+        )
+
+        assert len(agents) == 2
+
+        hostnames = {agent['hostname'] for agent in agents}
+        assert hostnames == {'web-server-01', 'staging-web-01'}
+
+    def test_filter_returns_no_results_for_nonexistent_match(self):
+        """
+        Tests that a query with no possible match returns an empty list.
+        """
+        self.setup_filtering_data()
+        agents = get_latest_agents(
+            query_params={'hostname': 'nonexistent-host'}
+        )
+
+        assert len(agents) == 0
+        assert agents == []

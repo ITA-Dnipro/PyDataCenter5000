@@ -4,11 +4,11 @@ ARG RUN_TESTS=true
 
 RUN apt update && \
     apt install -y ansible rsync sudo
-RUN ansible-galaxy collection install community.general
 
 WORKDIR /workspace
-
 COPY . /workspace
+
+RUN ansible-galaxy collection install community.general
 
 RUN ansible-playbook -i hosts \
     playbooks/install.yaml \

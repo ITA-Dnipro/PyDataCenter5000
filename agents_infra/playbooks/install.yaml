@@ -4,6 +4,14 @@
   become: yes
   vars:
     proj_root: "{{ playbook_dir }}/.."
+    proj_env: &proj_env
+      DEBIAN_FRONTEND: >-
+        {{ lookup('env', 'DEBIAN_FRONTEND')
+          | default('noninteractive', true) }}
+      PYTHON_DIR: >-
+        {{ lookup('env', 'PYTHON_DIR') | default('/opt/python2.6', true) }}
+      INSTALL_CORO: >-
+        {{ lookup('env', 'INSTALL_CORO') | default('true', true) }}
 
   tasks:
     - name: Fail if not Linux
@@ -18,11 +26,6 @@
             (ansible_facts['systemd'] is defined)
             and ansible_facts['systemd']
           }}
-
-    - name: Load env file
-      community.general.read_dotenv:
-        path: "{{ proj_root }}/scripts/environments/agents-infra.sh"
-      register: env_vars
 
     - name: Initialize agents_infra directory
       file:
@@ -56,14 +59,13 @@
 
     - name: Install dependencies
       script: "{{ proj_root }}/scripts/install-dependencies.sh"
-      environment: "{{ lookup('envs') }}"
+      environment: *proj_env
 
     - name: Run tests
       command: >
         ${PYTHON_DIR}/bin/python -m pytest
         -m 'not integration' agents_infra
-      environment:
-        PYTHON_DIR: "{{ lookup('env', 'PYTHON_DIR') }}"
+      environment: *proj_env
       args:
         chdir: "{{ proj_root }}"
       when: run_tests | default(false)

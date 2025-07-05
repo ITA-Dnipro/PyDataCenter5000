@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 if [ -z "$ENV_FILE" ]; then
-    echo "[WARN] $ENV_FILE is not set - falling back to default values."
+    echo "[WARN] $ENV_FILE not set."
 else
     if [ ! -f "${ENV_FILE}" ]; then
         echo "[WARN] Environment file ${ENV_FILE} not found in ${scripts_dir}."

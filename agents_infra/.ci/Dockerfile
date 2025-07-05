@@ -8,8 +8,6 @@ RUN apt update && \
 WORKDIR /workspace
 COPY . /workspace
 
-RUN ansible-galaxy collection install community.general
-
 RUN ansible-playbook -i hosts \
     playbooks/install.yaml \
     -l local -e run_tests=true

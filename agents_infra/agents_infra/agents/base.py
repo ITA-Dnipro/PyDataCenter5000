@@ -76,6 +76,7 @@ class ServerAgent(object):
             self,
             server_name=None,
             port=None,
+            health_port=8081,
             processes=None,
             critical_processes=None,
             interface=None,
@@ -86,9 +87,22 @@ class ServerAgent(object):
             current_controller=None
     ):
         if controller_urls is None:
+            maybe_log_message(
+                (
+                    'Controller URLs are empty'
+                ),
+                logger=self.logger,
+            )
             self.controller_urls = []
+
+        self.health_thread = None
         self.server_name = server_name
         self.port = port if port is not None else self.port
+        self.health_port = (
+            health_port
+            if health_port is not None
+            else self.health_port
+        )
         self.processes = processes if processes is not None else self.processes
         self.interface = interface
         self.current_controller = current_controller
@@ -177,6 +191,16 @@ class ServerAgent(object):
         if not isinstance(value, int):
             raise TypeError('Port number must be an integer')
         self._port = value
+
+    @property
+    def health_port(self):
+        return getattr(self, '_health_port', 8081)
+
+    @health_port.setter
+    def health_port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('Health port must be an integer')
+        self._health_port = value
 
     @property
     def processes(self):

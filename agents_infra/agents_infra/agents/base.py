@@ -87,12 +87,6 @@ class ServerAgent(object):
             current_controller=None
     ):
         if controller_urls is None:
-            maybe_log_message(
-                (
-                    'Controller URLs are empty'
-                ),
-                logger=self.logger,
-            )
             self.controller_urls = []
 
         self.health_thread = None

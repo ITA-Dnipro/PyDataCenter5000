@@ -233,6 +233,50 @@ def poll_result(
             return None
 
 
+def set_tags(
+        hostname: str,
+        tags: Dict[str, str],
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+) -> None:
+    """
+    Send a request to the /set-tags/ endpoint for a specific agent.
+    """
+    url = f"{base_url.rstrip('/')}/v1/agents/{hostname}/set-tags/"
+    auth = resolve_auth(username, password)
+
+    if not auth:
+        logger.error('You must login first using the "login" command.')
+        return
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
+
+    try:
+        response = requests.post(
+            url,
+            json=tags,
+            headers=headers,
+            auth=auth
+        )
+        response.raise_for_status()
+        logger.info(
+            f"{response.json().get('message', 'Command queued successfully.')}"
+        )
+    except requests.HTTPError as http_err:
+        if http_err.response.status_code in (400, 404):
+            error_details = http_err.response.json()
+            logger.error(
+                f'{http_err.response.status_code} - {error_details}'
+            )
+        else:
+            logger.error(f'HTTP error occurred: {http_err}')
+    except requests.RequestException as req_err:
+        logger.error(f'Request failed: {req_err}')
+
+
 # === CLI handlers ===
 def handle_login(args):
     login(args.username, args.password)

@@ -12,7 +12,8 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from monitoring.email import send_async_email
-from monitoring.models import AgentMetric, AlertRule, ServerStatus
+from monitoring.models import (AgentMetric, AlertRule, CommandHistory,
+                               ServerStatus)
 from monitoring.tasks import evaluate_agent_alerts
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
 from rest_framework import status
@@ -1112,4 +1113,195 @@ class MetricsHistoryViewTests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
             f'Expected 200 OK for naive datetime, got {response.status_code}'
+        )
+
+
+class SetAgentTagsAPITest(APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username='test_user',
+            password='test_password'
+        )
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
+        cls.hostname = 'test_hostname'
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
+        ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip='127.0.0.1',
+            uptime=123,
+            timestamp=timezone.now(),
+            os='linux',
+            server_name='test-server'
+        )
+        self.url = reverse(
+            'monitoring:set_agent_tags',
+            args=[self.hostname]
+        )
+
+    def test_set_tags_success(self):
+        """
+        Test that a valid request successfully creates a command.
+        """
+        payload = {'env': 'production', 'role': 'web'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'A valid payload should be accepted.'
+        )
+        self.assertEqual(
+            CommandHistory.objects.count(),
+            1,
+            'A command should be created in the database.'
+        )
+
+        command = CommandHistory.objects.first()
+        self.assertEqual(
+            command.hostname,
+            self.hostname,
+            'Command should be linked to the correct hostname.'
+        )
+        self.assertEqual(
+            command.type,
+            'agent',
+            'Command type should be "agent".'
+        )
+        self.assertEqual(
+            command.status,
+            'pending',
+            'Initial command status should be "pending".'
+        )
+        self.assertEqual(
+            command.params['command'],
+            'set_tags',
+            'The specific command in params should be "set_tags".'
+        )
+        self.assertEqual(
+            command.params['args'],
+            payload,
+            'Command arguments should match the payload.'
+        )
+
+    def test_partial_update_success(self):
+        """
+        Test that a request with a single tag succeeds.
+        """
+        payload = {'role': 'database'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'A request with a subset of valid tags should be accepted.'
+        )
+        command = CommandHistory.objects.first()
+        self.assertEqual(
+            command.params['args'],
+            {'role': 'database'},
+            'Command arguments should reflect the partial update.'
+        )
+
+    def test_empty_payload_fails(self):
+        """
+        Test that an empty JSON object is rejected with a 400 error.
+        """
+        response = self.client.post(
+            self.url,
+            data={},
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            'An empty payload should be rejected.'
+        )
+
+    def test_invalid_key_fails(self):
+        """
+        Test that a request with unknown keys is rejected.
+        """
+        payload = {'env': 'staging', 'location': 'kyiv'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            'A payload with invalid keys should be rejected.'
+        )
+
+    def test_nonexistent_agent_fails(self):
+        """
+        Test that a request for a non-existent agent returns 404.
+        """
+        bad_url = reverse(
+            'monitoring:set_agent_tags',
+            args=['unknown-agent']
+        )
+        payload = {'env': 'test'}
+        response = self.client.post(
+            bad_url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            'Request for a non-existent agent should result in a 404 error.'
+        )
+
+    def test_unauthenticated_fails(self):
+        """
+        Test that an unauthenticated request is rejected.
+        """
+        unauthenticated_client = APIClient()
+        payload = {'env': 'test'}
+        response = unauthenticated_client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+            'Unauthenticated access should be denied with 401 or 403.'
+        )
+
+    def test_values_are_normalized(self):
+        """
+        Test that tag values are stripped and converted to lowercase.
+        """
+        payload = {'env': '  Production ', 'role': ' WEB '}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'Normalization should not prevent a valid request.'
+        )
+        command = CommandHistory.objects.first()
+        expected_args = {'env': 'production', 'role': 'web'}
+        self.assertEqual(
+            command.params['args'],
+            expected_args,
+            'Tag values should be properly stripped and lowercased.'
         )

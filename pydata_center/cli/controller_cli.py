@@ -325,6 +325,38 @@ def handle_poll(args):
     poll_result(args.id, username=auth[0], password=auth[1])
 
 
+def handle_set_tags(args):
+    """
+    Handler for the set-tags command.
+    """
+    auth = get_auth_from_env()
+    if not auth:
+        logger.error("You must login first using the 'login' command.")
+        return
+
+    if all(value is None for value in [args.env, args.role, args.region]):
+        logger.error(
+            'Error: At least one tag (--env, --role, or --region) '
+            'must be provided.'
+        )
+        return
+
+    tags_payload = {}
+    if args.env is not None:
+        tags_payload['env'] = args.env
+    if args.role is not None:
+        tags_payload['role'] = args.role
+    if args.region is not None:
+        tags_payload['region'] = args.region
+
+    set_tags(
+        hostname=args.hostname,
+        tags=tags_payload,
+        username=auth[0],
+        password=auth[1]
+    )
+
+
 # === Main ===
 def main() -> None:
     parser = argparse.ArgumentParser(

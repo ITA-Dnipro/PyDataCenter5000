@@ -225,10 +225,16 @@ if [ "$INSTALL_CORO" = "true" ]; then
         validate_installation cython
     fi
 
-    if ! ${PYTHON_DIR}/bin/python -c "import distribute"; then
+    if ! ${PYTHON_DIR}/bin/python -c "import sys;
+    try:
+        import setuptools
+        sys.exit(0 if not setuptools.__version__.startswith('0.6') else 1)
+    except ImportError:
+        sys.exit(1)
+    "; then
         get_package_src_from_tar distribute "https://files.pythonhosted.org/packages/03/08/16815ba1e7d7dc21289c0ea89bffea4c34cc4d10979d2f3f64837ee51087/distribute-0.6.26.tar.gz"
         install_python_package_from_src distribute
-        validate_installation distribute
+        validate_installation setuptools
     fi
 
     if ! ${PYTHON_DIR}/bin/python -c "import pycrypto"; then

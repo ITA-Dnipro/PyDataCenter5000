@@ -8,5 +8,5 @@ RUN apt update && \
 WORKDIR /workspace
 COPY . /workspace
 
-RUN ansible-playbook playbooks/install.yaml \
-    -l local -e run_tests=true
+RUN ansible-playbook playbooks/install.yaml -l local \
+     -e "run_tests=true fail_if_dep_missing=true"

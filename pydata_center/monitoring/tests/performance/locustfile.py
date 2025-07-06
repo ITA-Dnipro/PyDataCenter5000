@@ -1,5 +1,7 @@
+import logging
 import random
 import string
+import time
 from datetime import datetime
 
 from locust import HttpUser, between, task
@@ -7,6 +9,8 @@ from locust import HttpUser, between, task
 API_PREFIX = '/api/v1'
 USERNAME = 'locust_tester'
 PASSWORD = 'supersecret'
+
+logger = logging.getLogger(__name__)
 
 
 def random_hostname():
@@ -17,13 +21,26 @@ class AgentSimulator(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):
-        # Authenticate
-        resp = self.client.post(
-            f'{API_PREFIX}/token/',
-            json={'username': USERNAME, 'password': PASSWORD}
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(f'JWT login failed: {resp.text}')
+        # Authenticate with up to 3 retries
+        resp = None
+        for attempt in range(1, 4):
+            resp = self.client.post(
+                f'{API_PREFIX}/token/',
+                json={'username': USERNAME, 'password': PASSWORD}
+            )
+            if resp.status_code == 200:
+                break
+            logger.warning(
+                f'Auth attempt {attempt} failed '
+                f'(status {resp.status_code}); retrying...'
+            )
+            time.sleep(0.5)
+        else:
+            logger.error(
+                'JWT login failed after 3 attempts; skipping this user'
+            )
+            return  # Abort init, but user stays alive to run other tasks
+
         token = resp.json()['access']
         self.client.headers.update({'Authorization': f'Bearer {token}'})
 

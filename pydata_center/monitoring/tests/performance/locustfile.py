@@ -39,7 +39,7 @@ class AgentSimulator(HttpUser):
             logger.error(
                 'JWT login failed after 3 attempts; skipping this user'
             )
-            return  # Abort init, but user stays alive to run other tasks
+            return
 
         token = resp.json()['access']
         self.client.headers.update({'Authorization': f'Bearer {token}'})
@@ -48,8 +48,15 @@ class AgentSimulator(HttpUser):
         self.hostname = random_hostname()
         self.ip = f'192.168.1.{random.randint(2, 254)}'
 
-        # Preload valid command IDs
-        self.valid_ids = list(range(117, 200))
+        # Load all pending command IDs for this hostname
+        pending = self.client.get(
+            f'{API_PREFIX}/commands/',
+            params={'hostname': self.hostname, 'status': 'pending'}
+        )
+        if pending.status_code == 200:
+            self.valid_ids = [cmd['id'] for cmd in pending.json()]
+        else:
+            self.valid_ids = []
 
     @task(3)
     def send_status(self):
@@ -68,19 +75,29 @@ class AgentSimulator(HttpUser):
 
     @task(1)
     def fetch_pending(self):
-        self.client.get(
+        r = self.client.get(
             f'{API_PREFIX}/command/fetch/',
             params={'hostname': self.hostname}
         )
+        if r.status_code == 200:
+            cmd = r.json()
+            # If still pending, keep its ID in the pool
+            if cmd.get('status') == 'pending':
+                self.valid_ids.append(cmd['id'])
 
     @task(1)
     def submit_result(self):
-        fake_id = random.choice(self.valid_ids)
-        self.client.patch(
+        if not self.valid_ids:
+            return  # Nothing to report
+        cmd_id = random.choice(self.valid_ids)
+        resp = self.client.patch(
             f'{API_PREFIX}/command/result/',
             json={
-                'id': fake_id,
+                'id': cmd_id,
                 'status': random.choice(['done', 'failed']),
                 'result': 'simulated-result',
             }
         )
+        if resp.status_code == 200:
+            # Once processed, remove from pool
+            self.valid_ids.remove(cmd_id)

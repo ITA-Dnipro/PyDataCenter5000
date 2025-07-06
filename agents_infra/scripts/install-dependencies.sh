@@ -128,6 +128,11 @@ if ! "${PYTHON_DIR}/bin/python" --version > /dev/null 2>&1; then
     cd .. && rm -rf python
 fi
 
+if ! ${PYTHON_DIR}/bin/python --version >/dev/null 2>&1; then
+    echo "[ERROR] Python not found or not working at ${PYTHON_DIR}/bin/python"
+    exit 127
+fi
+
 echo "[INFO] Python version:" && ${PYTHON_DIR}/bin/python --version
 
 if ! ${PYTHON_DIR}/bin/python -c "import setuptools"; then

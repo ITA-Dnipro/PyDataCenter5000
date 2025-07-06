@@ -1,9 +1,6 @@
 from typing import Any, Dict
 
-import requests
 from django.http import HttpRequest
-
-from .models import Webhook
 
 
 def get_client_ip(request: HttpRequest) -> str:

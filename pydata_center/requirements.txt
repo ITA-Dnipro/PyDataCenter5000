@@ -52,4 +52,5 @@ pytest==8.3.5
 pytest-cov==4.1.0
 pytest-django==4.8.0
 discord.py==2.5.2
+freezegun==1.5.2
 beautifulsoup4==4.13.4

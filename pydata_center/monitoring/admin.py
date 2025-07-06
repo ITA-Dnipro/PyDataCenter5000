@@ -1,10 +1,9 @@
 from django.contrib import admin
-from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (AgentMetric, AlertRule, CommandHistory, ServerStatus,
-                     Webhook)
+from .models import (AgentMetric, AgentPingStatus, AlertRule, CommandHistory,
+                     ServerStatus, Webhook)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -117,3 +116,14 @@ class AlertRuleAdmin(admin.ModelAdmin):
 @admin.register(Webhook)
 class WebhookAdmin(admin.ModelAdmin):
     list_display = ('url', 'enabled')
+
+
+@admin.register(AgentPingStatus)
+class AgentPingStatusAdmin(admin.ModelAdmin):
+    list_display = (
+        'agent_name', 'ip', 'timestamp', 'uptime', 'status'
+    )
+    list_filter = ('status', )
+    search_fields = ('agent_name', 'ip')
+    readonly_fields = ('agent_name', 'ip', 'uptime', 'status', 'timestamp')
+    ordering = ('-timestamp', )

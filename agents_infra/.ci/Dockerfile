@@ -8,6 +8,5 @@ RUN apt update && \
 WORKDIR /workspace
 COPY . /workspace
 
-RUN ansible-playbook -i hosts \
-    playbooks/install.yaml \
+RUN ansible-playbook playbooks/install.yaml \
     -l local -e run_tests=true

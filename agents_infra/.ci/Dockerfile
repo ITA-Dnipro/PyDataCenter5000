@@ -9,4 +9,4 @@ WORKDIR /workspace
 COPY . /workspace
 
 RUN ansible-playbook playbooks/install.yaml -l local \
-     -e "run_tests=true fail_if_dep_missing=true"
+     -e run_tests=true

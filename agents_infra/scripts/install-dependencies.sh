@@ -242,10 +242,10 @@ if [ "$INSTALL_CORO" = "true" ]; then
         validate_installation setuptools
     fi
 
-    if ! ${PYTHON_DIR}/bin/python -c "import pycrypto"; then
+    if ! ${PYTHON_DIR}/bin/python -c "import Crypto"; then
         get_package_src_from_tar pycrypto "https://files.pythonhosted.org/packages/60/db/645aa9af249f059cc3a368b118de33889219e0362141e75d4eaf6f80f163/pycrypto-2.6.1.tar.gz"
         install_python_package_from_src pycrypto
-        validate_installation pycrypto
+        validate_installation Crypto
     fi
 
     if ! ${PYTHON_DIR}/bin/python -c "import coro"; then

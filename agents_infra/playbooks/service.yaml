@@ -1,0 +1,35 @@
+---
+- name: Start service
+  hosts: all
+  become: yes
+  vars_files:
+    - vars/common.yaml
+
+  tasks:
+    - name: Check for systemd
+      set_fact:
+        has_systemd: >-
+          {{
+            (ansible_facts['systemd'] is defined)
+            and ansible_facts['systemd']
+          }}
+
+    - name: Copy systemd service file
+      copy:
+        src: "{{ proj_root }}/agents-infra.service"
+        dest: /etc/systemd/system/agents-infra.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+      when: has_systemd
+
+    - name: Enable agents-infra service
+      systemd:
+        name: agents-infra
+        enabled: yes
+        state: started
+      when: has_systemd

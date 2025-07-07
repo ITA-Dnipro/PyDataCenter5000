@@ -11,5 +11,5 @@ RUN gem install --no-document fpm -v 1.15.1
 WORKDIR /workspace
 COPY . /workspace
 
-RUN ansible-playbook playbooks/install.yaml -l local \
+RUN ansible-playbook playbooks/main.yaml -l local \
      -e "run_tests=${RUN_TESTS} fail_if_dep_missing=true"

@@ -30,4 +30,4 @@ jobs:
         run: |
           docker build --platform linux/amd64 \
             -t agents-infra-ansible-build \
-            -f .ci/Dockerfile .
+            -f Dockerfile .

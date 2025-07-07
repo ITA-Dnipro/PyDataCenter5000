@@ -5,9 +5,10 @@ from io import StringIO
 from unittest.mock import Mock, patch
 
 import requests
-from cli.controller_cli import (handle_agents, handle_login, handle_poll,
-                                handle_send, handle_set_tags, list_agents,
-                                poll_result, send_command, truncate)
+from cli.controller_cli import (base_url, handle_agents, handle_login,
+                                handle_poll, handle_send, handle_set_tags,
+                                list_agents, poll_result, send_command,
+                                set_tags, truncate)
 
 
 class TestTruncateFunction(unittest.TestCase):
@@ -445,3 +446,90 @@ class TestHandlers(unittest.TestCase):
             'must be provided.'
         )
         mock_set_tags.assert_not_called()
+
+
+class TestSetTagsFunction(unittest.TestCase):
+    """
+    Tests for the low-level set_tags() function.
+    """
+
+    @patch('cli.controller_cli.requests.post')
+    def test_set_tags_api_call_success(self, mock_post):
+        """
+        Test the set_tags function for a successful API call.
+        """
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            'message': 'Command queued successfully.'
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        with self.assertLogs('cli.controller_cli', level='INFO') as log:
+            set_tags(
+                hostname='agent-x',
+                tags={'env': 'staging'},
+                username='user',
+                password='pwd'
+            )
+
+        self.assertIn(
+            'Command queued successfully.',
+            '\n'.join(log.output)
+        )
+        expected_url = f"{base_url.rstrip('/')}/v1/agents/agent-x/set-tags/"
+        mock_post.assert_called_once_with(
+            expected_url,
+            json={'env': 'staging'},
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            auth=('user', 'pwd')
+        )
+
+    @patch('cli.controller_cli.requests.post')
+    def test_set_tags_api_call_http_400_error(self, mock_post):
+        """
+        Test the set_tags function for a 400 HTTP error.
+        """
+        error_payload = {'error': 'Invalid data provided'}
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.json.return_value = error_payload
+        http_error = requests.HTTPError(response=mock_response)
+        mock_response.raise_for_status.side_effect = http_error
+        mock_post.return_value = mock_response
+
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            set_tags(
+                hostname='agent-x',
+                tags={'invalid': 'tag'},
+                username='user',
+                password='pwd'
+            )
+
+        self.assertIn(f'400 - {error_payload}', '\n'.join(log.output))
+
+    @patch('cli.controller_cli.requests.post')
+    def test_set_tags_api_call_http_404_error(self, mock_post):
+        """
+        Test the set_tags function for a 404 HTTP error (agent not found).
+        """
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.json.return_value = {'detail': 'Not found.'}
+        http_error = requests.HTTPError(response=mock_response)
+        mock_response.raise_for_status.side_effect = http_error
+        mock_post.return_value = mock_response
+
+        hostname_to_test = 'non-existent-agent'
+        with self.assertLogs('cli.controller_cli', level='ERROR') as log:
+            set_tags(
+                hostname=hostname_to_test,
+                tags={'env': 'test'},
+                username='user',
+                password='pwd'
+            )
+
+        self.assertIn("404 - {'detail': 'Not found.'}", '\n'.join(log.output))

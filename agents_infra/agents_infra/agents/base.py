@@ -294,18 +294,18 @@ class ServerAgent(object):
                 )
 
                 # Read tags from the [server] section
-                tags = {}
-                for tag_key in ['env', 'role', 'region']:
-                    tag_value = get_config_option(
-                        config,
-                        'server',
-                        tag_key,
-                        logger=self.logger,
-                    )
-                    if tag_value and tag_value.strip():
-                        tags[tag_key] = tag_value.strip().lower()
-                if tags:
-                    self.tags = tags
+            tags = {}
+            for tag_key in ['env', 'role', 'region']:
+                tag_value = get_config_option(
+                    config,
+                    'server',
+                    tag_key,
+                    logger=self.logger,
+                )
+                if tag_value and tag_value.strip():
+                    tags[tag_key] = tag_value.strip().lower()
+            if tags:
+                self.tags = tags
 
     def get_token_file_path(self, token_path=None):
         if token_path is None:
@@ -658,14 +658,12 @@ class ServerAgent(object):
             url = urljoin(base_api_url, url)
 
         headers = {'Content-Type': 'application/json'}
-        print(self.auth_token_type)
         if api_key:
             headers.update(
                 {'Authorization': 'Bearer %s' % (api_key,)}
             )
         if kwargs:
             headers.update(kwargs)
-        print(headers)
         if not isinstance(payload, str):
             payload = json.dumps(payload)
 
@@ -740,7 +738,6 @@ class ServerAgent(object):
         if not getattr(self, 'auth_token', None):
             self.register_agent_if_needed()
 
-        print(self.auth_token)
         return self.post_data(
             url=url,
             payload=payload,
@@ -984,7 +981,7 @@ class ServerAgent(object):
         base_api_url = urljoin(self.controller_url, self.api_prefix)
         metrics_api_url = urljoin(base_api_url, suffix)
         url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
-        print(url)
+
         payload = self.generate_report()
         try:
             result = self.post_data_with_auth(

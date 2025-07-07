@@ -60,12 +60,13 @@
     - name: Install dependencies
       script: "{{ proj_root }}/scripts/install-dependencies.sh"
       environment: *proj_env
-      register: missing
+      register: result
+      ignore_errors: yes
 
     - name: Fail if dependencies are missing
       fail:
-        msg: "Found {{ missing.rc }} missing dependencies!"
-      when: missing.rc != 0 and (fail_if_dep_missing | default(false))
+        msg: "Found {{ result.rc }} missing dependencies!"
+      when: result.rc != 0 and (fail_if_dep_missing | default(false))
 
     - name: Run tests
       command: >

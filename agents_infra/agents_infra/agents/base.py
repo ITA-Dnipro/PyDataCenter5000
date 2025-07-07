@@ -209,6 +209,7 @@ class ServerAgent(object):
         filename = filename or pkg_resources.resource_filename(
             self.__class__.__module__, 'config.ini'
         )
+        self.config_path = filename
 
         config = ConfigParser.ConfigParser()
         config.read(filename)
@@ -856,3 +857,48 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
+
+    def set_tags(self, tags):
+        """
+        Updates tags in the config file and reloads the agent's configuration.
+        """
+        if not isinstance(tags, dict):
+            msg = "Command 'set_tags' failed: expected a dictionary of tags."
+            self.logger.error(msg)
+            return msg
+
+        if not tags:
+            msg = "Command 'set_tags' received empty tags. No action taken."
+            self.logger.warning(msg)
+            return msg
+
+        try:
+            from ..utils.configtools import write_config_options
+
+            self.logger.info(
+                'Received set_tags command. Applying new tags: %s',
+                tags
+            )
+            write_config_options(self.config_path, 'server', tags)
+
+            self.logger.info(
+                'Reloading configuration from %s',
+                self.config_path
+            )
+            self._parse_config_file(self.config_path)
+
+            msg = 'Tags updated successfully.'
+            self.logger.info(
+                '%s Current tags are now: %s',
+                msg,
+                self.tags
+            )
+            return msg
+
+        except Exception as e:
+            self.logger.error(
+                'Failed to execute set_tags command: %s',
+                e,
+                exc_info=True
+            )
+            return 'Failed to set tags: %s' % e

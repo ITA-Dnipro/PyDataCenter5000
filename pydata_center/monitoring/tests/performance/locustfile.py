@@ -21,7 +21,7 @@ class AgentSimulator(HttpUser):
     wait_time = between(1, 3)
 
     def on_start(self):
-        # Authenticate with up to 3 retries
+        self.active = False  # default to inactive
         resp = None
         for attempt in range(1, 4):
             resp = self.client.post(
@@ -30,25 +30,16 @@ class AgentSimulator(HttpUser):
             )
             if resp.status_code == 200:
                 break
-            logger.warning(
-                f'Auth attempt {attempt} failed '
-                f'(status {resp.status_code}); retrying...'
-            )
             time.sleep(0.5)
         else:
-            logger.error(
-                'JWT login failed after 3 attempts; skipping this user'
-            )
-            return
+            return  # login failed
 
         token = resp.json()['access']
         self.client.headers.update({'Authorization': f'Bearer {token}'})
 
-        # Init agent state
         self.hostname = random_hostname()
         self.ip = f'192.168.1.{random.randint(2, 254)}'
 
-        # Load all pending command IDs for this hostname
         pending = self.client.get(
             f'{API_PREFIX}/commands/',
             params={'hostname': self.hostname, 'status': 'pending'}
@@ -58,8 +49,12 @@ class AgentSimulator(HttpUser):
         else:
             self.valid_ids = []
 
+        self.active = True  # only mark active after full setup
+
     @task(3)
     def send_status(self):
+        if not getattr(self, 'active', False):
+            return
         self.client.post(
             f'{API_PREFIX}/server/status/',
             json={
@@ -75,20 +70,23 @@ class AgentSimulator(HttpUser):
 
     @task(1)
     def fetch_pending(self):
+        if not getattr(self, 'active', False):
+            return
         r = self.client.get(
             f'{API_PREFIX}/command/fetch/',
             params={'hostname': self.hostname}
         )
         if r.status_code == 200:
             cmd = r.json()
-            # If still pending, keep its ID in the pool
             if cmd.get('status') == 'pending':
                 self.valid_ids.append(cmd['id'])
 
     @task(1)
     def submit_result(self):
+        if not getattr(self, 'active', False):
+            return
         if not self.valid_ids:
-            return  # Nothing to report
+            return
         cmd_id = random.choice(self.valid_ids)
         resp = self.client.patch(
             f'{API_PREFIX}/command/result/',
@@ -99,5 +97,4 @@ class AgentSimulator(HttpUser):
             }
         )
         if resp.status_code == 200:
-            # Once processed, remove from pool
             self.valid_ids.remove(cmd_id)

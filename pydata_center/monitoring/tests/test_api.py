@@ -1182,12 +1182,12 @@ class SetAgentTagsAPITest(APITestCase):
             'Initial command status should be "pending".'
         )
         self.assertEqual(
-            command.params['command'],
+            command.params['method'],
             'set_tags',
             'The specific command in params should be "set_tags".'
         )
         self.assertEqual(
-            command.params['args'],
+            command.params['kwargs'],
             payload,
             'Command arguments should match the payload.'
         )
@@ -1209,7 +1209,7 @@ class SetAgentTagsAPITest(APITestCase):
         )
         command = CommandHistory.objects.first()
         self.assertEqual(
-            command.params['args'],
+            command.params['kwargs'],
             {'role': 'database'},
             'Command arguments should reflect the partial update.'
         )
@@ -1301,7 +1301,7 @@ class SetAgentTagsAPITest(APITestCase):
         command = CommandHistory.objects.first()
         expected_args = {'env': 'production', 'role': 'web'}
         self.assertEqual(
-            command.params['args'],
+            command.params['kwargs'],
             expected_args,
             'Tag values should be properly stripped and lowercased.'
         )

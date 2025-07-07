@@ -470,8 +470,8 @@ def set_agent_tags(request, hostname):
             type='agent',
             status='pending',
             params={
-                'command': 'set_tags',
-                'args': serializer.validated_data
+                'method': 'set_tags',
+                'kwargs': serializer.validated_data
             }
         )
         return Response(

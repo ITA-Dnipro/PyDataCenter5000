@@ -7,6 +7,7 @@ import socket
 import tempfile
 import types
 
+import ConfigParser
 import mock
 import psutil
 import pytest
@@ -86,6 +87,34 @@ class MockAgent(ServerAgent):
 
     def maybe_restart_service(self):
         return super(MockAgent, self).maybe_restart_service()
+
+
+@pytest.fixture
+def agent_with_temp_config(request):
+    """
+    Pytest fixture to create a MockAgent with a temporary config file.
+    """
+    with mock.patch.object(
+            MockAgent,
+            'logger',
+            new_callable=mock.PropertyMock
+    ) as mocked_logger:
+        mocked_logger.return_value = mock.MagicMock()
+
+        agent = MockAgent(server_name='tag_test_agent')
+
+        temp_config = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        config_path = temp_config.name
+        temp_config.write('[server]\nenv = dev\n')
+        temp_config.close()
+
+        agent._parse_config_file(config_path)
+
+        def finalizer():
+            os.remove(config_path)
+        request.addfinalizer(finalizer)
+
+        return agent, config_path
 
 
 def mock_popen_with_output(stdout, stderr=''):
@@ -1653,3 +1682,44 @@ name = old_agent_server
 
     assert agent.tags == {}
     assert 'tags' not in status
+
+
+def test_set_tags_updates_config_and_reloads_state(agent_with_temp_config):
+    agent, config_path = agent_with_temp_config
+    assert agent.tags == {'env': 'dev'}
+
+    new_tags = {'env': 'production', 'role': 'web'}
+    result = agent.set_tags(new_tags)
+
+    assert result == 'Tags updated successfully.'
+    assert agent.tags == new_tags
+
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    assert config.get('server', 'env') == 'production'
+    assert config.get('server', 'role') == 'web'
+
+
+def test_set_tags_removes_tag_with_empty_string(agent_with_temp_config):
+    agent, config_path = agent_with_temp_config
+    assert 'env' in agent.tags
+
+    tags_to_remove = {'env': ''}
+    result = agent.set_tags(tags_to_remove)
+
+    assert result == 'Tags updated successfully.'
+    assert 'env' not in agent.tags
+
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    assert not config.has_option('server', 'env')
+
+
+def test_set_tags_handles_empty_dict(agent_with_temp_config):
+    agent, config_path = agent_with_temp_config
+    initial_tags = agent.tags.copy()
+
+    result = agent.set_tags({})
+
+    assert 'No action taken' in result
+    assert agent.tags == initial_tags

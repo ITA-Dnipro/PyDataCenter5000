@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 import ConfigParser
@@ -99,3 +100,28 @@ def get_config_option(
             )
 
     return default
+
+
+def write_config_options(config_path, section, options_to_update):
+    """
+    Atomically updates or removes options in a given section of a .ini file.
+    - If a value is an empty string or None, the option is removed.
+    - Otherwise, the option is set.
+    """
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+
+    if not config.has_section(section):
+        config.add_section(section)
+
+    for key, value in options_to_update.items():
+        str_value = str(value) if value is not None else ''
+        if str_value:
+            config.set(section, key, str_value)
+        elif config.has_option(section, key):
+            config.remove_option(section, key)
+
+    temp_path = config_path + '.tmp'
+    with open(temp_path, 'w') as temp_configfile:
+        config.write(temp_configfile)
+    os.rename(temp_path, config_path)

@@ -362,18 +362,31 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description='CLI to interact with agents via Django Controller.'
     )
-    subparsers = parser.add_subparsers(dest='command')
+    subparsers = parser.add_subparsers(
+        dest='command',
+        help='Available commands'
+    )
 
-    subparsers.add_parser('agents', help='List active agents')
+    # agents
+    agents_parser = subparsers.add_parser(
+        'agents',
+        help='List active agents'
+    )
+    agents_parser.set_defaults(func=lambda args: handle_agents())
 
+    # login
     login_parser = subparsers.add_parser(
-        'login', help='Login and store credentials'
+        'login',
+        help='Login and store credentials'
     )
     login_parser.add_argument('--username', required=True, help='Username')
     login_parser.add_argument('--password', required=True, help='Password')
+    login_parser.set_defaults(func=handle_login)
 
+    # send
     send_parser = subparsers.add_parser(
-        'send', help='Send command to agent'
+        'send',
+        help='Send command to agent'
     )
     send_parser.add_argument('hostname', help="Agent's hostname")
     send_parser.add_argument('cmd', help='Command to send to agent')
@@ -382,22 +395,19 @@ def main() -> None:
         help='Poll for result after sending',
         action='store_true'
     )
+    send_parser.set_defaults(func=handle_send)
 
+    # poll
     poll_parser = subparsers.add_parser(
-        'poll', help='Poll result of command'
+        'poll',
+        help='Poll result of command'
     )
     poll_parser.add_argument('id', help='Command ID', type=int)
+    poll_parser.set_defaults(func=handle_poll)
 
     args = parser.parse_args()
-
-    if args.command == 'login':
-        handle_login(args)
-    elif args.command == 'agents':
-        handle_agents()
-    elif args.command == 'send':
-        handle_send(args)
-    elif args.command == 'poll':
-        handle_poll(args)
+    if hasattr(args, 'func'):
+        args.func(args)
     else:
         parser.print_help()
 

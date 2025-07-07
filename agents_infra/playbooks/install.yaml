@@ -48,6 +48,37 @@
         - scripts/
         - main.py
 
+    # --- Package agents-infra ---
+    - name: Ensure fpm is installed
+      package:
+        name: ruby-fpm
+        state: present
+
+    - name: Build .deb
+      community.general.fpm:
+        src: /opt/agents_infra
+        output_path: "{{ proj_root }}/dist"
+        version: "1.0.0"
+        iteration: "1"
+        description: "Agents Infra Service"
+        architecture: "all"
+        fpm_type: "deb"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # --- Build .zip archive ---
+    - name: Initialize dist directory
+      file:
+        path: "{{ proj_root }}/dist"
+        state: directory
+        mode: '0755'
+
+    - name: Build .zip artifact
+      archive:
+        path:
+          - /opt/agents_infra
+        dest: "{{ proj_root }}/dist/agents-infra.zip"
+        format: zip
+
     # --- Copy systemd service file to run agents_infra as a service ---
     - name: Copy systemd service file
       copy:

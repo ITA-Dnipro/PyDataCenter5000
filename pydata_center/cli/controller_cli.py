@@ -405,6 +405,21 @@ def main() -> None:
     poll_parser.add_argument('id', help='Command ID', type=int)
     poll_parser.set_defaults(func=handle_poll)
 
+    # set-tags
+    tags_parser = subparsers.add_parser(
+        'set-tags',
+        help='Set tags for a specific agent'
+    )
+    tags_parser.add_argument(
+        '--hostname',
+        required=True,
+        help="Agent's hostname"
+    )
+    tags_parser.add_argument('--env', help='Set the environment tag')
+    tags_parser.add_argument('--role', help='Set the role tag')
+    tags_parser.add_argument('--region', help='Set the region tag')
+    tags_parser.set_defaults(func=handle_set_tags)
+
     args = parser.parse_args()
     if hasattr(args, 'func'):
         args.func(args)

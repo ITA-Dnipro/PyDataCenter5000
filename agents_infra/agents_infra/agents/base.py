@@ -286,8 +286,8 @@ class ServerAgent(object):
                 )
                 if tag_value and tag_value.strip():
                     tags[tag_key] = tag_value.strip().lower()
-            if tags:
-                self.tags = tags
+
+            self.tags = tags
 
     def collect_server_metadata(self):
         """

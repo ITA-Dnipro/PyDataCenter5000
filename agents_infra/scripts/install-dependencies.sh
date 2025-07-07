@@ -141,8 +141,8 @@ if ! ${PYTHON_DIR}/bin/python -c "import setuptools"; then
         mkdir setuptools
         wget -O setuptools/ez_setup.py https://bootstrap.pypa.io/ez_setup.py
     fi
-    validate_installation setuptools
     ${PYTHON_DIR}/bin/python setuptools/ez_setup.py && rm -rf setuptools
+    validate_installation setuptools
 fi
 
 if ! ${PYTHON_DIR}/bin/python -c "import psutil"; then

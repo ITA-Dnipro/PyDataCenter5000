@@ -1,10 +1,9 @@
 from django.contrib import admin
-from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (Agent, AgentMetric, AlertRule, CommandHistory,
-                     ServerStatus, Webhook)
+from .models import (Agent, AgentMetric, AgentPingStatus, AlertRule,
+                     CommandHistory, ServerStatus, Webhook)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -16,11 +15,30 @@ class GroupBaseAdmin(admin.ModelAdmin):
 
 
 @admin.register(CommandHistory)
-class CommandHistoryAdmin(GroupBaseAdmin):
-    list_display = ('hostname', 'status', 'timestamp', 'notify_on_success')
-    list_filter = ('status', 'hostname')
-    search_fields = ('hostname', 'command')
-    readonly_fields = ('hostname', 'command', 'result', 'status', 'timestamp')
+class CommandHistoryAdmin(admin.ModelAdmin):
+    list_display = (
+        'type', 'hostname', 'status', 'timestamp', 'notify_on_success'
+    )
+    list_filter = ('type', 'status', 'hostname')
+    search_fields = ('type', 'hostname')
+    readonly_fields = (
+        'hostname', 'type', 'params', 'result', 'status', 'timestamp'
+    )
+
+    fieldsets = (
+        (
+            'Command Definition',
+            {
+                'fields': ('type', 'params')
+            },
+        ),
+        (
+            'Status and Meta',
+            {
+                'fields': ('hostname', 'result', 'status', 'timestamp')
+            }
+        ),
+    )
 
 
 @admin.register(ServerStatus)
@@ -103,3 +121,14 @@ class WebhookAdmin(admin.ModelAdmin):
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_active')
+
+
+@admin.register(AgentPingStatus)
+class AgentPingStatusAdmin(admin.ModelAdmin):
+    list_display = (
+        'agent_name', 'ip', 'timestamp', 'uptime', 'status'
+    )
+    list_filter = ('status', )
+    search_fields = ('agent_name', 'ip')
+    readonly_fields = ('agent_name', 'ip', 'uptime', 'status', 'timestamp')
+    ordering = ('-timestamp', )

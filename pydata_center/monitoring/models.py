@@ -3,6 +3,7 @@ import hashlib
 
 import jwt
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -22,6 +23,7 @@ class ServerStatus(models.Model):
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+    tags = models.JSONField(null=True, blank=True, default=dict)
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
@@ -67,6 +69,10 @@ class AgentMetric(models.Model):
 
 
 class CommandHistory(models.Model):
+    COMMAND_TYPE_CHOICES = [
+        ('linux', 'Linux Command'),
+        ('agent', 'Agent Command'),
+    ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('done', 'Done'),
@@ -74,7 +80,12 @@ class CommandHistory(models.Model):
     ]
 
     hostname = models.CharField(max_length=100, db_index=True)
-    command = models.TextField()
+
+    type = models.CharField(
+        max_length=20, choices=COMMAND_TYPE_CHOICES, default='linux'
+    )
+    params = models.JSONField(null=True)
+
     result = models.TextField(null=True, blank=True)
     status = models.CharField(
         max_length=10,
@@ -90,6 +101,18 @@ class CommandHistory(models.Model):
 
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'
+
+    def clean(self):
+        super().clean()
+
+        # Validate command's params depending on its type
+        if 'linux' in self.type:
+            required = {'shell'}
+
+            if not required.issubset(self.params):
+                raise ValidationError({
+                    'params': f'{self.type} command required keys: {required}'
+                })
 
 
 class AlertRule(models.Model):
@@ -218,3 +241,28 @@ class Agent(models.Model):
     @property
     def plain_token(self):
         return getattr(self, '_plain_token', None)
+
+
+class AgentPingStatus(models.Model):
+    """Agent ping status result from http request."""
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+
+    STATUS_CHOICES = [
+        ('ok', 'OK'),
+        ('unreachable', 'Unreachable'),
+        ('error', 'Error'),
+    ]
+    agent_name = models.CharField(max_length=100)
+    ip = models.GenericIPAddressField()
+    timestamp = models.DateTimeField()
+    uptime = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+
+    def __str__(self):
+        return f'{self.agent_name} - {self.timestamp} - {self.status}'

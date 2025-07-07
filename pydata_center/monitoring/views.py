@@ -1,10 +1,11 @@
 import logging
+from datetime import timezone
 
 from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import is_naive, make_aware, now, utc
+from django.utils.timezone import is_naive, make_aware, now
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
@@ -25,7 +26,7 @@ from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
 from .serializers import (AgentMetricSerializer, AgentRegistrationSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
-from .utils import extract_status_data, get_client_ip
+from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class CommandHistoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrOperatorForWrite]
 
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
-    search_fields = ['hostname', 'status']
+    search_fields = ['type', 'hostname', 'status']
     ordering_fields = ['timestamp']
 
     def partial_update(self, request, *args, **kwargs):
@@ -298,7 +299,7 @@ def dashboard_view(request):
     Render the monitoring dashboard page.
     Standard Django HTML view, not part of API.
     """
-    agents = get_latest_agents()
+    agents = get_latest_agents(query_params=request.GET)
 
     return render(
         request,
@@ -397,9 +398,9 @@ def metrics_history_view(request):
         raise ValidationError({'end': 'Invalid datetime format.'})
 
     if start and is_naive(start):
-        start = make_aware(start, timezone=utc)
+        start = make_aware(start, timezone=timezone.utc)
     if end and is_naive(end):
-        end = make_aware(end, timezone=utc)
+        end = make_aware(end, timezone=timezone.utc)
 
     filters = Q()
     if hostname:

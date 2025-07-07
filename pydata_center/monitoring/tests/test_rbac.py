@@ -2,11 +2,9 @@ import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
-from django.utils.timezone import now
 from monitoring.admin import CommandHistoryAdmin
-from monitoring.models import CommandHistory, ServerStatus
+from monitoring.models import CommandHistory
 from monitoring.permissions import IsAdminOrOperatorForWrite
-from rest_framework.permissions import SAFE_METHODS
 from rest_framework.test import APIClient, APIRequestFactory
 
 
@@ -97,16 +95,18 @@ class TestCommandHistoryRBAC:
     def test_operator_can_create_command(self, operator_client):
         payload = {
             'hostname': 'agent001',
-            'command': 'ls'
+            'type': 'linux',
+            'params': {'shell': 'uptime'},
         }
-        response = operator_client.post(self.url, data=payload)
+        response = operator_client.post(self.url, data=payload, format='json')
         assert response.status_code == 201
         assert response.data['status'] == 'pending'
 
     def test_viewer_cannot_patch_command(self, viewer_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='uptime',
+            type='linux',
+            params={'shell': 'uptime'},
             status='pending'
         )
         url = f'{self.url}{command.id}/'
@@ -116,7 +116,8 @@ class TestCommandHistoryRBAC:
     def test_operator_can_patch_command(self, operator_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='uptime',
+            type='linux',
+            params={'shell': 'uptime'},
             status='pending'
         )
         url = f'{self.url}{command.id}/'
@@ -131,7 +132,8 @@ class TestCommandHistoryRBAC:
     def test_viewer_cannot_delete_command(self, viewer_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='reboot',
+            type='linux',
+            params={'shell': 'uptime'},
             status='done'
         )
         url = f'{self.url}{command.id}/'
@@ -141,7 +143,8 @@ class TestCommandHistoryRBAC:
     def test_operator_can_delete_command(self, operator_client, db):
         command = CommandHistory.objects.create(
             hostname='agent001',
-            command='reboot',
+            type='linux',
+            params={'shell': 'uptime'},
             status='done'
         )
         url = f'{self.url}{command.id}/'

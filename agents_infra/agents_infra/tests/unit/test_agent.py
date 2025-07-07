@@ -11,8 +11,8 @@ import mock
 import psutil
 import pytest
 import urllib2
-
-from ...agents.base import CommandHistory, ServerAgent
+from agents_infra.agents.base import ServerAgent
+from agents_infra.command import CommandHistory
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -36,12 +36,21 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
+def load_agent_from_config(config_content):
+    """Helper to create a MockAgent from a string config."""
+    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+        return MockAgent.from_config_file(tmp.name)
+
+
 class MockAgent(ServerAgent):
 
     def __init__(
         self,
         server_name='mock',
         port=None,
+        health_port=8081,
         processes=None,
         critical_processes=None,
         interface=None,
@@ -52,6 +61,7 @@ class MockAgent(ServerAgent):
         super(MockAgent, self).__init__(
             server_name,
             port,
+            health_port,
             processes,
             critical_processes,
             interface,
@@ -86,78 +96,6 @@ def mock_popen_with_output(stdout, stderr=''):
     return process_mock
 
 
-def test_command_history_valid_data():
-    """Test that command history is properly instantiated."""
-    data = {
-        'command': 'ls',
-        'hostname': 'test-server',
-        'status': 'pending',
-        'timestamp': '2025-06-03T18:25:35.418746Z',
-        'result': 'ok',
-        'id': 1,
-    }
-
-    command_history = CommandHistory.from_dict(data)
-
-    assert command_history.command == 'ls'
-    assert command_history.hostname == 'test-server'
-    assert command_history.status == 'pending'
-    assert command_history.timestamp == '2025-06-03T18:25:35.418746Z'
-    assert command_history.result == 'ok'
-    assert command_history.id == 1
-
-
-def test_command_history_missing_data():
-    """
-    Test that error is raised on command history input with missing
-    fields.
-    """
-    parameters = [
-        {
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises(TypeError):
-            CommandHistory.from_dict(data)
-
-
-def test_command_history_bad_input_error():
-    """Test that error is raised on bad command history input."""
-    parameters = [
-        {
-            'command': None,
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': None,
-            'timestamp': '2025-06-03T18:25:35.418746Z',
-        },
-        {
-            'command': 'ls',
-            'hostname': 'test-server',
-            'status': 'pending',
-            'timestamp': 'bad date',
-        },
-    ]
-
-    for data in parameters:
-        with pytest.raises((TypeError, ValueError)):
-            CommandHistory.from_dict(data)
-
-
 def test_type_checks_on_init():
     """Test that type checks fail initialization with bad parameters."""
     with pytest.raises(TypeError):
@@ -169,18 +107,16 @@ def test_type_checks_on_init():
 
 def test_critical_processes_parsing():
     """Test that critical_processes are correctly parsed from config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(
-            '[server]\n'
-            'name=mock\n'
-            'port=123\n'
-            'processes=proc1\n'
-            'critical_processes=sshd, nginx, postgres\n'
-        )
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(tmp.name)
-        assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
+    config_content = """
+[server]
+name = mock
+port = 123
+processes = proc1
+interface = eth0
+critical_processes = sshd, nginx, postgres
+"""
+    agent = load_agent_from_config(config_content)
+    assert agent.critical_processes == ['sshd', 'nginx', 'postgres']
 
 
 def test_status_to_json_type_error(
@@ -514,7 +450,8 @@ def test_fetch_command_from_controller_error(
 def test_maybe_add_to_queue_adds_item():
     """Test that good command history input is added to queue."""
     data = {
-        'command': 'ls',
+        'type': 'linux',
+        'params': {'shell': 'ls'},
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
@@ -522,9 +459,10 @@ def test_maybe_add_to_queue_adds_item():
 
     agent = MockAgent(port=12345)
 
-    agent.maybe_add_command_to_queue(data)
+    agent.maybe_add_command_to_queue(data.copy())
 
-    assert agent.queue.qsize() == 1
+    with agent.command_queue.mutex:
+        assert CommandHistory.from_dict(data) in agent.command_queue.queue
 
 
 def test_maybe_add_to_queue_full_logged(
@@ -534,21 +472,20 @@ def test_maybe_add_to_queue_full_logged(
     Test that trying to add command to the full queue is properly handled
     and logged.
     """
-    import datetime
-
     agent = MockAgent(whitelist_commands=['cmd'], command_queue_size=1)
 
-    cmd = CommandHistory(
-        command='cmd',
-        hostname='mock-server',
-        status='pending',
-        timestamp=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    )
+    cmd = {
+        'type': 'linux',
+        'params': {'shell': 'cmd'},
+        'hostname': 'mock-server',
+        'status': 'pending',
+        'timestamp': '2025-06-03T18:25:35.418746Z',
+    }
 
-    agent.maybe_add_command_to_queue(cmd)
+    agent.maybe_add_command_to_queue(cmd.copy())
     agent.maybe_add_command_to_queue(cmd)
 
-    assert agent.queue.qsize() == 1
+    assert agent.command_queue.qsize() == 1
 
     assert_msg_in_logfile('Queue is full - could not append command')
 
@@ -556,7 +493,7 @@ def test_maybe_add_to_queue_full_logged(
 def test_get_command_from_queue_has_item():
     agent = MockAgent()
 
-    agent.queue.put('cmd')
+    agent.command_queue.put('cmd')
     assert agent.get_command_from_queue(block=True) == 'cmd'
 
 
@@ -593,7 +530,8 @@ def test_maybe_add_to_queue_logs_bad_input(
 
     assert_msg_in_logfile('Command validation failed due to error')
 
-    assert agent.queue.qsize() == 0
+    with agent.command_queue.mutex:
+        assert len(agent.command_queue.queue) == 0
 
 
 def test_status_to_dict_keys():
@@ -1165,8 +1103,7 @@ def test_class_whitelist_commands():
 
 def test_config_file_parsing():
     """Test parsing of config file options."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1176,61 +1113,49 @@ interface = eth0
 [controller]
 whitelist_commands = cmd1,cmd2,cmd3
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert agent.server_name == 'test_server'
-        assert agent.port == 12345
-        assert agent.processes == ['proc1', 'proc2', 'proc3']
-        assert agent.interface == 'eth0'
-        assert all(
-            cmd in agent.whitelist_commands
-            for cmd in ['cmd1', 'cmd2', 'cmd3']
-        )
+    assert agent.server_name == 'test_server'
+    assert agent.port == 12345
+    assert agent.processes == ['proc1', 'proc2', 'proc3']
+    assert agent.interface == 'eth0'
+    assert all(
+        cmd in agent.whitelist_commands
+        for cmd in ['cmd1', 'cmd2', 'cmd3']
+    )
 
 
 def test_config_file_missing_options():
     """Test handling of missing config file options."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert agent.server_name == 'test_server'
-        assert agent.port == 12345
-        assert agent.processes == []
-        assert agent.interface is None
-        assert agent.whitelist_commands == []
+    assert agent.server_name == 'test_server'
+    assert agent.port == 12345
+    assert agent.processes == []
+    assert agent.interface is None
+    assert agent.whitelist_commands == []
 
 
 def test_config_file_empty_processes():
     """Test handling of empty processes list in config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
 processes =
 """
-        tmp.write(config_content)
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(tmp.name)
-        assert agent.processes == []
+    agent = load_agent_from_config(config_content)
+    assert agent.processes == []
 
 
 def test_config_file_empty_whitelist_commands():
     """Test handling of empty whitelist_commands in config."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1238,19 +1163,15 @@ port = 12345
 [controller]
 whitelist_commands =
 """
-        tmp.write(config_content)
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(filename=tmp.name)
-        assert agent.whitelist_commands == []
+    agent = load_agent_from_config(config_content)
+    assert agent.whitelist_commands == []
 
 
 def test_config_file_whitelist_commands_extends_default():
     """Test that config whitelist_commands extends default list."""
     MockAgent.whitelist_commands = ['default_cmd1', 'default_cmd2']
 
-    with tempfile.NamedTemporaryFile() as tmp:
-        config_content = """
+    config_content = """
 [server]
 name = test_server
 port = 12345
@@ -1258,15 +1179,12 @@ port = 12345
 [controller]
 whitelist_commands = config_cmd1,config_cmd2
 """
-        tmp.write(config_content)
-        tmp.flush()
+    agent = load_agent_from_config(config_content)
 
-        agent = MockAgent.from_config_file(tmp.name)
-
-        assert 'default_cmd1' in agent.whitelist_commands
-        assert 'default_cmd2' in agent.whitelist_commands
-        assert 'config_cmd1' in agent.whitelist_commands
-        assert 'config_cmd2' in agent.whitelist_commands
+    assert 'default_cmd1' in agent.whitelist_commands
+    assert 'default_cmd2' in agent.whitelist_commands
+    assert 'config_cmd1' in agent.whitelist_commands
+    assert 'config_cmd2' in agent.whitelist_commands
 
     MockAgent.whitelist_commands = None
 
@@ -1619,3 +1537,121 @@ def test_status_to_dict_timestamp_format():
         "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
         % timestamp
     )
+
+
+def test_tag_parsing_full_config():
+    """
+    Test that all tags (env, role, region) are correctly parsed
+    from the config file.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+region = eu-central
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+        'region': 'eu-central',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_tag_parsing_partial_config():
+    """
+    Test that only provided tags are parsed, and missing ones are ignored.
+    """
+    config_content = """
+[server]
+name = test_server
+env = staging
+role = db
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'staging',
+        'role': 'db',
+    }
+    assert agent.tags == expected_tags
+    assert 'region' not in agent.tags
+
+
+def test_tag_parsing_ignores_empty_values():
+    """
+    Test that tags with empty values in the config are not included.
+    """
+    config_content = """
+[server]
+name = test_server
+env = dev
+role =
+region = us-east
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'dev',
+        'region': 'us-east',
+    }
+    assert agent.tags == expected_tags
+    assert 'role' not in agent.tags
+
+
+def test_tag_parsing_normalizes_values():
+    """
+    Tests that tag values are correctly normalized:
+    - Whitespace is stripped from both ends.
+    - Value is converted to lowercase.
+    """
+    config_content = """
+[server]
+name = test_server
+env =   Production
+role =   WEB
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_status_dict_includes_tags_when_present():
+    """
+    Test that status_to_dict() includes the 'tags' key
+    when tags are configured.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert 'tags' in status
+    assert status['tags'] == {'env': 'production', 'role': 'web'}
+
+
+def test_status_dict_omits_tags_for_backward_compatibility():
+    """
+    Test that status_to_dict() does not include the 'tags' key
+    when no tags are configured, ensuring backward compatibility.
+    """
+    config_content = """
+[server]
+name = old_agent_server
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert agent.tags == {}
+    assert 'tags' not in status

@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 import requests
 from cli.controller_cli import (handle_agents, handle_login, handle_poll,
-                                handle_send, list_agents, poll_result,
-                                send_command, truncate)
+                                handle_send, handle_set_tags, list_agents,
+                                poll_result, send_command, truncate)
 
 
 class TestTruncateFunction(unittest.TestCase):
@@ -386,3 +386,62 @@ class TestHandlers(unittest.TestCase):
         ), (
             'Expected error message when not logged in during poll'
         )
+
+    @patch(
+        'cli.controller_cli.get_auth_from_env',
+        return_value=('admin', 'secret')
+    )
+    @patch('cli.controller_cli.set_tags')
+    def test_handle_set_tags_calls_set_tags(
+            self,
+            mock_set_tags,
+            mock_auth
+    ):
+        """
+        Test that handle_set_tags correctly calls the set_tags function.
+        """
+        args = Mock()
+        args.hostname = 'test-host'
+        args.env = 'production'
+        args.role = 'web'
+        args.region = None
+
+        handle_set_tags(args)
+
+        expected_payload = {'env': 'production', 'role': 'web'}
+        mock_set_tags.assert_called_once_with(
+            hostname='test-host',
+            tags=expected_payload,
+            username='admin',
+            password='secret'
+        )
+
+    @patch('cli.controller_cli.set_tags')
+    @patch(
+        'cli.controller_cli.get_auth_from_env',
+        return_value=('admin', 'secret')
+    )
+    @patch('cli.controller_cli.logger.error')
+    def test_handle_set_tags_validates_tags_presence(
+            self,
+            mock_logger_error,
+            mock_auth,
+            mock_set_tags
+    ):
+        """
+        Test the handler validation for missing tags
+        before calling the main function.
+        """
+        args = Mock()
+        args.hostname = 'test-host'
+        args.env = None
+        args.role = None
+        args.region = None
+
+        handle_set_tags(args)
+
+        mock_logger_error.assert_called_once_with(
+            'Error: At least one tag (--env, --role, or --region) '
+            'must be provided.'
+        )
+        mock_set_tags.assert_not_called()

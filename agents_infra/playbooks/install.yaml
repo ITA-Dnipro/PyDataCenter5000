@@ -49,33 +49,25 @@
         - main.py
 
     # --- Package agents-infra ---
-    - name: Ensure fpm is installed
-      package:
-        name: ruby-fpm
-        state: present
-
-    - name: Check collections paths
-      debug:
-        msg: "{{ lookup('config', 'collections_paths') }}"
-
-    - name: Build .deb
-      community.general.fpm:
-        src: /opt/agents_infra
-        output_path: "{{ proj_root }}/dist"
-        version: "1.0.0"
-        iteration: "1"
-        description: "Agents Infra Service"
-        architecture: "all"
-        fpm_type: "deb"
-      when: ansible_facts['os_family'] == 'Debian'
-
-    # --- Build .zip archive ---
     - name: Initialize dist directory
       file:
         path: "{{ proj_root }}/dist"
         state: directory
         mode: '0755'
 
+    - name: Build .deb
+      command: >
+        fpm -s dir -t deb
+        -n agents-infra
+        -v 1.0.0
+        -C /opt/agents_infra
+        --prefix /opt/agents_infra
+        .
+      args:
+        chdir: "{{ proj_root }}/dist"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # --- Build .zip archive ---
     - name: Build .zip artifact
       archive:
         path:

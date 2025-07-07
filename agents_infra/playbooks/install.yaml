@@ -54,7 +54,7 @@
         name: ruby-fpm
         state: present
 
-    - debug:
+    - name: Check collections paths
       msg: "{{ lookup('config', 'collections_paths') }}"
 
     - name: Build .deb

@@ -1,7 +1,4 @@
-import sys
-import time
 import unittest
-from io import StringIO
 from unittest.mock import Mock, patch
 
 import requests

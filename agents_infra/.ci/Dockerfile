@@ -10,7 +10,5 @@ COPY . /workspace
 
 RUN ansible-galaxy collection install community.general
 
-ENV ANSIBLE_CONFIG=/workspace/ansible.cfg
-
 RUN ansible-playbook playbooks/install.yaml -l local \
      -e "run_tests=true fail_if_dep_missing=true"

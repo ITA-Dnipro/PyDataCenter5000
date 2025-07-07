@@ -54,6 +54,9 @@
         name: ruby-fpm
         state: present
 
+    - debug:
+      msg: "{{ lookup('config', 'collections_paths') }}"
+
     - name: Build .deb
       community.general.fpm:
         src: /opt/agents_infra

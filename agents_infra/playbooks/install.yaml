@@ -55,7 +55,8 @@
         state: present
 
     - name: Check collections paths
-      msg: "{{ lookup('config', 'collections_paths') }}"
+      debug:
+        msg: "{{ lookup('config', 'collections_paths') }}"
 
     - name: Build .deb
       community.general.fpm:

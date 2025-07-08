@@ -1,27 +1,180 @@
 import logging
+import os
 import random
 import string
 import time
 from datetime import datetime
 
-from locust import HttpUser, between, task
+import requests
+from locust import HttpUser, between, events, task
+
+logger = logging.getLogger(__name__)
 
 API_PREFIX = '/api/v1'
 USERNAME = 'locust_tester'
 PASSWORD = 'supersecret'
 
-logger = logging.getLogger(__name__)
+TOXIPROXY_API = 'http://localhost:8474'
+PROXY_NAME = 'django-proxy'
+
+# Optional env overrides
+LATENCY_MS = int(os.getenv('TOXI_LATENCY', '500'))
+JITTER_MS = int(os.getenv('TOXI_JITTER', '100'))
+RATE_LIMIT = int(os.getenv('TOXI_RATE', '80000'))
+ENABLE_TOXICS = os.getenv('ENABLE_TOXICS', 'true').lower() == 'true'
 
 
 def random_hostname():
+    """
+    Generate a random hostname string for a simulated agent.
+
+    Returns:
+        str: Hostname in format 'agent-XXXX' where X are digits.
+    """
     return 'agent-' + ''.join(random.choices(string.digits, k=4))
 
 
+def ensure_proxy():
+    """
+    Ensure the Toxiproxy proxy exists.
+
+    If not, create it with predefined listen and upstream addresses.
+
+    Raises:
+        SystemExit: If there is an error communicating with Toxiproxy API.
+    """
+    try:
+        r = requests.get(f'{TOXIPROXY_API}/proxies/{PROXY_NAME}')
+        if r.status_code == 404:
+            logger.info(f'Proxy \'{PROXY_NAME}\' not found. Creating...')
+            create_resp = requests.post(f'{TOXIPROXY_API}/proxies', json={
+                'name': PROXY_NAME,
+                'listen': '0.0.0.0:9000',
+                'upstream': 'host.docker.internal:8000'
+            })
+            create_resp.raise_for_status()
+            logger.info(f'Proxy \'{PROXY_NAME}\' created.')
+        else:
+            r.raise_for_status()
+            logger.info(f'Proxy \'{PROXY_NAME}\' is available.')
+    except requests.exceptions.RequestException as e:
+        logger.error(f'Could not ensure proxy \'{PROXY_NAME}\': {e}')
+        raise SystemExit(1)
+
+
+def add_toxics():
+    """
+    Add network toxics (latency and bandwidth limit)
+
+    to the proxy to simulate network instability.
+    """
+    logger.info('Adding toxics...')
+    ensure_proxy()
+
+    toxics = [
+        {
+            'name': 'laggy',
+            'type': 'latency',
+            'stream': 'downstream',
+            'toxicity': 1.0,
+            'attributes': {
+                'latency': LATENCY_MS,
+                'jitter': JITTER_MS
+            }
+        },
+        {
+            'name': 'choppy',
+            'type': 'limit_data',
+            'stream': 'downstream',
+            'toxicity': 1.0,
+            'attributes': {
+                'rate': RATE_LIMIT
+            }
+        }
+    ]
+
+    for toxic in toxics:
+        try:
+            r = requests.post(
+                f'{TOXIPROXY_API}/proxies/{PROXY_NAME}/toxics',
+                json=toxic
+            )
+            r.raise_for_status()
+            logger.info(f'Toxic \'{toxic["name"]}\' configured.')
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Failed to add toxic \'{toxic["name"]}\': {e}')
+
+
+def remove_toxics():
+    """
+    Remove the configured toxics ('laggy', 'choppy')
+
+    from the proxy to restore normal network behavior.
+    """
+    logger.info('Removing toxics...')
+
+    for name in ['laggy', 'choppy']:
+        try:
+            r = requests.delete(
+                f'{TOXIPROXY_API}/proxies/{PROXY_NAME}/toxics/{name}'
+            )
+            if r.status_code in (200, 204):
+                logger.info(f'Toxic \'{name}\' removed.')
+            elif r.status_code == 404:
+                logger.info(f'Toxic \'{name}\' not found.')
+            else:
+                logger.warning(
+                    f'Unexpected status while removing '
+                    f'\'{name}\': {r.status_code}'
+                )
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Error removing toxic \'{name}\': {e}')
+
+
+@events.test_start.add_listener
+def on_test_start(environment, **kwargs):
+    """
+    Locust event hook that runs once when the test starts.
+
+    If toxics are enabled and the target host is not localhost:8000,
+    it will add network toxics to simulate instability.
+    """
+    if (ENABLE_TOXICS and environment.host and environment.host !=
+            'http://localhost:8000'):
+        add_toxics()
+    else:
+        logger.info('🟡 Toxic injection disabled or no proxy target set')
+
+
+@events.test_stop.add_listener
+def on_test_stop(environment, **kwargs):
+    """
+    Locust event hook that runs once when the test stops.
+
+    Removes network toxics if they were added.
+    """
+    if (ENABLE_TOXICS and environment.host and environment.host !=
+            'http://localhost:8000'):
+        remove_toxics()
+        time.sleep(2)
+
+
 class AgentSimulator(HttpUser):
+    """
+    Locust user class simulating an agent that authenticates, sends status,
+    fetches commands, and submits command results to the backend.
+    """
     wait_time = between(1, 3)
+    host = os.getenv('LOCUST_TARGET', 'http://localhost:8000')
 
     def on_start(self):
-        self.active = False  # default to inactive
+        """
+        Called once when a simulated user starts.
+
+        Logs in to obtain a token, initializes hostname and IP,
+        and fetches any pending command IDs.
+        """
+        self.active = False
         resp = None
         for attempt in range(1, 4):
             resp = self.client.post(
@@ -32,7 +185,7 @@ class AgentSimulator(HttpUser):
                 break
             time.sleep(0.5)
         else:
-            return  # login failed
+            return  # Login failed
 
         token = resp.json()['access']
         self.client.headers.update({'Authorization': f'Bearer {token}'})
@@ -49,10 +202,15 @@ class AgentSimulator(HttpUser):
         else:
             self.valid_ids = []
 
-        self.active = True  # only mark active after full setup
+        self.active = True
 
     @task(3)
     def send_status(self):
+        """
+        Simulate sending periodic status updates to the server.
+
+        Posts server health info like uptime, OS, IP, etc.
+        """
         if not getattr(self, 'active', False):
             return
         self.client.post(
@@ -70,6 +228,11 @@ class AgentSimulator(HttpUser):
 
     @task(1)
     def fetch_pending(self):
+        """
+        Fetch a pending command for this agent.
+
+        Adds the command ID to valid_ids if status is 'pending'.
+        """
         if not getattr(self, 'active', False):
             return
         r = self.client.get(
@@ -83,6 +246,13 @@ class AgentSimulator(HttpUser):
 
     @task(1)
     def submit_result(self):
+        """
+        Submit results for a random pending command.
+
+        Randomly marks command as 'done' or 'failed'
+
+        with simulated result data.
+        """
         if not getattr(self, 'active', False):
             return
         if not self.valid_ids:

@@ -1674,9 +1674,7 @@ def test_try_revert_primary_controller_success(monkeypatch):
 
     fixed_time = 100000
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(
-        ['http://primary', 'http://secondary']
-    )
+    agent.controller_urls = ['http://primary', 'http://secondary']
     agent.current_controller = 'http://secondary'
     agent.last_success_time = fixed_time - 1000
     agent.revert_interval = 1
@@ -1698,7 +1696,7 @@ def test_try_revert_primary_controller_fail_due_to_time():
     to revert if the revert interval has not passed.
     """
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(['http://primary', 'http://secondary'])
+    agent.controller_urls = ['http://primary', 'http://secondary']
     agent.current_controller = 'http://secondary'
     agent.last_success_time = time.time()
     agent.revert_interval = 1000  # big number
@@ -1715,9 +1713,7 @@ def test_ensure_active_controller_switches_to_healthy():
     controller is unresponsive.
     """
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(
-        ['http://mock1', 'http://mock2']
-    )
+    agent.controller_urls = ['http://mock1', 'http://mock2']
     agent.current_controller = 'http://mock1'
 
     with mock.patch.object(
@@ -1742,7 +1738,7 @@ def test_ensure_active_controller_success_current(monkeypatch):
         controller if it is healthy.
     """
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(['http://mock1'])
+    agent.controller_urls = ['http://mock1']
     agent.current_controller = 'http://mock1'
 
     monkeypatch.setattr(agent, '_ping_controller', lambda url, api_key: True)
@@ -1757,9 +1753,8 @@ def test_ensure_active_controller_fails_all():
     all controllers are unresponsive.
     """
     agent = MockAgent(port=12345)
-    agent.set_controller_urls(
-        ['http://mock1', 'http://mock2']
-    )
+    agent.controller_urls = ['http://mock1', 'http://mock2']
+
     agent.current_controller = 'http://mock1'
 
     with mock.patch.object(

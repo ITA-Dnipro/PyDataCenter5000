@@ -12,6 +12,7 @@ import psutil
 import pytest
 import urllib2
 from agents_infra.agents.base import Config, ServerAgent
+from agents_infra.command import CommandHistory
 
 HTTP_ERROR_OUTPUT = (
     urllib2.HTTPError(
@@ -514,8 +515,6 @@ def test_maybe_add_to_queue_full_logged(
     import datetime
 
     import Queue
-    from agents_infra.command import (AgentCommand, CommandHistory,
-                                      CommandStatus)
 
     agent = MockAgent.from_config_file(mock_config_file)
     agent.command_queue = Queue.Queue(maxsize=1)
@@ -552,8 +551,7 @@ def test_maybe_add_to_queue_full_logged(
 def test_get_command_from_queue_has_item(mock_config_file):
     import datetime
 
-    from agents_infra.command import (AgentCommand, CommandHistory,
-                                      CommandStatus)
+    from agents_infra.command import AgentCommand, CommandStatus
 
     agent = MockAgent.from_config_file(mock_config_file)
 
@@ -1526,3 +1524,121 @@ def test_status_to_dict_timestamp_format(mock_config_file):
         "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
         % timestamp
     )
+
+
+def test_tag_parsing_full_config():
+    """
+    Test that all tags (env, role, region) are correctly parsed
+    from the config file.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+region = eu-central
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+        'region': 'eu-central',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_tag_parsing_partial_config():
+    """
+    Test that only provided tags are parsed, and missing ones are ignored.
+    """
+    config_content = """
+[server]
+name = test_server
+env = staging
+role = db
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'staging',
+        'role': 'db',
+    }
+    assert agent.tags == expected_tags
+    assert 'region' not in agent.tags
+
+
+def test_tag_parsing_ignores_empty_values():
+    """
+    Test that tags with empty values in the config are not included.
+    """
+    config_content = """
+[server]
+name = test_server
+env = dev
+role =
+region = us-east
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'dev',
+        'region': 'us-east',
+    }
+    assert agent.tags == expected_tags
+    assert 'role' not in agent.tags
+
+
+def test_tag_parsing_normalizes_values():
+    """
+    Tests that tag values are correctly normalized:
+    - Whitespace is stripped from both ends.
+    - Value is converted to lowercase.
+    """
+    config_content = """
+[server]
+name = test_server
+env =   Production
+role =   WEB
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+    }
+    assert agent.tags == expected_tags
+
+
+def test_status_dict_includes_tags_when_present():
+    """
+    Test that status_to_dict() includes the 'tags' key
+    when tags are configured.
+    """
+    config_content = """
+[server]
+name = test_server
+env = production
+role = web
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert 'tags' in status
+    assert status['tags'] == {'env': 'production', 'role': 'web'}
+
+
+def test_status_dict_omits_tags_for_backward_compatibility():
+    """
+    Test that status_to_dict() does not include the 'tags' key
+    when no tags are configured, ensuring backward compatibility.
+    """
+    config_content = """
+[server]
+name = old_agent_server
+"""
+    agent = load_agent_from_config(config_content)
+    status = agent.status_to_dict()
+
+    assert agent.tags == {}
+    assert 'tags' not in status

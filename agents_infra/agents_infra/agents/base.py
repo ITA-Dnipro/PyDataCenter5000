@@ -106,6 +106,7 @@ class ServerAgent(object):
         command_queue_size=0,
         config=None
     ):
+        self.health_thread = None
         self.server_name = server_name
 
         # If not provided, use class-level default config
@@ -140,6 +141,9 @@ class ServerAgent(object):
 
         # Thread-safe queue to store pending commands.
         self.command_queue = Queue.Queue(maxsize=max(command_queue_size, 0))
+
+        # Initialize tags
+        self.tags = {}
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -260,6 +264,20 @@ class ServerAgent(object):
 
         config_obj.update(temp_dict)
         return config_obj
+
+# # Read tags from the [server] section
+# tags = {}
+# for tag_key in ['env', 'role', 'region']:
+#     tag_value = get_config_option(
+#         config,
+#         'server',
+#         tag_key,
+#         logger=self.logger,
+#     )
+#     if tag_value and tag_value.strip():
+#         tags[tag_key] = tag_value.strip().lower()
+# if tags:
+#     self.tags = tags
 
     def collect_server_metadata(self):
         """

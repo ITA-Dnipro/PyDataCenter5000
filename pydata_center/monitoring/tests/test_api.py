@@ -1,9 +1,10 @@
+import json
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from datetime import timezone as dt_timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-from dateutil.parser import isoparse
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.core.management import call_command
@@ -11,10 +12,14 @@ from django.test import TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from freezegun import freeze_time
 from monitoring.email import send_async_email
-from monitoring.models import AgentMetric, AlertRule, ServerStatus
-from monitoring.tasks import evaluate_agent_alerts
+from monitoring.models import (AgentMetric, AgentPingStatus, AlertRule,
+                               ServerStatus)
+from monitoring.tasks import (check_agent_health, check_all_agents_health,
+                              evaluate_agent_alerts, save_agent_ping_status)
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
+from requests.exceptions import RequestException
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
@@ -26,6 +31,7 @@ def setup_roles(django_db_setup, django_db_blocker):
 
 
 class ServerStatusAPITest(TestCase):
+    """Test suite for server status API endpoints."""
 
     @classmethod
     def setUpTestData(cls):
@@ -54,6 +60,7 @@ class ServerStatusAPITest(TestCase):
         }
 
     def test_missing_hostname(self):
+        """Test that request with missing hostname returns 400."""
         payload = self._get_base_payload()
         payload.pop('hostname')
         response = self.client.post(self.url, payload, format='json')
@@ -65,6 +72,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_ip(self):
+        """Test that request with invalid IP returns 400."""
         payload = self._get_base_payload()
         payload['ip'] = '999.999.999.999'
         response = self.client.post(self.url, payload, format='json')
@@ -76,6 +84,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_non_float_uptime(self):
+        """Test that request with non-float uptime returns 400."""
         payload = self._get_base_payload()
         payload['uptime'] = 'up'
         response = self.client.post(self.url, payload, format='json')
@@ -87,6 +96,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_valid_status_submission(self):
+        """Test that valid status submission returns 201."""
         payload = self._get_base_payload()
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(
@@ -108,6 +118,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_empty_payload(self):
+        """Test that empty payload returns 400."""
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(
             response.status_code,
@@ -122,6 +133,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_valid_healthy_type(self):
+        """Test that yes/no values for healthy field are accepted."""
         payload = self._get_base_payload()
         payload['healthy'] = 'yes'
         response = self.client.post(self.url, payload, format='json')
@@ -141,6 +153,8 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_healthy_type(self):
+        """Test that invalid healthy value returns 400."""
+        """Test that invalid healthy value returns 400."""
         payload = self._get_base_payload()
         payload['healthy'] = 'abc'
         response = self.client.post(self.url, payload, format='json')
@@ -152,6 +166,7 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_timestamp_format(self):
+        """Test that invalid timestamp format returns 400."""
         payload = self._get_base_payload()
         payload['timestamp'] = 'not-a-date'
         response = self.client.post(self.url, payload, format='json')
@@ -169,6 +184,8 @@ class ServerStatusAPITest(TestCase):
 
 
 class ReceiveStatusEndpointTests(APITestCase):
+    """Test suite for server status receive endpoint."""
+
     @classmethod
     def setUpTestData(cls):
         cls.url = reverse('monitoring:receive_status')
@@ -197,6 +214,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         }
 
     def test_receive_valid_status(self):
+        """Test that valid status is received and saved correctly."""
         valid_data = self._get_valid_status_data()
         response = self.client.post(self.url, data=valid_data, format='json')
 
@@ -258,7 +276,69 @@ class ReceiveStatusEndpointTests(APITestCase):
             'Saved server_name does not match'
         )
 
+    def test_receive_status_with_tags(self):
+        """
+        Test that a status update with a valid 'tags' payload
+        is correctly received and stored.
+        """
+        valid_data = self._get_valid_status_data()
+
+        expected_tags = {'env': 'production', 'role': 'db'}
+        valid_data['tags'] = expected_tags
+
+        response = self.client.post(self.url, data=valid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f'Expected 201 CREATED, '
+            f'got {response.status_code} with {response.data}'
+        )
+        self.assertTrue(
+            ServerStatus.objects
+            .filter(hostname=valid_data['hostname'])
+            .exists()
+        )
+
+        status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
+        self.assertDictEqual(
+            status_obj.tags,
+            expected_tags,
+            'Tags were not stored correctly'
+        )
+
+    def test_receive_status_without_tags_is_backward_compatible(self):
+        """
+        Test that a status update without a 'tags' payload is processed
+        correctly for backward compatibility.
+        """
+        valid_data = self._get_valid_status_data()
+        # 'tags' key is intentionally omitted from the payload
+
+        response = self.client.post(self.url, data=valid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f'Expected 201 CREATED for payload without tags, '
+            f'got {response.status_code}'
+        )
+        self.assertTrue(
+            ServerStatus.objects
+            .filter(hostname=valid_data['hostname'])
+            .exists()
+        )
+
+        status_obj = ServerStatus.objects.get(hostname=valid_data['hostname'])
+        # We set default=dict in the model, so we expect an empty dict
+        self.assertDictEqual(
+            status_obj.tags,
+            {},
+            'Tags should be empty when not provided'
+        )
+
     def test_receive_invalid_status(self):
+        """Test that invalid status returns 400."""
         invalid_data = {
             'hostname': '',
             'uptime': 123
@@ -286,6 +366,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_hostname_too_long(self):
+        """Test that overly long hostname returns 400."""
         data = self._get_valid_status_data()
         data['hostname'] = 'x' * 300
         response = self.client.post(self.url, data=data, format='json')
@@ -302,6 +383,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_invalid_uptime_type(self):
+        """Test that non-numeric uptime returns 400."""
         data = self._get_valid_status_data()
         data['uptime'] = 'not_a_number'
         response = self.client.post(self.url, data=data, format='json')
@@ -318,6 +400,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_hostname_field(self):
+        """Test that missing hostname field returns 400."""
         data = self._get_valid_status_data()
         data.pop('hostname')
         response = self.client.post(self.url, data=data, format='json')
@@ -333,7 +416,31 @@ class ReceiveStatusEndpointTests(APITestCase):
             "'hostname' should be reported as missing"
         )
 
+    def test_receive_status_with_invalid_tags_format(self):
+        """
+        Test that a status update with an invalid format for 'tags'
+        (e.g., a string instead of a dict) returns a 400 Bad Request.
+        """
+        invalid_data = self._get_valid_status_data()
+        invalid_data['tags'] = 'This is not a valid json object'
+
+        response = self.client.post(self.url, data=invalid_data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            f'Expected 400 BAD REQUEST for invalid tags format, '
+            f'got {response.status_code}'
+        )
+        self.assertIn('tags', response.data)
+        self.assertTrue(
+            any('dictionary' in str(msg) for msg in response.data['tags']),
+            f'Expected a dictionary-related error message, '
+            f'got: {response.data["tags"]}'
+        )
+
     def test_missing_ip_field(self):
+        """Test that missing IP field returns 400."""
         data = self._get_valid_status_data()
         data.pop('ip')
         response = self.client.post(self.url, data=data, format='json')
@@ -350,6 +457,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_uptime_field(self):
+        """Test that missing uptime field returns 400."""
         data = self._get_valid_status_data()
         data.pop('uptime')
         response = self.client.post(self.url, data=data, format='json')
@@ -366,6 +474,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_timestamp_field(self):
+        """Test that missing timestamp field returns 400."""
         data = self._get_valid_status_data()
         data.pop('timestamp')
         response = self.client.post(self.url, data=data, format='json')
@@ -382,6 +491,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_os_field(self):
+        """Test that missing OS field returns 400."""
         data = self._get_valid_status_data()
         data.pop('os')
         response = self.client.post(self.url, data=data, format='json')
@@ -398,6 +508,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_healthy_field(self):
+        """Test that missing healthy field defaults to False."""
         data = self._get_valid_status_data()
         data.pop('healthy')
         response = self.client.post(self.url, data=data, format='json')
@@ -414,6 +525,7 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
     def test_missing_server_name_field(self):
+        """Test that missing server_name field returns 400."""
         data = self._get_valid_status_data()
         data.pop('server_name')
         response = self.client.post(self.url, data=data, format='json')
@@ -840,7 +952,7 @@ class MetricsHistoryViewTests(APITestCase):
         cls.fixed_now = (
             timezone.now()
             .replace(microsecond=0)
-            .astimezone(timezone.utc)
+            .astimezone(dt_timezone.utc)
         )
 
         cls.server = ServerStatus.objects.create(
@@ -1029,3 +1141,313 @@ class MetricsHistoryViewTests(APITestCase):
             status.HTTP_200_OK,
             f'Expected 200 OK for naive datetime, got {response.status_code}'
         )
+
+
+@pytest.mark.django_db
+class TestCheckAgentHealth:
+    """Test suite for a check_agent_health task."""
+    def setup_method(self):
+        self.agent_ip = '127.0.0.1'
+        self.health_port = 8081
+        self.url = f'http://{self.agent_ip}:{self.health_port}/health'
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_successful_health_check(self, mock_get, mock_save_status, caplog):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            'agent': 'test-agent',
+            'status': 'ok',
+            'uptime': 123,
+            'timestamp': '2025-06-19T09:50:00.000Z',
+        }
+        mock_get.return_value = mock_response
+
+        with caplog.at_level('INFO'):
+            result = check_agent_health(self.agent_ip, self.health_port)
+
+        mock_get.assert_called_once_with(
+            self.url, timeout=5
+        ), f'Expected GET to {self.url} with timeout=5'
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            mock_response.json.return_value
+        ), 'Expected save_agent_ping_status to be called with correct data'
+
+        assert 'Agent health check:' in caplog.text, (
+            'Expected health check log not found'
+        )
+        assert result == mock_response.json.return_value, (
+            'Returned result does not match expected JSON'
+        )
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_request_exception_handling(self, mock_get, mock_save_status):
+        mock_get.side_effect = requests.exceptions.RequestException(
+            'Connection error'
+        )
+
+        with pytest.raises(RequestException, match='Connection error'):
+            check_agent_health(self.agent_ip, self.health_port)
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            {'status': 'unreachable', 'agent': 'unknown', 'uptime': -1}
+        ), 'Expected unreachable status to be saved on RequestException'
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_exception_handling(self, mock_get, mock_save_status):
+        mock_get.side_effect = Exception('Unexpected error')
+
+        result = check_agent_health(self.agent_ip, self.health_port)
+
+        mock_save_status.assert_called_once_with(
+            self.agent_ip,
+            {'status': 'error', 'agent': 'unknown', 'uptime': -1}
+        ), 'Expected error status to be saved on generic Exception'
+
+        assert result['status'] == 'error', "Expected 'error' status in result"
+        assert 'unexpected_error' in result, (
+            "Expected 'unexpected_error' key in result"
+        )
+
+    @patch('monitoring.tasks.save_agent_ping_status')
+    @patch('monitoring.tasks.requests.get')
+    def test_health_check_reports_error_status(
+        self,
+        mock_get,
+        mock_save_status
+    ):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            'agent': 'test-agent',
+            'status': 'error',
+            'uptime': 100,
+            'timestamp': '2025-06-19T09:50:00.000Z',
+        }
+        mock_get.return_value = mock_response
+
+        result = check_agent_health(self.agent_ip, self.health_port)
+
+        assert result['status'] == 'error', "Expected status to be 'error'"
+        mock_save_status.assert_called_once()
+
+
+@pytest.mark.django_db
+class TestSaveAgentPingStatus:
+    """Test suite for save_agent_ping_status"""
+    @freeze_time('2025-06-23 10:00:00')
+    def test_creates_new_status(self):
+        """Test that new agent status is created with correct data"""
+        ip = '192.168.1.1'
+        data = {
+            'agent': 'agent-01',
+            'status': 'ok',
+            'uptime': 100
+        }
+
+        save_agent_ping_status(ip, data)
+
+        status = AgentPingStatus.objects.get(ip=ip)
+        assert status.agent_name == 'agent-01', (
+            f"Expected agent_name='agent-01', got {status.agent_name}"
+        )
+        assert status.status == 'ok', (
+            f"Expected status='ok', got {status.status}"
+        )
+        assert status.uptime == 100, (
+            f'Expected uptime=100, got {status.uptime}'
+        )
+        assert timezone.now() - status.timestamp < timedelta(seconds=3), (
+            'Timestamp is not within 3 seconds of now: '
+            f'got {status.timestamp}, now is {timezone.now()}'
+        )
+
+    def test_logs_status_change(self, caplog):
+        """Test that status changes are properly logged"""
+        ip = '192.168.1.2'
+        AgentPingStatus.objects.create(
+            agent_name='agent-02',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=100,
+            status='ok'
+        )
+
+        new_data = {
+            'agent': 'agent-02',
+            'status': 'unreachable',
+            'uptime': 200
+        }
+
+        with caplog.at_level('WARNING'):
+            save_agent_ping_status(ip, new_data)
+
+        assert 'status changed from ok to unreachable' in caplog.text, (
+            "Expected warning log for status change from 'ok' to "
+            "'unreachable', but not found."
+        )
+
+    def test_no_log_when_status_same(self, caplog):
+        """Test that no warning is logged when status hasn't changed"""
+        ip = '192.168.1.3'
+        AgentPingStatus.objects.create(
+            agent_name='agent-03',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=100,
+            status='ok'
+        )
+
+        same_data = {
+            'agent': 'agent-03',
+            'status': 'ok',
+            'uptime': 200
+        }
+
+        with caplog.at_level('WARNING'):
+            save_agent_ping_status(ip, same_data)
+
+        assert 'status changed' not in caplog.text, (
+            'Expected no warning log when status has not changed.'
+        )
+
+    @freeze_time('2025-06-23 12:00:00')
+    def test_timestamp_updated_on_status_change(self):
+        """Test that timestamp is updated when agent status changes.
+        Verify timestamp gets updated when
+        transitioning from 'ok' to 'unreachable'."""
+
+        ip = '192.168.1.5'
+        old_time = timezone.now() - timedelta(days=1)
+
+        AgentPingStatus.objects.create(
+            agent_name='agent-05',
+            ip=ip,
+            timestamp=old_time,
+            uptime=100,
+            status='ok'
+        )
+
+        new_data = {
+            'agent': 'agent-05',
+            'status': 'unreachable',
+            'uptime': 300
+        }
+
+        save_agent_ping_status(ip, new_data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.timestamp > old_time, (
+            f'Expected timestamp to be updated, but got {status.timestamp}'
+            f' which is not greater than {old_time}'
+        )
+        assert status.status == 'unreachable', (
+            f"Expected status to be 'unreachable', got '{status.status}'"
+        )
+
+    def test_missing_keys_in_status_data(self):
+        """Handles missing keys gracefully."""
+        ip = '10.0.0.1'
+        data = {}
+
+        save_agent_ping_status(ip, data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.agent_name == 'unknown', (
+            f"agent_name should be 'unknown', got {status.agent_name}"
+        )
+        assert status.status == 'unreachable', (
+            f"status should be 'unreachable', got {status.status}"
+        )
+        assert status.uptime is None, (
+            f'uptime should be None, got {status.uptime}'
+        )
+
+    def test_uptime_always_updated(self):
+        """Updates uptime even if status is unchanged."""
+        ip = '192.168.1.6'
+        AgentPingStatus.objects.create(
+            agent_name='agent-06',
+            ip=ip,
+            timestamp=timezone.now(),
+            uptime=50,
+            status='ok'
+        )
+
+        data = {
+            'agent': 'agent-06',
+            'status': 'ok',
+            'uptime': 150
+        }
+
+        save_agent_ping_status(ip, data)
+        status = (
+            AgentPingStatus.objects
+            .filter(ip=ip).order_by('-timestamp').first()
+        )
+
+        assert status.uptime == 150, 'uptime was not updated to 150'
+
+
+@pytest.mark.django_db
+class TestCheckAllAgentsHealth:
+    """Test suite for check_all_agents_health task."""
+    def test_creates_group_task(self):
+        """Test that task creates a group of subtasks
+        for each agent IP and port."""
+        agents = [
+            {'ip': '192.168.1.1', 'port': 8081},
+            {'ip': '192.168.1.2', 'port': 9000}
+        ]
+        serialized_agents = json.dumps(agents)
+
+        with patch('monitoring.tasks.group') as mock_group:
+            mock_task_group = MagicMock()
+            mock_group.return_value = mock_task_group
+            mock_task_group.apply_async.return_value.id = 'fake-task-id'
+
+            result = check_all_agents_health(serialized_agents)
+
+            assert mock_group.call_count == 1, (
+                'group() was not called exactly once'
+            )
+
+            # Extract list of subtasks from group() call
+            call_args = mock_group.call_args[0][0]
+            call_args_list = list(call_args)
+
+            assert len(call_args_list) == len(agents), (
+                f'Expected {len(agents)} subtasks, got {len(call_args_list)}'
+            )
+
+            for sig, agent in zip(call_args_list, agents):
+                assert sig.task == 'monitoring.tasks.check_agent_health', (
+                    "Expected task 'monitoring.tasks.check_agent_health',"
+                    f" got '{sig.task}'"
+                )
+                assert sig.args[0] == agent['ip'], (
+                    f"Expected IP '{agent['ip']}', got '{sig.args[0]}'"
+                )
+                assert sig.args[1] == agent['port'], (
+                    f"Expected port {agent['port']}, got {sig.args[1]}"
+                )
+
+            assert mock_task_group.apply_async.call_count == 1, (
+                'apply_async() was not called exactly once'
+            )
+
+            assert result == 'fake-task-id', (
+                f"Expected result ID to be 'fake-task-id', got '{result}'"
+            )

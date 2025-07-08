@@ -18,6 +18,7 @@ class ServerStatus(models.Model):
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+    tags = models.JSONField(null=True, blank=True, default=dict)
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
@@ -195,3 +196,28 @@ class Webhook(models.Model):
 
     def __str__(self):
         return f'Webhook: {self.description or self.url[:30]}'
+
+
+class AgentPingStatus(models.Model):
+    """Agent ping status result from http request."""
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+
+    STATUS_CHOICES = [
+        ('ok', 'OK'),
+        ('unreachable', 'Unreachable'),
+        ('error', 'Error'),
+    ]
+    agent_name = models.CharField(max_length=100)
+    ip = models.GenericIPAddressField()
+    timestamp = models.DateTimeField()
+    uptime = models.FloatField(
+        null=True, blank=True, validators=[MinValueValidator(0)]
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+
+    def __str__(self):
+        return f'{self.agent_name} - {self.timestamp} - {self.status}'

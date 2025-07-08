@@ -23,8 +23,11 @@ from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import get_config_option, parse_csv_list
 from ..utils.network import check_http_health, is_tcp_reachable
+from ..utils.timestamp import get_current_time
 
 PROTOCOLS = ('tcp', 'udp')
+revert_interval = 900
+last_success_time = 0
 
 
 def get_ip_from_interface(interface):
@@ -70,8 +73,6 @@ class ServerAgent(object):
     auth_token_type = 'Bearer'
     whitelist_commands = None
     critical_processes = None
-    revert_interval = 900
-    last_success_time = 0
 
     def __init__(
             self,
@@ -230,8 +231,9 @@ class ServerAgent(object):
 
     def _ping_controller(self, url, api_key, timeout=3):
         if not is_tcp_reachable(url, timeout):
-            self.logger.warning(
-                'Controller unreachable at TCP level: %s' % url
+            maybe_log_message(
+                'Controller unreachable at TCP level: %s' % url,
+                logger=self.logger
             )
             return False
 
@@ -242,23 +244,11 @@ class ServerAgent(object):
             timeout
         )
         if not healthy:
-            self.logger.warning(
-                'Health check failed for controller: %s' % url
+            maybe_log_message(
+                'Health check failed for controller: %s' % url,
+                logger=self.logger
             )
         return healthy
-
-    def set_controller_urls(self, urls):
-        """
-            Set the list of controller URLs and initialize current controller.
-
-            The first URL in the list is set as the current controller.
-            Also updates the `last_success_time` to the current time.
-        """
-
-        self.controller_urls = urls
-        if urls:
-            self.current_controller = urls[0]
-            self.last_success_time = time.time()
 
     def ensure_active_controller(self, api_key):
         """
@@ -277,10 +267,13 @@ class ServerAgent(object):
         current_index = self.controller_urls.index(self.current_controller)
         for url in self.controller_urls[current_index + 1:]:
             if self._ping_controller(url, api_key=api_key):
-                self.logger.warning('Controller switched: %s -> %s' % (
-                    self.current_controller, url))
+                maybe_log_message(
+                    'Controller switched: %s -> %s' % (
+                        self.current_controller, url),
+                    logger=self.logger
+                )
                 self.current_controller = url
-                self.last_success_time = time.time()
+                self.last_success_time = get_current_time()
                 return url
 
         self.logger.error('No available controller. All health checks failed.')
@@ -298,8 +291,8 @@ class ServerAgent(object):
             return self.current_controller
 
         # Only attempt revert if enough time has passed
-        elapsed = time.time() - self.last_success_time
-        if elapsed < self.revert_interval:
+        elapsed = get_current_time() - self.last_success_time
+        if elapsed < revert_interval:
             return self.current_controller
 
         # Try controllers with higher priority than current_controller
@@ -308,13 +301,14 @@ class ServerAgent(object):
 
         for url in higher_priority_urls:
             if self._ping_controller(url, api_key=api_key):
-                self.logger.info(
+                maybe_log_message(
                     'Reverting controller: %s -> %s' % (
                         self.current_controller, url
-                    )
+                    ),
+                    logger=self.logger
                 )
                 self.current_controller = url
-                self.last_success_time = time.time()
+                self.last_success_time = get_current_time()
                 return url
 
         # No higher-priority controllers available, keep current
@@ -972,55 +966,3 @@ class ServerAgent(object):
             'load_avg': self.get_load_average(),
             'timestamp': datetime.datetime.now().isoformat(),
         }
-
-    def send_metrics_to_controller(
-            self,
-            endpoint_path='agent/metrics/',
-            api_key=None,
-            max_retries=3,
-            delay=5,
-            timeout=5,
-    ):
-        """
-        Sends a POST request with JSON data to the controller URL,
-        including authentication, and built-in retry logic.
-        """
-        if not self.ensure_active_controller(api_key=api_key):
-            maybe_log_message(
-                "Couldn't send status update:"
-                ' controllers URLS are not available',
-                logger=self.logger,
-            )
-            return
-        base_api_url = urljoin(self.current_controller, self.api_prefix)
-        metrics_api_url = urljoin(base_api_url, endpoint_path)
-        url = '%s?hostname=%s' % (metrics_api_url, self.hostname)
-
-        payload = self.generate_report()
-        try:
-            result = self.post_data(
-                url=url,
-                payload=payload,
-                api_key=api_key,
-                max_retries=max_retries,
-                delay=delay,
-                timeout=timeout
-            )
-            if result:
-                maybe_log_message(
-                    'POST request to controller succeeded.',
-                    logger=self.logger,
-                    level=logging.INFO,
-                )
-            else:
-                maybe_log_message(
-                    'POST request to controller failed after retries.',
-                    logger=self.logger,
-                    exc_info=True,
-                )
-        except Exception as e:
-            maybe_log_message(
-                'Unexpected error during status update: %s' % str(e),
-                logger=self.logger,
-                exc_info=True,
-            )

@@ -1665,22 +1665,6 @@ def test_ping_controller_health_check_fail():
     assert result is False
 
 
-def test_set_controller_urls():
-    """
-        Test that set_controller_urls sets the controller
-        list correctly and assigns the first URL
-        as the current controller.
-    """
-    agent = MockAgent(port=12345)
-    urls = ['http://mock1', 'http://mock2']
-
-    agent.set_controller_urls(urls)
-
-    assert agent.controller_urls == urls
-    assert agent.current_controller == 'http://mock1'
-    assert isinstance(agent.last_success_time, float)
-
-
 def test_try_revert_primary_controller_success(monkeypatch):
     """
         Test that try_revert_primary_controller successfully

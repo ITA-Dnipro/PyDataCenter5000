@@ -12,9 +12,10 @@
         state: directory
         mode: '0755'
 
-    - name: Build .deb
+    - name: Build package files
       command: >
-        fpm -s dir -t deb
+        fpm -s dir
+        -t {{ 'deb' if ansible_facts['os_family'] == 'Debian' else 'rpm' }}
         -n agents-infra
         -v 1.0.0
         -C /opt/agents_infra
@@ -22,4 +23,10 @@
         .
       args:
         chdir: "{{ proj_root }}/dist"
-      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Build .zip artifact
+      archive:
+        path:
+          - /opt/agents_infra
+        dest: "{{ proj_root }}/dist/agents-infra.zip"
+        format: zip

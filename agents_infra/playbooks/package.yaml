@@ -12,12 +12,20 @@
         state: directory
         mode: '0755'
 
+    - name: Get package version
+      slurp:
+        src: "{{ proj_root }}/VERSION"
+      register: version_file
+
+    - set_fact:
+        agents_infra_version: "{{ version_file.content | b64decode | trim }}"
+
     - name: Build package files
       command: >
         fpm -s dir
         -t {{ 'deb' if ansible_facts['os_family'] == 'Debian' else 'rpm' }}
         -n agents-infra
-        -v 1.0.0
+        -v {{ agents_infra_version }}
         -C /opt/agents_infra
         --prefix /opt/agents_infra
         .

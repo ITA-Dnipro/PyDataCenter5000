@@ -250,69 +250,82 @@ class ServerAgent(object):
             )
         return healthy
 
+    def _find_healthy_controller(self, urls, api_key):
+        for url in urls:
+            if self._ping_controller(url, api_key=api_key):
+                return url
+        return None
+
+    def _switch_controller(self, new_url):
+        maybe_log_message(
+            'Controller switched: %s -> %s' % (
+                self.current_controller,
+                new_url
+            ),
+            logger=self.logger
+        )
+        self.current_controller = new_url
+        self.last_success_time = get_current_time()
+
     def ensure_active_controller(self, api_key):
         """
-           Ensure there is a healthy active controller.
-           First trying to revert to high priority url.
+        Ensure there is a healthy active controller.
         """
-        reverted_controller = self.try_revert_primary_controller(
-            api_key=api_key
-        )
-        if reverted_controller != self.current_controller:
-            return reverted_controller
+        if self._attempt_revert_to_primary(api_key):
+            return self.current_controller
 
         if self._ping_controller(self.current_controller, api_key=api_key):
             return self.current_controller
 
-        current_index = self.controller_urls.index(self.current_controller)
-        for url in self.controller_urls[current_index + 1:]:
-            if self._ping_controller(url, api_key=api_key):
-                maybe_log_message(
-                    'Controller switched: %s -> %s' % (
-                        self.current_controller, url),
-                    logger=self.logger
-                )
-                self.current_controller = url
-                self.last_success_time = get_current_time()
-                return url
+        remaining_urls = self._get_lower_priority_urls()
+        healthy_url = self._find_healthy_controller(remaining_urls, api_key)
+        if healthy_url:
+            self._switch_controller(healthy_url)
+            return healthy_url
 
         self.logger.error('No available controller. All health checks failed.')
         return None
 
     def try_revert_primary_controller(self, api_key):
         """
-           Attempt to revert to the primary (highest-priority) controller.
-
-           Reversion is only attempted if enough time has passed since the last
-           successful use of the current controller (`revert_interval` seconds)
+        Attempt to revert to the primary controller.
         """
-        # If already on the primary controller, nothing to do
         if self.current_controller == self.controller_urls[0]:
             return self.current_controller
 
-        # Only attempt revert if enough time has passed
         elapsed = get_current_time() - self.last_success_time
         if elapsed < revert_interval:
             return self.current_controller
 
-        # Try controllers with higher priority than current_controller
-        current_index = self.controller_urls.index(self.current_controller)
-        higher_priority_urls = self.controller_urls[:current_index]
+        higher_priority_urls = self._get_higher_priority_urls()
+        healthy_url = self._find_healthy_controller(
+            higher_priority_urls,
+            api_key
+        )
+        if healthy_url:
+            maybe_log_message(
+                'Reverting controller: %s -> %s' % (
+                    self.current_controller,
+                    healthy_url
+                ),
+                logger=self.logger
+            )
+            self._switch_controller(healthy_url)
 
-        for url in higher_priority_urls:
-            if self._ping_controller(url, api_key=api_key):
-                maybe_log_message(
-                    'Reverting controller: %s -> %s' % (
-                        self.current_controller, url
-                    ),
-                    logger=self.logger
-                )
-                self.current_controller = url
-                self.last_success_time = get_current_time()
-                return url
-
-        # No higher-priority controllers available, keep current
         return self.current_controller
+
+    def _attempt_revert_to_primary(self, api_key):
+        previous = self.current_controller
+        self.try_revert_primary_controller(api_key)
+        return previous != self.current_controller
+
+    def _get_higher_priority_urls(self):
+        current_index = self.controller_urls.index(self.current_controller)
+        return self.controller_urls[:current_index]
+
+    def _get_lower_priority_urls(self):
+        current_index = self.controller_urls.index(self.current_controller)
+        return self.controller_urls[current_index + 1:]
 
     def _parse_config_file(self, filename=None):
         """Parse server's config file using ConfigParser."""

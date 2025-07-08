@@ -47,16 +47,16 @@ def load_agent_from_config(config_content):
 
 class MockAgent(ServerAgent):
     def __init__(
-        self,
-        server_name='mock',
-        port=None,
-        health_port=8081,
-        processes=None,
-        critical_processes=None,
-        interface=None,
-        protocol=None,
-        whitelist_commands=None,
-        command_queue_size=0,
+            self,
+            server_name='mock',
+            port=None,
+            health_port=8081,
+            processes=None,
+            critical_processes=None,
+            interface=None,
+            protocol=None,
+            whitelist_commands=None,
+            command_queue_size=0,
     ):
         super(MockAgent, self).__init__(
             server_name,
@@ -130,7 +130,7 @@ critical_processes = sshd, nginx, postgres
 
 
 def test_status_to_json_type_error(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+        setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     """
     Test that the TypeError is handled and logged on JSON serialization
@@ -253,7 +253,7 @@ def test_post_data_max_retries_fail(
 
 
 def test_post_data_error_logged(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+        setup_temp_file_logging_with_fallback, assert_msg_in_logfile
 ):
     agent = MockAgent(port=12345)
     agent.current_controller = 'http://mock'
@@ -281,7 +281,6 @@ def test_post_data_to_controller_success_logged(
     """
 
     def mock_urlopen(request, timeout=5):
-
         class MockResponse(object):
 
             def getcode(self):
@@ -887,6 +886,7 @@ def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
 
 def test_get_ip_from_interface_not_found(monkeypatch):
     """Test that None is returned when interface is not found."""
+
     def mock_net_if_addrs():
         return {'mock_interface': []}
 
@@ -898,6 +898,7 @@ def test_get_ip_from_interface_not_found(monkeypatch):
 
 def test_get_ip_from_interface_loopback_only(monkeypatch):
     """Test that None is returned when only loopback address is present."""
+
     def mock_net_if_addrs():
         return {
             'mock_interface': [
@@ -916,6 +917,7 @@ def test_get_ip_from_interface_loopback_only(monkeypatch):
 
 def test_get_ip_from_interface_valid_ipv4(monkeypatch):
     """Test that valid IPv4 address is returned."""
+
     def mock_net_if_addrs():
         return {
             'mock_interface': [
@@ -934,6 +936,7 @@ def test_get_ip_from_interface_valid_ipv4(monkeypatch):
 
 def test_get_ip_from_interface_multiple_addresses(monkeypatch):
     """Test that first non-loopback IPv4 address is returned."""
+
     def mock_net_if_addrs():
         return {
             'mock_interface': [
@@ -960,6 +963,7 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
 
 def test_collect_server_metadata_os_detection(monkeypatch):
     """Test successful OS type detection."""
+
     def mock_system():
         return 'Linux'
 
@@ -1620,7 +1624,6 @@ def test_ping_controller_tcp_fail():
     TCP connection to the controller fails.
     """
     agent = MockAgent(port=12345)
-    print(agent.__class__.__module__)
     with mock.patch(
             'socket.create_connection',
             side_effect=socket.error()
@@ -1663,6 +1666,38 @@ def test_ping_controller_health_check_fail():
             result = agent._ping_controller('http://mock', api_key=None)
 
     assert result is False
+
+
+def test_find_healthy_controller_returns_first_healthy():
+    agent = MockAgent(port=12345)
+    urls = ['http://bad1', 'http://good', 'http://bad2']
+
+    def mock_ping(url, api_key):
+        return url == 'http://good'
+
+    agent._ping_controller = mock_ping
+
+    result = agent._find_healthy_controller(urls, api_key=None)
+    assert result == 'http://good'
+
+
+def test_switch_controller_sets_state_and_logs(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.current_controller = 'http://old'
+    agent.last_success_time = 0
+
+    logged = []
+    monkeypatch.setattr(agent, 'logger', type('Logger', (), {
+        'info': lambda self, msg: logged.append(msg)
+    })())
+
+    now = 123456
+    monkeypatch.setattr('timestamp.get_current_time', lambda: now)
+
+    agent._switch_controller('http://new')
+
+    assert agent.current_controller == 'http://new'
+    assert agent.last_success_time == now
 
 
 def test_try_revert_primary_controller_success(monkeypatch):
@@ -1730,6 +1765,19 @@ def test_ensure_active_controller_switches_to_healthy():
             result = agent.ensure_active_controller(api_key=None)
 
     assert result == 'http://mock2'
+
+
+def test_attempt_revert_to_primary_detects_change(monkeypatch):
+    agent = MockAgent(port=12345)
+    agent.current_controller = 'http://secondary'
+
+    monkeypatch.setattr(
+        agent, 'try_revert_primary_controller',
+        lambda api_key: 'http://primary'
+    )
+
+    result = agent._attempt_revert_to_primary(api_key=None)
+    assert result is True
 
 
 def test_ensure_active_controller_success_current(monkeypatch):

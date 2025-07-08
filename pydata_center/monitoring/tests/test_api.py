@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
 from monitoring.email import send_async_email
-from monitoring.models import (AgentMetric, AgentPingStatus, AlertRule,
+from monitoring.models import (Agent, AgentMetric, AgentPingStatus, AlertRule,
                                ServerStatus)
 from monitoring.tasks import (check_agent_health, check_all_agents_health,
                               evaluate_agent_alerts, save_agent_ping_status)
@@ -1451,3 +1451,33 @@ class TestCheckAllAgentsHealth:
             assert result == 'fake-task-id', (
                 f"Expected result ID to be 'fake-task-id', got '{result}'"
             )
+
+
+class TestCreateAgent(APITestCase):
+    def setUp(self):
+        self.url = reverse('register_agent')
+        self.agent_data = {
+            'name': 'test-agent'
+        }
+
+    def test_register_new_agent(self):
+        """Should register a new agent and return a token"""
+        response = self.client.post(self.url, self.agent_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('token', response.data)
+        self.assertIsNotNone(response.data['token'])
+        self.assertEqual(response.data['message'], 'Registered successfully.')
+        self.assertTrue(Agent.objects.filter(name='test-agent').exists())
+
+    def test_register_existing_agent(self):
+        """Should not generate new token if agent already exists"""
+        # First registration
+        self.client.post(self.url, self.agent_data, format='json')
+        # Second registration
+        response = self.client.post(self.url, self.agent_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('token', response.data)
+        self.assertIsNone(response.data['token'])
+        self.assertEqual(response.data['message'], 'Agent already exists.')

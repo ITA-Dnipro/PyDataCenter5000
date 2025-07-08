@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:15
-    container_name: datacenter_db
+    container_name: database
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -21,7 +21,7 @@ services:
     build:
       context: ..
       dockerfile: pydata_center/Dockerfile
-    container_name: pydata_center_app
+    container_name: controller
     restart: on-failure
     command: python manage.py runserver 0.0.0.0:8000
     environment:
@@ -50,6 +50,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  web_agent:
+    build:
+      context: ../agents_infra
+      dockerfile: docker/Dockerfile_web
+    container_name: web_agent
+    restart: on-failure
+    command: tail -f /dev/null
+    volumes:
+      - ../agents_infra/agents_infra:/app/agents_infra
+      - ../agents_infra/scripts:/app/scripts
+    depends_on:
+      - app
 
 volumes:
   db_data:

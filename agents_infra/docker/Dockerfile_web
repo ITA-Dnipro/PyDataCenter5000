@@ -1,0 +1,86 @@
+FROM ghcr.io/yelyzavetav/ubuntu-python2.6:latest
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PORT=8080
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Europe/Kyiv
+
+
+WORKDIR /app
+
+# Copy files
+COPY ../agents_infra/ /app/agents_infra/
+COPY ../servers/web/ /app/server
+
+# Install system dependencies (tzdata will pick up TZ=Europe/Kyiv non‑interactively)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      tzdata \
+      python3-venv \
+      nginx \
+      sudo \
+      curl \
+      net-tools \
+ && rm -rf /var/lib/apt/lists/*
+
+
+# Create Docker-compatible nginx setup
+RUN rm -f /etc/nginx/sites-enabled/default && \
+    cat << 'EOF' > /etc/nginx/sites-available/fastapi
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
+
+RUN ln -sf /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
+
+# Create virtual environment and install dependencies
+RUN mkdir -p /opt/fastapi \
+ && python3 -m venv /opt/fastapi/venv \
+ && /opt/fastapi/venv/bin/pip install --upgrade pip
+
+# Install Python packages if requirements.txt exists
+RUN if [ -f /app/server/requirements.txt ]; then \
+      /opt/fastapi/venv/bin/pip install -r /app/server/requirements.txt; \
+    fi
+
+# Create startup script for Docker
+RUN cat << 'EOF' > /app/start.sh
+#!/bin/bash
+set -e
+
+# Start nginx in the background
+nginx -g "daemon off;" &
+
+# Start FastAPI with gunicorn
+cd /app/server
+exec /opt/fastapi/venv/bin/gunicorn main:app \
+  -k uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:${PORT} \
+  --workers $(nproc) \
+  --pythonpath /app/server
+EOF
+
+RUN chmod +x /app/start.sh
+
+EXPOSE 8001 8080
+
+CMD ["/app/start.sh"]

@@ -22,6 +22,7 @@ from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import get_config_option, parse_csv_list
+from ..utils.network import check_http_health, is_tcp_reachable
 
 PROTOCOLS = ('tcp', 'udp')
 
@@ -228,52 +229,23 @@ class ServerAgent(object):
         self._protocol = value
 
     def _ping_controller(self, url, api_key, timeout=3):
-        """
-            Check if a controller is reachable and healthy.
-        """
-        try:
-            parsed = urlparse(url)
-            host = parsed.hostname
-            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-
-            sock = socket.create_connection((host, port), timeout)
-            sock.close()
-        except socket.error:
+        if not is_tcp_reachable(url, timeout):
             self.logger.warning(
                 'Controller unreachable at TCP level: %s' % url
             )
             return False
 
-        try:
-            headers = {'Content-Type': 'application/json'}
-            if api_key:
-                headers.update(
-                    {
-                        'Authorization': '%s %s' % (
-                            self.auth_token_type,
-                            api_key
-                        )
-                    }
-                )
-            health_url = url.rstrip('/') + '/health'
-
-            req = urllib2.Request(health_url, headers=headers)
-            response = urllib2.urlopen(req, timeout=timeout)
-
-            body = response.read()
-            data = json.loads(body)
-
-            return data.get('status') == 'healthy'
-        except (
-                urllib2.URLError,
-                urllib2.HTTPError,
-                socket.timeout,
-                ValueError
-        ):
+        healthy = check_http_health(
+            url,
+            api_key,
+            self.auth_token_type,
+            timeout
+        )
+        if not healthy:
             self.logger.warning(
                 'Health check failed for controller: %s' % url
             )
-            return False
+        return healthy
 
     def set_controller_urls(self, urls):
         """

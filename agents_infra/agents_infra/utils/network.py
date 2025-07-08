@@ -21,14 +21,13 @@ def is_tcp_reachable(url, timeout=3):
 def check_http_health(url, api_key=None, auth_token_type=None, timeout=3):
     headers = {'Content-Type': 'application/json'}
     if api_key and auth_token_type:
-        headers['Authorization'] = f'{auth_token_type} {api_key}'
+        headers['Authorization'] = '%s %s' % (auth_token_type, api_key)
 
     health_url = url.rstrip('/') + '/health'
 
     try:
         req = urllib2.Request(health_url, headers=headers)
         response = urllib2.urlopen(req, timeout=timeout)
-
         body = response.read()
         data = json.loads(body)
 

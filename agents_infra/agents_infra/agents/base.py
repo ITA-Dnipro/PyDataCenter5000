@@ -319,6 +319,7 @@ class ServerAgent(object):
             level=logging.INFO,
             context=None,
             fallback_logger=None,
+            exc_info=None,
             **kwargs
     ):
         """
@@ -328,12 +329,14 @@ class ServerAgent(object):
             message (str): The log message.
             level (int): Logging level.
             context (dict): Optional log context.
+            exc_info (bool or Exception): Exception info for traceback logging.
         """
         maybe_log_message(
             message,
             logger=self.logger,
             fallback_logger=fallback_logger,
             level=level,
+            exc_info=exc_info,
             **kwargs
         )
 

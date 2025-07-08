@@ -1,3 +1,4 @@
+import json
 import logging
 import operator
 import os
@@ -6,7 +7,8 @@ from functools import singledispatchmethod
 from typing import Union
 
 import graypy
-from celery import shared_task
+import requests
+from celery import group, shared_task
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -14,6 +16,7 @@ from monitoring.email import EmailMessage, send_async_email
 from monitoring.models import AgentMetric, AlertRule
 from monitoring.webhook import (DiscordMessage, SlackMessage, WebhookMessage,
                                 send_async_webhook_message)
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +184,88 @@ def evaluate_agent_alerts(
             cache.set(
                 cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
             )
+
+
+def save_agent_ping_status(agent_ip, status_data):
+    """
+    Save agent ping status to database and log status change.
+    """
+    from monitoring.models import AgentPingStatus
+
+    last_status = (
+        AgentPingStatus.objects
+        .filter(ip=agent_ip)
+        .order_by('-timestamp')
+        .first()
+    )
+    new_status = status_data.get('status', 'unreachable')
+    agent_name = status_data.get('agent', 'unknown')
+    uptime = status_data.get('uptime')
+
+    if last_status and last_status.status != new_status:
+        logger.warning(
+            f'Agent {agent_ip} status changed from'
+            f' {last_status.status} to {new_status}'
+        )
+
+    AgentPingStatus.objects.create(
+        agent_name=agent_name,
+        ip=agent_ip,
+        timestamp=timezone.now(),
+        uptime=uptime,
+        status=new_status
+    )
+
+
+@shared_task
+def check_agent_health(agent_ip, port):
+    """
+    Task to check agent health via health endpoint.
+
+    Parameters:
+        agent_ip (str): agent's IP address
+        port (int): agent's server port
+    """
+    try:
+        url = f'http://{agent_ip}:{port}/health'
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+
+        save_agent_ping_status(agent_ip, data)
+
+        logger.info(f'Agent health check: {data}')
+        return data
+
+    except RequestException as e:
+        logger.error(f'Error while pinging agent {agent_ip}: {str(e)}')
+        save_agent_ping_status(
+            agent_ip,
+            {'status': 'unreachable', 'agent': 'unknown', 'uptime': -1}
+        )
+        raise
+
+    except Exception as e:
+        logger.error(
+            f'Unexpected error while pinging agent {agent_ip}: {str(e)}'
+        )
+        save_agent_ping_status(
+            agent_ip, {'status': 'error', 'agent': 'unknown', 'uptime': -1}
+        )
+        return {'status': 'error', 'unexpected_error': str(e)}
+
+
+@shared_task
+def check_all_agents_health(serialized_agents):
+    """
+    Task to check health of multiple agents.
+
+    Parameters:
+        serialized_agents (str): JSON string with list of {'ip', 'port'} dicts
+    """
+    agents = json.loads(serialized_agents)
+    task_group = group(
+        check_agent_health.s(agent['ip'], agent['port']) for agent in agents
+    )
+    result = task_group.apply_async()
+    return result.id

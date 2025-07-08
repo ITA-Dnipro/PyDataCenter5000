@@ -1,17 +1,17 @@
 import logging
+from datetime import timezone
 
 from django.contrib.auth.decorators import permission_required
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-from django.utils.timezone import is_naive, make_aware, now, utc
+from django.utils.timezone import is_naive, make_aware, now
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import (api_view, permission_classes,
-                                       throttle_classes)
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -394,9 +394,9 @@ def metrics_history_view(request):
         raise ValidationError({'end': 'Invalid datetime format.'})
 
     if start and is_naive(start):
-        start = make_aware(start, timezone=utc)
+        start = make_aware(start, timezone=timezone.utc)
     if end and is_naive(end):
-        end = make_aware(end, timezone=utc)
+        end = make_aware(end, timezone=timezone.utc)
 
     filters = Q()
     if hostname:

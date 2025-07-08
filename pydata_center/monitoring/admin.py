@@ -3,8 +3,8 @@ from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (AgentLogEntry, AgentMetric, AlertRule, CommandHistory,
-                     ServerStatus, Webhook)
+from .models import (AgentLogEntry, AgentMetric, AgentPingStatus, AlertRule,
+                     CommandHistory, ServerStatus, Webhook)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -124,3 +124,14 @@ class AgentLogEntryAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'agent_name', 'level', 'message')
     list_filter = ('level', 'agent_name', 'timestamp')
     search_fields = ('message', 'agent_name')
+
+
+@admin.register(AgentPingStatus)
+class AgentPingStatusAdmin(admin.ModelAdmin):
+    list_display = (
+        'agent_name', 'ip', 'timestamp', 'uptime', 'status'
+    )
+    list_filter = ('status', )
+    search_fields = ('agent_name', 'ip')
+    readonly_fields = ('agent_name', 'ip', 'uptime', 'status', 'timestamp')
+    ordering = ('-timestamp', )

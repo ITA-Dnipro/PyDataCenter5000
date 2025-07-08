@@ -50,6 +50,7 @@ class MockAgent(ServerAgent):
         self,
         server_name='mock',
         port=None,
+        health_port=8081,
         processes=None,
         critical_processes=None,
         interface=None,
@@ -60,6 +61,7 @@ class MockAgent(ServerAgent):
         super(MockAgent, self).__init__(
             server_name,
             port,
+            health_port,
             processes,
             critical_processes,
             interface,

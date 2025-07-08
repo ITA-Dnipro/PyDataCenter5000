@@ -8,7 +8,7 @@
   tasks:
     - name: Fail if not Linux
       fail:
-        msg: "agents-infra is only supported Linux"
+        msg: "agents-infra is only supported on Linux"
       when: ansible_facts['os_family'] not in ['Debian', 'RedHat']
 
 - import_playbook: build.yaml

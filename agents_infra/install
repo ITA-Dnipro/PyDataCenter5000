@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+# Setup ansible
+apt update && apt install -y ruby ruby-dev build-essential ansible rsync sudo
+gem install --no-document dotenv:2.8.1 fpm:1.15.1
+
+if [ -f .env.sh ]; then
+  source .env.sh
+fi
+
+bash scripts/run-ansible.sh

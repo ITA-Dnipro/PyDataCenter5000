@@ -22,7 +22,7 @@ ConfigArgParse==1.7.1
 coverage==7.6.1
 discord.py==2.5.2
 distlib==0.3.9
-Django==4.2.21
+django==4.2.21
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 drf-spectacular==0.28.0

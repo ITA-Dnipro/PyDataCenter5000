@@ -6,13 +6,10 @@
     - vars/common.yaml
 
   tasks:
-    - name: Check for systemd
-      set_fact:
-        has_systemd: >-
-          {{
-            (ansible_facts['systemd'] is defined)
-            and ansible_facts['systemd']
-          }}
+    - name: Check for systemctl availability
+      command: which systemctl
+      register: systemctl_status
+      ignore_errors: yes
 
     - name: Copy systemd service file
       copy:
@@ -25,11 +22,11 @@
     - name: Reload systemd
       systemd:
         daemon_reload: yes
-      when: has_systemd
+      when: systemctl_status.rc == 0
 
     - name: Enable agents-infra service
       systemd:
         name: agents-infra
         enabled: yes
         state: started
-      when: has_systemd
+      when: systemctl_status.rc == 0

@@ -1,10 +1,15 @@
 import logging
 import sys
 
+import attr
 import ConfigParser
 import pkg_resources
 
 from .logtools import maybe_log_message
+
+DEFAULT_API_PREFIX = 'api/'
+DEFAULT_AUTH_TOKEN_TYPE = 'Bearer'
+DEFAULT_INTERFACE = 'enp0s3'
 
 
 def load_global_config():
@@ -99,3 +104,208 @@ def get_config_option(
             )
 
     return default
+
+
+class Config(object):
+    def __init__(
+        self,
+        name='',
+        api_prefix=DEFAULT_API_PREFIX,
+        url='',
+        critical_processes=None,
+        whitelist_commands=None,
+        port=-1,
+        health_port=None,
+        auth_token_type=DEFAULT_AUTH_TOKEN_TYPE,
+        interface=DEFAULT_INTERFACE,
+        env=None,
+        role=None,
+        region=None,
+        **kwargs
+    ):
+        self.name = name
+        self.api_prefix = api_prefix
+        self.url = url
+        self.critical_processes = critical_processes or []
+        self.whitelist_commands = whitelist_commands or []
+        self.port = port
+        self.health_port = health_port
+        self.auth_token_type = auth_token_type
+        self.interface = interface
+        self.env = env
+        self.role = role
+        self.region = region
+
+        # For additional fields
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    # -------------------- VALIDATION --------------------
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('name must be a string')
+        self._name = value
+
+    @property
+    def api_prefix(self):
+        return self._api_prefix
+
+    @api_prefix.setter
+    def api_prefix(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('api_prefix must be a string')
+        self._api_prefix = value
+
+    @property
+    def url(self):
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('url must be a string')
+        self._url = value
+
+    @property
+    def critical_processes(self):
+        return self._critical_processes
+
+    @critical_processes.setter
+    def critical_processes(self, value):
+        if not isinstance(value, list):
+            raise TypeError('critical_processes must be a list')
+        self._critical_processes = value
+
+    @property
+    def whitelist_commands(self):
+        return self._whitelist_commands
+
+    @whitelist_commands.setter
+    def whitelist_commands(self, value):
+        if not isinstance(value, list):
+            raise TypeError('whitelist_commands must be a list')
+        self._whitelist_commands = value
+
+    @property
+    def port(self):
+        return self._port
+
+    @port.setter
+    def port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('port must be an integer')
+        self._port = value
+
+    @property
+    def health_port(self):
+        return self._health_port
+
+    @health_port.setter
+    def health_port(self, value):
+        if value is not None and not isinstance(value, int):
+            raise TypeError('health_port must be an integer or None')
+        self._health_port = value
+
+    @property
+    def auth_token_type(self):
+        return self._auth_token_type
+
+    @auth_token_type.setter
+    def auth_token_type(self, value):
+        if value is not None and not isinstance(value, basestring):
+            raise TypeError('auth_token_type must be a string or None')
+        self._auth_token_type = value
+
+    @property
+    def interface(self):
+        return self._interface
+
+    @interface.setter
+    def interface(self, value):
+        if value is not None and not isinstance(value, basestring):
+            raise TypeError('interface must be a string or None')
+        self._interface = value
+
+    # --------------- FACTORY METHOD ------------------
+
+    @classmethod
+    def from_dict(cls, params):
+        return cls(**params)
+
+    # --------------- UTILS --------------------------
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def update(self, updates):
+        if isinstance(updates, Config):
+            updates = updates.__dict__
+        elif not isinstance(updates, dict):
+            raise TypeError('Expected dict or Config instance')
+
+        for key, value in updates.items():
+            setattr(self, key, value)
+
+
+def parse_config_file(filename=None, base_config=None):
+    """
+    Load and parse agent-specific config file.
+    Merges config.ini with base_config using Config.update().
+    Returns a tuple: (Config instance, tags dict).
+
+    Args:
+        filename (str): path to config.ini file.
+        base_config (Config or dict or None): base config to start from.
+
+    Returns:
+        (Config, dict): config object and tags dict.
+    """
+
+    config_files = [
+        filename or pkg_resources.resource_filename(__name__, 'config.ini')
+    ]
+
+    parser = ConfigParser.ConfigParser()
+    parser.read(config_files)
+
+    # Optional type conversion per key
+    type_casts = {
+        'port': int,
+        'health_port': int,
+        'critical_processes': parse_csv_list,
+        'whitelist_commands': parse_csv_list,
+    }
+
+    # Normalize base_config
+    if isinstance(base_config, Config):
+        config_obj = Config.from_dict(base_config.__dict__)
+    elif isinstance(base_config, dict) or base_config is None:
+        config_obj = Config.from_dict(base_config or {})
+    else:
+        raise TypeError('Expected base_config to be Config or dict or None')
+
+    temp_dict = {}
+    tags = {}
+
+    for section in parser.sections():
+        for key, value in parser.items(section):
+            caster = type_casts.get(key, str)
+            try:
+                parsed = caster(value.strip()) or None
+            except Exception:
+                continue  # skip invalid values
+
+            if section == 'server' and key in ('env', 'role', 'region'):
+                if parsed and isinstance(parsed, basestring):
+                    tags[key] = parsed.strip().lower()
+            else:
+                temp_dict[key] = parsed
+
+    config_obj.update(temp_dict)
+    return config_obj, tags

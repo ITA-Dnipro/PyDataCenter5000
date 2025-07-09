@@ -1,6 +1,5 @@
 import abc
 import json
-import logging
 
 import urllib2
 
@@ -55,7 +54,7 @@ class WebAgent(ServerAgent):
 
             status = super(WebAgent, self).is_service_healthy()
             return status and is_port_open(
-                port=int(get_env_or_param(self.config.get('port'), 'PORT')),
+                port=self.web_server_port,
                 ip=self.ip,
                 protocol=self.protocol,
                 logger=self.logger,
@@ -126,7 +125,6 @@ class WebAgent(ServerAgent):
         Returns:
             str: The complete URL including host, port and endpoint
         """
-        print('Actual port: ', self.web_server_port)
         return 'http://%s:%d/%s' % (
             self.web_server_host, self.web_server_port, endpoint
         )

@@ -152,7 +152,7 @@ def is_port_open(
 
     try:
         if protocol == 'tcp':
-            s.connect(ip, port)
+            s.connect((ip, port))
         else:
             s.sendto(payload or b'', (ip, port))
 

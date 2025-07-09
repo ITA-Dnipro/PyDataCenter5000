@@ -11,8 +11,8 @@ from .utils import configtools
 cfg = configtools.load_global_config()
 
 if cfg:
-    # Saving global config
-    agent.ServerAgent.config = {
+    # Prepare config as a dictionary
+    config = {
         'url': configtools.get_config_option(
             cfg, 'controller', 'url', default=''
         ),
@@ -34,4 +34,10 @@ if cfg:
             'critical_processes',
             cast=configtools.parse_csv_list
         ),
+        'name': 'global',  # Needed for validator
+        'port': 0,
+        'interface': None,
     }
+
+# Assign global config
+agent.ServerAgent.config = agent.Config.from_dict(config)

@@ -1,6 +1,7 @@
 import abc
 import subprocess
 
+from ...utils.configtools import Config
 from ...utils.helpers import is_valid_ip
 from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
@@ -13,13 +14,24 @@ class DNSAgent(ServerAgent):
 
     def __init__(
         self,
-        server_name='dns',
         protocol='udp',
         command_queue_size=0,
         config=None
     ):
+        # If not config - set default
+        if config is None:
+            config = Config(name='dns', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'dns')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'dns'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(DNSAgent, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
@@ -82,29 +94,28 @@ class DNSAgentNamed(DNSAgent):
     """
     DNSAgentNamed is a specialized subclass of DNSAgent designed to monitor
     and manage a DNS server running with the 'named' process.
-
-    Attributes:
-        server_name (str): Name identifier for the agent instance.
-            Defaults to 'dns_named'.
-        protocol (str): Protocol used for DNS queries. Defaults to 'udp'.
-        command_queue_size (int): Size of the command queue for
-            asynchronous command processing.
-        config (Config or dict, optional): Configuration object or
-            dictionary to override defaults.
-
-    Methods:
-        Inherits all methods from DNSAgent without modification.
     """
 
     def __init__(
         self,
-        server_name='dns_named',
         protocol='udp',
         command_queue_size=0,
         config=None
     ):
+        # Setting ='dns_named' if not provided
+        if config is None:
+            config = Config(name='dns_named', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'dns_named')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'dns_named'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(DNSAgentNamed, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,

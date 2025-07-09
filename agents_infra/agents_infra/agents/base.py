@@ -6,9 +6,9 @@ import logging.config
 import platform
 import socket
 import time
+import warnings
 
 import attr
-import ConfigParser
 import pkg_resources
 import Queue
 import urllib2
@@ -17,68 +17,12 @@ from urlparse import urljoin
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
-from ..utils.configtools import get_config_option, parse_csv_list
+from ..utils.configtools import (DEFAULT_API_PREFIX, DEFAULT_AUTH_TOKEN_TYPE,
+                                 DEFAULT_INTERFACE, Config, parse_config_file)
 from ..utils.helpers import is_process_active, restart_service
 from ..utils.sysinfo import get_ip_from_interface, get_linux_uptime
 
 PROTOCOLS = ('tcp', 'udp')
-
-
-@attr.s
-class Config(object):
-    """Helper class used to validate self.config in ServerAgent."""
-    name = attr.ib(validator=attr.validators.instance_of(basestring))
-    api_prefix = attr.ib(validator=attr.validators.instance_of(basestring))
-    url = attr.ib(validator=attr.validators.instance_of(basestring))
-    critical_processes = attr.ib(validator=attr.validators.instance_of(list))
-    whitelist_commands = attr.ib(validator=attr.validators.instance_of(list))
-    port = attr.ib(validator=attr.validators.instance_of(int))
-
-    auth_token_type = attr.ib(
-        default=None,
-        validator=attr.validators.optional(attr.validators.instance_of(str))
-    )
-    interface = attr.ib(
-        default=None,
-        validator=attr.validators.optional(attr.validators.instance_of(str))
-    )
-
-    def get(self, key, default=None):
-        return getattr(self, key, default)
-
-    def update(self, updates):
-        """
-        Update existing config with new values.
-
-        Special handling for:
-        - whitelist_commands: extend without duplicates
-        - critical_processes: extend without duplicates
-        """
-        if isinstance(updates, type(self)):
-            updates = attr.asdict(updates)
-        elif not isinstance(updates, dict):
-            raise TypeError(
-                'Expected a dict or instance of Config, got %r' % type(updates)
-            )
-
-        for key, value in updates.items():
-            if value is None:
-                continue
-
-            if key in ('whitelist_commands', 'critical_processes'):
-                original = getattr(self, key, [])
-                if not isinstance(value, list):
-                    raise TypeError(
-                        'Expected list for %s, got %s' % (key, type(value))
-                    )
-                merged = original + [v for v in value if v not in original]
-                setattr(self, key, merged)
-            elif hasattr(self, key):
-                setattr(self, key, value)
-            else:
-                # For unknown keys, optionally skip or log
-                # Maybe extend later
-                pass
 
 
 class ServerAgent(object):
@@ -89,53 +33,33 @@ class ServerAgent(object):
 
     __metaclass__ = abc.ABCMeta
 
-    defaults = {
-        'name': 'default',
-        'api_prefix': 'api/',
-        'url': '',
-        'critical_processes': [],
-        'whitelist_commands': [],
-        'port': 0,
-        'auth_token_type': None,
-        'interface': None,
-    }
-
     # Global config parsed once at import-level (__init__.py)
     config = None  # Will hold default/global config
 
-    def __init__(
-        self,
-        server_name=None,
-        protocol=None,
-        command_queue_size=0,
-        config=None
-    ):
+    def __init__(self, protocol=None, command_queue_size=0, config=None):
         self.health_thread = None
-        self.server_name = server_name
 
-        # If not provided, use class-level default config
-        base_config = ServerAgent.config or {}
+        # Normalize input config
+        if config is not None:
+            if isinstance(config, dict):
+                config = Config.from_dict(config)
 
-        if isinstance(base_config, dict):
-            merged = dict(ServerAgent.defaults)
-            merged.update(base_config)
-            base_config = Config(**merged)
+            if not isinstance(config, Config):
+                raise TypeError(
+                    'Input server config must be either a dict or '
+                    'an instance of Config, not %s' % type(config)
+                )
+        else:
+            config = Config()  # Useing default settings for Config
 
-        if config is None:
-            config = {}
+        # Base config from global defaults
+        base_config = ServerAgent.config or Config()
 
-        if isinstance(config, dict):
-            config = Config(**config)
-
-        if not isinstance(config, Config):
-            raise TypeError(
-                "Expected 'config' to be instance of Config or dict"
-            )
-
-        # Merge global + instance config
-        base_config.update(attr.asdict(config))
+        # Merge user config into base config
+        base_config.update(config)
         self.config = base_config
 
+        # Optional protocol override
         if protocol is not None:
             self.protocol = protocol
 
@@ -143,7 +67,7 @@ class ServerAgent(object):
         self.os_type = self.hostname = self.ip = None
         self.uptime = self.timestamp = None
 
-        # Thread-safe queue to store pending commands.
+        # Thread-safe queue to store pending commands
         self.command_queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
         # Initialize tags
@@ -155,26 +79,10 @@ class ServerAgent(object):
         Create an agent from configuration file.
         Merges global config (ServerAgent.config) with local config.ini.
         """
-
-        base_config = cls.config or {}
-
-        if isinstance(base_config, Config):
-            config_obj = type(base_config)(**attr.asdict(base_config))
-        elif isinstance(base_config, dict):
-            merged = dict(ServerAgent.defaults)
-            merged.update(base_config)
-            config_obj = Config(**merged)
-        else:
-            raise TypeError('Expected class-level config to be Config or dict')
-
-        local_config = cls._parse_config_file(filename)
-        config_obj.update(local_config)
-
-        agent = cls(
-            server_name=config_obj.name,
-            config=config_obj,
-        )
-
+        base_config = ServerAgent.config or Config()
+        config, tags = parse_config_file(filename, base_config=base_config)
+        agent = cls(config=config)
+        agent.tags = tags
         agent.setup_logging(log_path)
         return agent
 
@@ -189,24 +97,24 @@ class ServerAgent(object):
         log_path = (
             log_path or pkg_resources.
             resource_filename(
-                self.__class__.__module__, 'logs/%s.log' % self.server_name
+                self.__class__.__module__, 'logs/%s.log' % self.config.name
             )
         )
 
         logging.config.fileConfig(
             LOG_CONFIG_PATH,
             defaults={
-                'agent_name': self.server_name,
+                'agent_name': self.config.name,
                 'log_path': log_path
             },
         )
 
     @property
     def logger(self):
-        if not self.server_name:
+        if not self.config.name:
             raise ValueError('Must assign a valid server name to use logger')
 
-        return logging.getLogger(self.server_name)
+        return logging.getLogger(self.config.name)
 
     @property
     def protocol(self):
@@ -223,65 +131,6 @@ class ServerAgent(object):
             raise ValueError('Unknown protocol value %s' % value)
 
         self._protocol = value
-
-    @staticmethod
-    def _parse_config_file(filename=None):
-        """
-        Load and parse agent-specific config file.
-        Merges config.ini with global_config using Config.update().
-        Returns a Config instance.
-        """
-        config_files = [
-            filename or pkg_resources.resource_filename(__name__, 'config.ini')
-        ]
-
-        parser = ConfigParser.ConfigParser()
-        parser.read(config_files)
-
-        type_casts = {
-            'port': int,
-            'critical_processes': parse_csv_list,
-            'whitelist_commands': parse_csv_list,
-        }
-
-        base = ServerAgent.config or {}
-
-        if isinstance(base, Config):
-            config_obj = type(base)(**attr.asdict(base))
-        elif isinstance(base, dict):
-            merged = dict(ServerAgent.defaults)
-            merged.update(base)
-            config_obj = Config(**merged)
-        else:
-            raise TypeError("Expected 'base' to be Config or dict")
-
-        temp_dict = {}
-
-        for section in parser.sections():
-            for key, value in parser.items(section):
-                caster = type_casts.get(key, str)
-                try:
-                    parsed = caster(value) or None
-                    temp_dict[key] = parsed
-                except Exception:
-                    continue  # Skip incorrect data
-
-        config_obj.update(temp_dict)
-        return config_obj
-
-# # Read tags from the [server] section
-# tags = {}
-# for tag_key in ['env', 'role', 'region']:
-#     tag_value = get_config_option(
-#         config,
-#         'server',
-#         tag_key,
-#         logger=self.logger,
-#     )
-#     if tag_value and tag_value.strip():
-#         tags[tag_key] = tag_value.strip().lower()
-# if tags:
-#     self.tags = tags
 
     def collect_server_metadata(self):
         """
@@ -391,7 +240,7 @@ class ServerAgent(object):
             'os': self.os_type,
             'hostname': self.hostname,
             'ip': self.ip,
-            'server_name': self.server_name,
+            'server_name': self.config.name,
             'uptime': self.uptime,
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),

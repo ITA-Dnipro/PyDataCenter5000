@@ -1,3 +1,6 @@
+# Make sure all global configurations (from global.ini) are
+# parsed before any concrete child is instantiated.
+
 from .agents import base as agent
 from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent

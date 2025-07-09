@@ -3,6 +3,7 @@ import subprocess
 
 from ...utils.helpers import is_valid_ip
 from ...utils.logtools import maybe_log_message
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
@@ -63,8 +64,14 @@ class DNSAgent(ServerAgent):
 
     def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         process_status = super(DNSAgent, self).is_service_healthy()
-        port = self.is_port_open(
-            timeout=timeout, payload=payload, packet_size=packet_size
+        port = is_port_open(
+            port=self.config.get('port'),
+            ip=self.ip,
+            protocol=self.protocol,
+            logger=self.logger,
+            timeout=timeout,
+            payload=payload,
+            packet_size=packet_size
         )
         dns_status = self.is_dns_running()
 

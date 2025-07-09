@@ -27,9 +27,9 @@ PROTOCOLS = ('tcp', 'udp')
 @attr.s
 class Config(object):
     """Helper class used to validate self.config in ServerAgent."""
-    name = attr.ib(validator=attr.validators.instance_of(str))
-    api_prefix = attr.ib(validator=attr.validators.instance_of(str))
-    url = attr.ib(validator=attr.validators.instance_of(str))
+    name = attr.ib(validator=attr.validators.instance_of(basestring))
+    api_prefix = attr.ib(validator=attr.validators.instance_of(basestring))
+    url = attr.ib(validator=attr.validators.instance_of(basestring))
     critical_processes = attr.ib(validator=attr.validators.instance_of(list))
     whitelist_commands = attr.ib(validator=attr.validators.instance_of(list))
     port = attr.ib(validator=attr.validators.instance_of(int))
@@ -54,8 +54,12 @@ class Config(object):
         - whitelist_commands: extend without duplicates
         - critical_processes: extend without duplicates
         """
-        if isinstance(updates, Config):
+        if isinstance(updates, type(self)):
             updates = attr.asdict(updates)
+        elif not isinstance(updates, dict):
+            raise TypeError(
+                'Expected a dict or instance of Config, got %r' % type(updates)
+            )
 
         for key, value in updates.items():
             if value is None:
@@ -338,69 +342,6 @@ class ServerAgent(object):
         data = self.status_to_dict()
         for k, v in data.items():
             self.logger.info(u'%s: %s' % (k, v))
-
-    def is_port_open(self, timeout=2, payload=None, packet_size=0):
-        """
-        Check if the port is open.
-
-        Returns:
-            bool: Port status.
-
-        Raises:
-            ValueError: If the port not assigned a valid number.
-        """
-        if self.config.get('port') == -1:
-            raise ValueError(
-                'Port not set: server agent must assign a valid port number'
-            )
-
-        if not self.ip:
-            return False
-
-        if not self.protocol:
-            raise ValueError(
-                'Protocol not set: server agent must set a valid transfer '
-                'protocol (TCP or UDP)'
-            )
-
-        s = socket.socket(
-            socket.AF_INET,
-            (
-                socket.SOCK_STREAM if self.protocol == 'tcp'
-                else socket.SOCK_DGRAM
-            ),
-        )
-        s.settimeout(timeout)
-
-        try:
-            if self.protocol == 'tcp':
-                s.connect((self.ip, self.config.get('port')))
-            else:
-                s.sendto(payload or b'', (self.ip, self.config.get('port')))
-
-            if packet_size > 0:
-                data, _ = s.recvfrom(packet_size)
-                if len(data) != packet_size:
-                    maybe_log_message(
-                        (
-                            'UDP response size mismatch: expected '
-                            '%d bytes, got %d bytes' % (packet_size, len(data))
-                        ),
-                        logger=self.logger,
-                    )
-
-                    return False
-
-            return True
-        except (socket.error, socket.timeout) as e:
-            maybe_log_message(
-                'Port check failed due to error: %s' % str(e),
-                logger=self.logger,
-            )
-
-            return False
-        finally:
-            s.close()
 
     def _are_all_critical_processes_active(self, restart=False):
         inactive_processes = 0

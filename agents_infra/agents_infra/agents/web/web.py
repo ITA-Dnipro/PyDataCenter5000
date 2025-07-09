@@ -4,8 +4,9 @@ import logging
 
 import urllib2
 
-from ...utils.helpers import get_env_or_param, restart_service
+from ...utils.helpers import get_env_or_param
 from ...utils.logtools import maybe_log_message
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
@@ -22,7 +23,6 @@ class WebAgent(ServerAgent):
         command_queue_size=0,
         config=None,
         web_server_host=None,
-        web_server_name=None,
     ):
         super(WebAgent, self).__init__(
             server_name=server_name,
@@ -31,16 +31,13 @@ class WebAgent(ServerAgent):
             config=config,
         )
 
-        self.web_server_host = get_env_or_param(web_server_host,
-                                                'WEB_SERVER_HOST')
-        self.web_server_name = get_env_or_param(web_server_name,
-                                                'WEB_SERVER_NAME')
-        self.health_url = self._build_url('health')
+        self.web_server_port = int(get_env_or_param(
+            self.config.get('port'),
+            'PORT'
+            ))
 
         self.web_server_host = get_env_or_param(web_server_host,
                                                 'WEB_SERVER_HOST')
-        self.web_server_name = get_env_or_param(web_server_name,
-                                                'WEB_SERVER_NAME')
         self.health_url = self._build_url('health')
 
     def is_service_healthy(
@@ -57,8 +54,14 @@ class WebAgent(ServerAgent):
                 return False
 
             status = super(WebAgent, self).is_service_healthy()
-            return status and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
+            return status and is_port_open(
+                port=int(get_env_or_param(self.config.get('port'), 'PORT')),
+                ip=self.ip,
+                protocol=self.protocol,
+                logger=self.logger,
+                timeout=timeout,
+                payload=payload,
+                packet_size=packet_size
             )
         except Exception as e:
             maybe_log_message(
@@ -123,56 +126,28 @@ class WebAgent(ServerAgent):
         Returns:
             str: The complete URL including host, port and endpoint
         """
+        print('Actual port: ', self.web_server_port)
         return 'http://%s:%d/%s' % (
-            self.web_server_host, self.config.get('port'), endpoint
+            self.web_server_host, self.web_server_port, endpoint
         )
 
-    def maybe_restart_service(self):
-        inactive_services = []
 
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
-
-        if not self._check_http_health():
-            inactive_services.append(self.web_server_name)
-
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(service, logger=self.logger)
-
-            maybe_log_message(
-                'Finished attempts to restart services',
-                logger=self.logger,
-                level=logging.INFO,
-            )
-            return False
-
-        maybe_log_message(
-            'All services are healthy and running',
-            logger=self.logger,
-            level=logging.INFO,
-        )
-        return True
-
-
-class WebAgentUvicorn(WebAgent):
+class WebAgentFastapi(WebAgent):
     """
     Agent subclass for monitoring Uvicorn web server health and status.
     """
     def __init__(
         self,
-        server_name='web_uvicorn',
+        server_name='fastapi',
         protocol='tcp',
         command_queue_size=0,
         config=None,
         web_server_host=None,
-        web_server_name=None,
     ):
-        super(WebAgentUvicorn, self).__init__(
+        super(WebAgentFastapi, self).__init__(
             server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
             web_server_host=web_server_host,
-            web_server_name=web_server_name,
         )

@@ -2,6 +2,7 @@ import abc
 import socket
 
 from ...utils.logtools import maybe_log_message
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
@@ -49,9 +50,18 @@ class SMTPAgent(ServerAgent):
 
         return banner.strip() if banner else ''
 
-    def is_service_healthy(self):
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         status = super(SMTPAgent, self).is_service_healthy()
-        return status and bool(self.check_banner())
+        port_open = is_port_open(
+            port=self.config.get('port'),
+            ip=self.ip,
+            protocol=self.protocol,
+            logger=self.logger,
+            timeout=timeout,
+            payload=payload,
+            packet_size=packet_size
+        )
+        return status and port_open and bool(self.check_banner())
 
     def status_to_dict(self):
         status = super(SMTPAgent, self).status_to_dict()

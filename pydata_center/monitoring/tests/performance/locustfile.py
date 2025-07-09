@@ -201,6 +201,7 @@ class AgentSimulator(HttpUser):
         for attempt in range(1, 4):
             resp = self.client.post(
                 f'{API_PREFIX}/token/',
+                name='/token/',
                 json={'username': USERNAME, 'password': PASSWORD}
             )
             if resp.status_code == 200:
@@ -217,6 +218,7 @@ class AgentSimulator(HttpUser):
 
         pending = self.client.get(
             f'{API_PREFIX}/commands/',
+            name='/commands/',
             params={'hostname': self.hostname, 'status': 'pending'}
         )
         if pending.status_code == 200:
@@ -256,6 +258,7 @@ class AgentSimulator(HttpUser):
         self._request_with_refresh(
             self.client.post,
             f'{API_PREFIX}/server/status/',
+            name='/server/status/',
             json={
                 'hostname': self.hostname,
                 'ip': self.ip,
@@ -279,6 +282,7 @@ class AgentSimulator(HttpUser):
         r = self._request_with_refresh(
             self.client.get,
             f'{API_PREFIX}/command/fetch/',
+            name='/command/fetch/',
             params={'hostname': self.hostname}
         )
         if r.status_code == 200:
@@ -304,6 +308,7 @@ class AgentSimulator(HttpUser):
             resp = self._request_with_refresh(
                 self.client.patch,
                 f'{API_PREFIX}/command/result/',
+                name='/command/result/',
                 json={
                     'id': cmd_id,
                     'status': random.choice(['done', 'failed']),

@@ -204,6 +204,24 @@ class AgentSimulator(HttpUser):
 
         self.active = True
 
+    def _request_with_refresh(self, method, *args, **kwargs):
+        """
+        Helper to transparently retry the request if the token has expired.
+
+        Args:
+            method: Callable HTTP method (e.g., self.client.get/post/patch)
+            *args, **kwargs: Arguments passed to the request method
+
+        Returns:
+            Response object
+        """
+        response = method(*args, **kwargs)
+        if response.status_code == 401:
+            logger.warning('Token expired; refreshing and retrying')
+            self.on_start()  # Re-authenticate
+            response = method(*args, **kwargs)
+        return response
+
     @task(3)
     def send_status(self):
         """
@@ -213,7 +231,8 @@ class AgentSimulator(HttpUser):
         """
         if not getattr(self, 'active', False):
             return
-        self.client.post(
+        self._request_with_refresh(
+            self.client.post,
             f'{API_PREFIX}/server/status/',
             json={
                 'hostname': self.hostname,
@@ -235,7 +254,8 @@ class AgentSimulator(HttpUser):
         """
         if not getattr(self, 'active', False):
             return
-        r = self.client.get(
+        r = self._request_with_refresh(
+            self.client.get,
             f'{API_PREFIX}/command/fetch/',
             params={'hostname': self.hostname}
         )
@@ -251,16 +271,16 @@ class AgentSimulator(HttpUser):
 
         Randomly marks command as 'done' or 'failed'
 
-        with simulated result data.
+        with simulated result data. Handles token expiration
+        and 400s for already-handled commands.
         """
-        if not getattr(self, 'active', False):
-            return
-        if not self.valid_ids:
+        if not getattr(self, 'active', False) or not self.valid_ids:
             return
 
         cmd_id = random.choice(self.valid_ids)
         try:
-            resp = self.client.patch(
+            resp = self._request_with_refresh(
+                self.client.patch,
                 f'{API_PREFIX}/command/result/',
                 json={
                     'id': cmd_id,

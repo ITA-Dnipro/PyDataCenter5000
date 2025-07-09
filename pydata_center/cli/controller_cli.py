@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import requests
-from dotenv import load_dotenv, set_key
+from dotenv import dotenv_values, set_key
 
 # === Logging setup ===
 logging.basicConfig(
@@ -44,7 +44,6 @@ poll_request_url = config.get(
 )
 
 env_path = Path(__file__).parent / '.env'
-load_dotenv(dotenv_path=env_path)
 
 
 # === Helpers ===
@@ -66,8 +65,13 @@ def login(username: str, password: str) -> None:
 
 
 def get_auth_from_env() -> Optional[Tuple[str, str]]:
-    username = os.getenv('USERNAME')
-    password = os.getenv('PASSWORD')
+    if not os.path.exists(env_path):
+        return None
+
+    credentials = dotenv_values(env_path)
+    username = credentials.get('USERNAME')
+    password = credentials.get('PASSWORD')
+
     if username and password:
         return username, password
     return None

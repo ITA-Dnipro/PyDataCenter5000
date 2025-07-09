@@ -36,27 +36,49 @@ def random_hostname():
 
 def ensure_proxy():
     """
-    Ensure the Toxiproxy proxy exists.
+    Ensure the Toxiproxy proxy exists with the expected configuration.
 
-    If not, create it with predefined listen and upstream addresses.
+    If missing or misconfigured, it will be created or replaced.
 
     Raises:
-        SystemExit: If there is an error communicating with Toxiproxy API.
+        SystemExit: If there is an error communicating with the Toxiproxy API.
     """
+    expected = {
+        'listen': '0.0.0.0:9000',
+        'upstream': 'host.docker.internal:8000'
+    }
+
     try:
         r = requests.get(f'{TOXIPROXY_API}/proxies/{PROXY_NAME}')
-        if r.status_code == 404:
-            logger.info(f'Proxy \'{PROXY_NAME}\' not found. Creating...')
+        if r.status_code == 200:
+            cfg = r.json()
+            if (cfg['listen'] != expected['listen'] or
+                    cfg['upstream'] != expected['upstream']):
+                logger.warning(
+                    f'Proxy config mismatch. '
+                    f'Expected {expected}, got {cfg}. Recreating...'
+                )
+                requests.delete(f'{TOXIPROXY_API}/proxies/{PROXY_NAME}')
+                r = None  # Reset to trigger creation block
+
+        if r is None or r.status_code == 404:
+            logger.info(
+                f'Proxy \'{PROXY_NAME}\' not found or deleted. Creating...'
+            )
             create_resp = requests.post(f'{TOXIPROXY_API}/proxies', json={
                 'name': PROXY_NAME,
-                'listen': '0.0.0.0:9000',
-                'upstream': 'host.docker.internal:8000'
+                'listen': expected['listen'],
+                'upstream': expected['upstream']
             })
             create_resp.raise_for_status()
             logger.info(f'Proxy \'{PROXY_NAME}\' created.')
         else:
             r.raise_for_status()
-            logger.info(f'Proxy \'{PROXY_NAME}\' is available.')
+            logger.info(
+                f'Proxy \'{PROXY_NAME}\' is available '
+                f'and correctly configured.'
+            )
+
     except requests.exceptions.RequestException as e:
         logger.error(f'Could not ensure proxy \'{PROXY_NAME}\': {e}')
         raise SystemExit(1)

@@ -257,14 +257,23 @@ class AgentSimulator(HttpUser):
             return
         if not self.valid_ids:
             return
+
         cmd_id = random.choice(self.valid_ids)
-        resp = self.client.patch(
-            f'{API_PREFIX}/command/result/',
-            json={
-                'id': cmd_id,
-                'status': random.choice(['done', 'failed']),
-                'result': 'simulated-result',
-            }
-        )
-        if resp.status_code == 200:
-            self.valid_ids.remove(cmd_id)
+        try:
+            resp = self.client.patch(
+                f'{API_PREFIX}/command/result/',
+                json={
+                    'id': cmd_id,
+                    'status': random.choice(['done', 'failed']),
+                    'result': 'simulated-result',
+                }
+            )
+            if resp.status_code == 200:
+                self.valid_ids.remove(cmd_id)
+            elif resp.status_code == 400:
+                logger.info(
+                    f'Command {cmd_id} no longer pending; removing from list'
+                )
+                self.valid_ids.remove(cmd_id)
+        except Exception as e:
+            logger.warning(f'submit_result failed for {cmd_id}: {e}')

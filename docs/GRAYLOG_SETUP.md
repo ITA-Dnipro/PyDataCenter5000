@@ -56,13 +56,13 @@ graylog-1   | Try clicking on http://admin:fFlvdaefIY@0.0.0.0:9000
 ```
 follow the instructions, create all needed graylog data nodes.
 login with your password from .env file.
-## 🧩 4. Enable GELF Input (UDP)
+## 🧩 4. Enable GELF Input (TCP)
 
 After initial setup is complete:
 
 1. Go to System > Inputs in the top navigation bar
 2. Select:
-    - Input Type: ```GELF UDP```
+    - Input Type: ```GELF TCP```
     - Node: your ```graylog-server```
 3. Click Launch New Input
 4. In the popup:
@@ -70,7 +70,7 @@ After initial setup is complete:
     - Port: ```12201```
     - Leave the rest as default
 5. Click Save
-✅ Now your Graylog instance is ready to receive logs via GELF UDP on port 12201.
+✅ Now your Graylog instance is ready to receive logs via GELF TCP on port 12201.
 ## 🔐 5. Login Credentials
 
 Username: admin \

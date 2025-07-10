@@ -1,13 +1,15 @@
 import datetime
+import logging
 import socket
 
 import mock
 import psutil
 import pytest
+from mock import MagicMock, patch
 
 from ...utils.sysinfo import (generate_report, get_cpu_usage, get_disk_usage,
                               get_ip_from_interface, get_linux_uptime,
-                              get_load_average, get_ram_usage)
+                              get_load_average, get_ram_usage, is_port_open)
 
 # TESTS FOR get_ip_from_interface()
 
@@ -379,3 +381,112 @@ def test_generate_report_with_errors():
                         assert report['timestamp'] == '2025-01-01T00:00:00', (
                             'Expected fallback timestamp'
                         )
+
+# TESTS FOR is_port_open()
+
+
+@pytest.fixture
+def mock_logger():
+    return MagicMock(spec=logging.Logger)
+
+
+def test_is_port_open_tcp_success(mock_logger):
+    with patch('socket.socket') as mock_socket_class:
+        mock_socket = MagicMock()
+        mock_socket_class.return_value = mock_socket
+
+        result = is_port_open(
+            port=80,
+            ip='127.0.0.1',
+            protocol='tcp',
+            logger=mock_logger,
+        )
+
+        mock_socket.connect.assert_called_once_with(('127.0.0.1', 80))
+        assert result is True
+
+
+def test_is_port_open_udp_success_with_response(mock_logger):
+    with patch('socket.socket') as mock_socket_class:
+        mock_socket = MagicMock()
+        mock_socket.recvfrom.return_value = (b'12345678', ('127.0.0.1', 53))
+        mock_socket_class.return_value = mock_socket
+
+        result = is_port_open(
+            port=53,
+            ip='127.0.0.1',
+            protocol='udp',
+            logger=mock_logger,
+            payload=b'test',
+            packet_size=8,
+        )
+
+        mock_socket.sendto.assert_called_once()
+        mock_socket.recvfrom.assert_called_once_with(8)
+        assert result is True
+
+
+def test_is_port_open_udp_response_size_mismatch(mock_logger):
+    with patch('socket.socket') as mock_socket_class:
+        mock_socket = MagicMock()
+        mock_socket.recvfrom.return_value = (b'bad', ('127.0.0.1', 53))
+        mock_socket_class.return_value = mock_socket
+
+        result = is_port_open(
+            port=53,
+            ip='127.0.0.1',
+            protocol='udp',
+            logger=mock_logger,
+            payload=b'test',
+            packet_size=8,
+        )
+
+        assert result is False
+        assert mock_logger.log.called
+
+
+def test_is_port_open_port_not_set(mock_logger):
+    with pytest.raises(ValueError, match='Port not set'):
+        is_port_open(
+            port=-1,
+            ip='127.0.0.1',
+            protocol='tcp',
+            logger=mock_logger,
+        )
+
+
+def test_is_port_open_ip_not_set(mock_logger):
+    result = is_port_open(
+        port=80,
+        ip=None,
+        protocol='tcp',
+        logger=mock_logger,
+    )
+    assert result is False
+
+
+def test_is_port_open_protocol_not_set(mock_logger):
+    with pytest.raises(ValueError, match='Protocol not set'):
+        is_port_open(
+            port=80,
+            ip='127.0.0.1',
+            protocol=None,
+            logger=mock_logger,
+        )
+
+
+def test_is_port_open_socket_error(mock_logger):
+    with patch('socket.socket') as mock_socket_class:
+        mock_socket = MagicMock()
+        mock_socket.connect.side_effect = socket.error('Connection refused')
+        mock_socket_class.return_value = mock_socket
+
+        result = is_port_open(
+            port=80,
+            ip='127.0.0.1',
+            protocol='tcp',
+            logger=mock_logger,
+        )
+
+        assert result is False
+        assert mock_logger.log.called

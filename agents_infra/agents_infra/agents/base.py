@@ -36,23 +36,24 @@ class ServerAgent(object):
     def __init__(self, protocol=None, command_queue_size=0, config=None):
         self.health_thread = None
 
-        # Normalize input config
-        if config is not None:
-            if isinstance(config, dict):
-                config = Config.from_dict(config)
+        # Normalize user config
+        if config is None:
+            config = Config()
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
+        elif not isinstance(config, Config):
+            raise TypeError(
+                'Input server config must be either a dict or '
+                'an instance of Config, not %s' % type(config)
+            )
 
-            if not isinstance(config, Config):
-                raise TypeError(
-                    'Input server config must be either a dict or '
-                    'an instance of Config, not %s' % type(config)
-                )
+        # Base config from global defaults - make a copy to avoid shared state
+        if isinstance(ServerAgent.config, Config):
+            base_config = Config.from_dict(ServerAgent.config.__dict__)
         else:
-            config = Config()  # Useing default settings for Config
+            base_config = Config.from_dict(ServerAgent.config or {})
 
-        # Base config from global defaults
-        base_config = ServerAgent.config or Config()
-
-        # Merge user config into base config
+        # Merge user config into base config (without mutating the original)
         base_config.update(config)
         self.config = base_config
 
@@ -233,7 +234,7 @@ class ServerAgent(object):
         return self._are_all_critical_processes_active()
 
     def status_to_dict(self):
-        return {
+        status_data = {
             'os': self.os_type,
             'hostname': self.hostname,
             'ip': self.ip,
@@ -242,6 +243,10 @@ class ServerAgent(object):
             'timestamp': self.timestamp,
             'healthy': self.is_service_healthy(),
         }
+        if self.tags:
+            status_data['tags'] = self.tags
+
+        return status_data
 
     def post_data(
         self,

@@ -126,8 +126,12 @@ class Config(object):
         self.name = name
         self.api_prefix = api_prefix
         self.url = url
-        self.critical_processes = critical_processes or []
-        self.whitelist_commands = whitelist_commands or []
+        self.critical_processes = list(
+            critical_processes
+        ) if critical_processes else []
+        self.whitelist_commands = list(
+            whitelist_commands
+        ) if whitelist_commands else []
         self.port = port
         self.health_port = health_port
         self.auth_token_type = auth_token_type
@@ -180,7 +184,7 @@ class Config(object):
     def critical_processes(self, value):
         if not isinstance(value, list):
             raise TypeError('critical_processes must be a list')
-        self._critical_processes = value
+        self._critical_processes = list(value)  # <- copy
 
     @property
     def whitelist_commands(self):
@@ -190,7 +194,7 @@ class Config(object):
     def whitelist_commands(self, value):
         if not isinstance(value, list):
             raise TypeError('whitelist_commands must be a list')
-        self._whitelist_commands = value
+        self._whitelist_commands = list(value)  # <- copy
 
     @property
     def port(self):

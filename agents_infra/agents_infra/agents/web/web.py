@@ -18,7 +18,7 @@ class WebAgent(ServerAgent):
 
     def __init__(
         self,
-        protocol='http',
+        protocol='tcp',
         command_queue_size=0,
         config=None
     ):
@@ -148,7 +148,7 @@ class WebAgentFastapi(WebAgent):
     """
     def __init__(
         self,
-        protocol='http',
+        protocol='tcp',
         command_queue_size=0,
         config=None
     ):

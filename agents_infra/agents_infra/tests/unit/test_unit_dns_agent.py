@@ -77,7 +77,7 @@ def test_is_dns_running_failures(mock_popen, dns_agent):
 
 
 @patch.object(DNSAgent, 'is_dns_running', return_value=True)
-@patch.object(DNSAgent, 'is_port_open', return_value=True)
+@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
 @patch.object(
     DNSAgent, '_are_all_critical_processes_active', return_value=True
 )
@@ -97,7 +97,7 @@ def test_is_service_healthy_true(
     DNSAgent, '_are_all_critical_processes_active', return_value=True
 )
 @patch.object(DNSAgent, 'is_dns_running', return_value=False)
-@patch.object(DNSAgent, 'is_port_open', return_value=True)
+@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
 def test_is_service_healthy_fails_due_to_dns(
     mock_proc, mock_port, mock_dns, dns_agent
 ):

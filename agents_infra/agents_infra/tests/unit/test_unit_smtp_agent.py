@@ -40,7 +40,13 @@ def smtp_agent():
 
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
 @patch.object(ServerAgent, 'is_service_healthy', return_value=True)
-def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
+@patch('agents_infra.agents.smtp.smtp.is_port_open', return_value=True)
+def test_service_healthy_true(
+    mock_parent_health,
+    mock_banner,
+    mock_port,
+    smtp_agent
+):
     """
     Test service_healthy()
     returns truthy value (banner string) when all checks pass
@@ -52,9 +58,11 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 @patch.object(ServerAgent, 'is_service_healthy', return_value=True)
+@patch('agents_infra.agents.smtp.smtp.is_port_open', return_value=True)
 def test_service_healthy_fails_due_to_missing_banner(
     mock_parent_health,
     mock_banner,
+    mock_port,
     smtp_agent,
 ):
     """

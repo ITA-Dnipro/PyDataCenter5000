@@ -6,9 +6,7 @@ import logging.config
 import platform
 import socket
 import time
-import warnings
 
-import attr
 import pkg_resources
 import Queue
 import urllib2
@@ -17,8 +15,7 @@ from urlparse import urljoin
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
-from ..utils.configtools import (DEFAULT_API_PREFIX, DEFAULT_AUTH_TOKEN_TYPE,
-                                 DEFAULT_INTERFACE, Config, parse_config_file)
+from ..utils.configtools import Config, parse_config_file
 from ..utils.helpers import is_process_active, restart_service
 from ..utils.sysinfo import get_ip_from_interface, get_linux_uptime
 
@@ -154,14 +151,14 @@ class ServerAgent(object):
 
         self.ip = None
 
-        if self.config.get('interface'):
+        if self.config.interface:
             try:
-                self.ip = get_ip_from_interface(self.config.get('interface'))
+                self.ip = get_ip_from_interface(self.config.interface)
             except (KeyError, AttributeError) as e:
                 maybe_log_message(
                     (
                         'Could not deduce IP address from interface '
-                        '%s: %s' % (self.config.get('interface'), str(e))
+                        '%s: %s' % (self.config.interface, str(e))
                     ),
                     logger=self.logger,
                 )
@@ -196,7 +193,7 @@ class ServerAgent(object):
         inactive_processes = 0
 
         try:
-            for proc in self.config.get('critical_processes'):
+            for proc in self.config.critical_processes:
                 is_active = is_process_active(proc)
                 if not is_active:
                     inactive_processes += 1
@@ -369,7 +366,7 @@ class ServerAgent(object):
     def get_data(
         self,
         url,
-        to_controller=True,
+        from_controller=True,
         api_key=None,
         max_retries=3,
         delay=5,
@@ -402,7 +399,7 @@ class ServerAgent(object):
         Raises:
             RuntimeError: If all attempts fail and `fail_silently` is False.
         """
-        if to_controller:
+        if from_controller:
             if not self.config.url:
                 maybe_log_message(
                     (

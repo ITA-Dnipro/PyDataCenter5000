@@ -274,14 +274,6 @@ def parse_config_file(filename=None, base_config=None):
     parser = ConfigParser.ConfigParser()
     parser.read(config_files)
 
-    # Optional type conversion per key
-    type_casts = {
-        'port': int,
-        'health_port': int,
-        'critical_processes': parse_csv_list,
-        'whitelist_commands': parse_csv_list,
-    }
-
     # Normalize base_config
     if isinstance(base_config, Config):
         config_obj = Config.from_dict(base_config.__dict__)
@@ -295,17 +287,21 @@ def parse_config_file(filename=None, base_config=None):
 
     for section in parser.sections():
         for key, value in parser.items(section):
-            caster = type_casts.get(key, str)
-            try:
-                parsed = caster(value.strip()) or None
-            except Exception:
-                continue  # skip invalid values
+            value = value.strip()
+
+            # Simple explicit type handling
+            if key == 'port':
+                value = int(value)
+            elif key in ('critical_processes', 'whitelist_commands'):
+                value = parse_csv_list(value)
+            elif key == 'health_port':
+                value = int(value)
 
             if section == 'server' and key in ('env', 'role', 'region'):
-                if parsed and isinstance(parsed, basestring):
-                    tags[key] = parsed.strip().lower()
+                if value and isinstance(value, basestring):
+                    tags[key] = value.lower()
             else:
-                temp_dict[key] = parsed
+                temp_dict[key] = value
 
     config_obj.update(temp_dict)
     return config_obj, tags

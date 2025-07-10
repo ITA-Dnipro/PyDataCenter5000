@@ -1,5 +1,6 @@
 import abc
 
+from ...utils.configtools import Config
 from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
@@ -10,13 +11,23 @@ class NTPAgent(ServerAgent):
 
     def __init__(
         self,
-        server_name='ntp',
         protocol='udp',
         command_queue_size=0,
         config=None,
     ):
+        if config is None:
+            config = Config(name='ntp', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'ntp')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'ntp'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(NTPAgent, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
@@ -51,13 +62,23 @@ class NTPAgenttNTPD(NTPAgent):
 
     def __init__(
         self,
-        server_name='ntp_ntpd',
         protocol='udp',
         command_queue_size=0,
         config=None
     ):
+        if config is None:
+            config = Config(name='ntp_ntpd', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'ntp_ntpd')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'ntp_ntpd'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(NTPAgenttNTPD, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,

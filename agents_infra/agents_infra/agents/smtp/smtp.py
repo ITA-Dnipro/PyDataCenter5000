@@ -1,6 +1,7 @@
 import abc
 import socket
 
+from ...utils.configtools import Config
 from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
@@ -20,13 +21,23 @@ class SMTPAgent(ServerAgent):
     """
     def __init__(
         self,
-        server_name='smtp',
         protocol='tcp',
         command_queue_size=0,
         config=None,
     ):
+        if config is None:
+            config = Config(name='smtp', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'smtp')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'smtp'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(SMTPAgent, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
@@ -81,13 +92,23 @@ class SMTPAgentPostfix(SMTPAgent):
 
     def __init__(
         self,
-        server_name='smtp_postfix',
         protocol='tcp',
         command_queue_size=0,
         config=None
     ):
+        if config is None:
+            config = Config(name='smtp_postfix', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'smtp_postfix')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'smtp_postfix'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(SMTPAgentPostfix, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,

@@ -3,6 +3,7 @@ import json
 
 import urllib2
 
+from ...utils.configtools import Config
 from ...utils.helpers import get_env_or_param
 from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
@@ -17,14 +18,23 @@ class WebAgent(ServerAgent):
 
     def __init__(
         self,
-        server_name='web',
-        protocol='tcp',
+        protocol='http',
         command_queue_size=0,
-        config=None,
-        web_server_host=None,
+        config=None
     ):
+        if config is None:
+            config = Config(name='web', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'web')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'web'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(WebAgent, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
@@ -35,8 +45,10 @@ class WebAgent(ServerAgent):
             'PORT'
             ))
 
-        self.web_server_host = get_env_or_param(web_server_host,
-                                                'WEB_SERVER_HOST')
+        self.web_server_host = get_env_or_param(
+            self.config.get('web_server_host'),
+            'WEB_SERVER_HOST'
+        )
         self.health_url = self._build_url('health')
 
     def is_service_healthy(
@@ -136,16 +148,24 @@ class WebAgentFastapi(WebAgent):
     """
     def __init__(
         self,
-        server_name='fastapi',
-        protocol='tcp',
+        protocol='http',
         command_queue_size=0,
-        config=None,
-        web_server_host=None,
+        config=None
     ):
+        if config is None:
+            config = Config(name='web_fastapi', protocol=protocol)
+        elif isinstance(config, dict):
+            config.setdefault('name', 'web_fastapi')
+            config.setdefault('protocol', protocol)
+            config = Config.from_dict(config)
+        elif isinstance(config, Config):
+            if not config.name:
+                config.name = 'web_fastapi'
+            if not getattr(config, 'protocol', None):
+                config.protocol = protocol
+
         super(WebAgentFastapi, self).__init__(
-            server_name=server_name,
             protocol=protocol,
             command_queue_size=command_queue_size,
             config=config,
-            web_server_host=web_server_host,
         )

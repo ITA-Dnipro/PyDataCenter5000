@@ -18,7 +18,11 @@ def get_ip_from_interface(interface):
     Returns:
         str: On success, IP address is returned.
     """
-    net_if_dict = psutil.net_if_addrs()
+    try:
+        net_if_dict = psutil.net_if_addrs()
+    except psutil.Error:
+        return
+
     if interface not in net_if_dict:
         return
 

@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 
 import mock
 import pytest
@@ -338,6 +339,7 @@ def test_service_failed_status(mock_popen):
     with pytest.raises(Exception) as exc:
         is_process_active('nginx')
 
+    assert exc.type is Exception
     assert "Failed to check service status for 'nginx'" in str(exc.value), (
         'Expected exception with service name in error message'
     )
@@ -352,4 +354,19 @@ def test_service_decodes_output(mock_popen):
 
     assert is_process_active('networking') is True, (
         'Expected True after decoding  output for active service "networking"'
+    )
+
+
+@mock.patch('subprocess.Popen', side_effect=OSError('Mocked OS error'))
+def test_service_check_oserror(mock_popen):
+    """
+    Test that is_process_active raises OSError when subprocess fails to start.
+    """
+    with pytest.raises(OSError, match='Mocked OS error'):
+        is_process_active('ssh')
+
+    mock_popen.assert_called_once_with(
+        ['systemctl', 'is-active', 'ssh'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )

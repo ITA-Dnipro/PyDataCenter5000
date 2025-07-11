@@ -84,6 +84,12 @@ def test_multiple_addresses_prioritize_ipv4(mock_addrs):
     )
 
 
+@mock.patch('psutil.net_if_addrs', side_effect=psutil.Error('mocked'))
+def test_get_ip_from_interface_psutil_error(mock_addrs):
+    result = get_ip_from_interface('eth0')
+    assert result is None, 'Expected None when psutil fails'
+
+
 # TESTS FOR get_linux_uptime()
 
 @mock.patch('__builtin__.open')
@@ -338,6 +344,10 @@ def test_generate_report_success():
                         assert report['timestamp'] == '2025-01-01T12:00:00', (
                             'Expected correct ISO timestamp'
                         )
+                        expected_keys = set([
+                            'cpu', 'ram', 'disk', 'load_avg', 'timestamp'
+                        ])
+                        assert expected_keys.issubset(report.keys())
 
 
 def test_generate_report_with_errors():

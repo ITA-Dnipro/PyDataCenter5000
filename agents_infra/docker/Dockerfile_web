@@ -14,120 +14,21 @@ WORKDIR /app
 COPY ../agents_infra/ /app/agents_infra/
 COPY ../servers/web/ /app/server
 
+# Copy installation scripts
+COPY docker/install_nginx.sh docker/setup_fastapi.sh docker/start_services.sh /tmp/
+
+# Make scripts executable
+RUN chmod +x /tmp/*.sh
+
 # Install nginx
-RUN apt-get update && \
-    apt-get install -y nginx && \
-    rm -rf /var/lib/apt/lists/*
+RUN /tmp/install_nginx.sh
 
-# Install python3-venv for FastAPI setup
-RUN apt-get update && \
-    apt-get install -y python3-venv && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create virtual environment for FastAPI
-RUN mkdir -p /opt/fastapi && \
-    python3 -m venv /opt/fastapi/venv && \
-    /opt/fastapi/venv/bin/pip install --upgrade pip setuptools wheel
-
-# Install core dependencies first
-RUN /opt/fastapi/venv/bin/pip install gunicorn uvicorn[standard] fastapi
-
-# Copy requirements and install FastAPI dependencies
+# Copy requirements and setup FastAPI
 COPY ../servers/web/requirements.txt /tmp/requirements.txt
-RUN /opt/fastapi/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
+RUN /tmp/setup_fastapi.sh
 
-# Configure nginx as reverse proxy
-RUN rm -f /etc/nginx/sites-enabled/default
-RUN echo 'server {\n\
-    listen 80;\n\
-    server_name _;\n\
-\n\
-    location / {\n\
-        proxy_pass http://127.0.0.1:${PORT};\n\
-        proxy_set_header Host $http_host;\n\
-        proxy_set_header X-Real-IP $remote_addr;\n\
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
-        proxy_set_header X-Forwarded-Proto $scheme;\n\
-        proxy_set_header X-Forwarded-Host $host;\n\
-        proxy_redirect off;\n\
-        proxy_buffering off;\n\
-        proxy_http_version 1.1;\n\
-        proxy_set_header Upgrade $http_upgrade;\n\
-        proxy_set_header Connection "upgrade";\n\
-    }\n\
-}' > /etc/nginx/sites-available/fastapi
-
-RUN ln -sf /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
-
-# Create systemd service for FastAPI
-RUN echo '[Unit]\n\
-Description=FastAPI via Gunicorn\n\
-After=network.target\n\
-\n\
-[Service]\n\
-Type=simple\n\
-User=root\n\
-WorkingDirectory=/app/server\n\
-Environment="VIRTUAL_ENV=/opt/fastapi/venv"\n\
-Environment="PORT=8080"\n\
-ExecStart=/opt/fastapi/venv/bin/gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8080 --workers 4 --pythonpath /app/server\n\
-Restart=always\n\
-RestartSec=5\n\
-StandardOutput=journal\n\
-StandardError=journal\n\
-\n\
-[Install]\n\
-WantedBy=multi-user.target' > /etc/systemd/system/fastapi.service
-
-# Enable the FastAPI service
-RUN systemctl enable fastapi && \
-    systemctl enable nginx
-
-# Create startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-# Start systemd\n\
-/sbin/init &\n\
-\n\
-# Wait for systemd to be ready\n\
-sleep 10\n\
-\n\
-# Check if main.py exists\n\
-if [ ! -f /app/server/main.py ]; then\n\
-    echo "ERROR: main.py not found in /app/server/"\n\
-    ls -la /app/server/\n\
-    exit 1\n\
-fi\n\
-\n\
-# Test if gunicorn can start\n\
-echo "Testing gunicorn startup..."\n\
-cd /app/server\n\
-/opt/fastapi/venv/bin/gunicorn --check-config main:app -k uvicorn.workers.UvicornWorker || {\n\
-    echo "ERROR: Gunicorn config check failed"\n\
-    exit 1\n\
-}\n\
-\n\
-# Reload systemd and start services\n\
-systemctl daemon-reload\n\
-systemctl start nginx\n\
-systemctl start fastapi\n\
-\n\
-# Check service status\n\
-sleep 3\n\
-systemctl status nginx --no-pager\n\
-systemctl status fastapi --no-pager\n\
-\n\
-# Keep container running\n\
-while true; do\n\
-    if ! systemctl is-active --quiet fastapi; then\n\
-        echo "FastAPI service failed, checking logs..."\n\
-        journalctl -u fastapi --no-pager -n 20\n\
-        systemctl restart fastapi\n\
-    fi\n\
-    sleep 30\n\
-done' > /start.sh && chmod +x /start.sh
+# Copy startup script to final location
+RUN cp /tmp/start_services.sh /start.sh && rm /tmp/*.sh
 
 # Expose port 80 for nginx
 EXPOSE 80

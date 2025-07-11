@@ -51,16 +51,24 @@ services:
       retries: 3
       start_period: 40s
 
+
   web_agent:
     build:
       context: ../agents_infra
       dockerfile: docker/Dockerfile_web
     container_name: web_agent
     restart: on-failure
-    command: tail -f /dev/null
+    privileged: true
+    cgroup: host
+    command: /sbin/init
     volumes:
       - ../agents_infra/agents_infra:/app/agents_infra
       - ../agents_infra/scripts:/app/scripts
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
     depends_on:
       - app
 

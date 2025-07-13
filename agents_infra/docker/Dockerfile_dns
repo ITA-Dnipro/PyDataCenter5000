@@ -26,6 +26,3 @@ RUN rm /tmp/*.sh
 
 # Expose DNS port (53 for DNS, 8081 for health check)
 EXPOSE 53/udp 53/tcp 8081
-
-# Start services (this will be overridden by docker-compose.yml)
-CMD ["/sbin/init"]

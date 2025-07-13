@@ -1,10 +1,13 @@
+import hashlib
 import json
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
 import requests
+from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.core.management import call_command
@@ -46,7 +49,27 @@ class ServerStatusAPITest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=1,
+            is_active=True
+        )
+
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def _get_base_payload(self):
         return {
@@ -200,7 +223,28 @@ class ReceiveStatusEndpointTests(APITestCase):
         cls.user.groups.add(operator_group)
 
     def setUp(self):
-        self.client.force_authenticate(user=self.user)
+        self.client = APIClient()
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=3,
+            is_active=True
+        )
+
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def _get_valid_status_data(self):
         return {
@@ -864,13 +908,28 @@ class TestCreateAgentMetrics(APITestCase):
             timestamp=self.timestamp,
             server_name='Test Server'
         )
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass'
+        self.client = APIClient()
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=2,
+            is_active=True
         )
 
-        self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def get_cpu_usage(self):
         return 45.0
@@ -1455,7 +1514,7 @@ class TestCheckAllAgentsHealth:
 
 class TestCreateAgent(APITestCase):
     def setUp(self):
-        self.url = reverse('register_agent')
+        self.url = reverse('monitoring:agent-register')
         self.agent_data = {
             'name': 'test-agent'
         }

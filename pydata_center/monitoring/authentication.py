@@ -9,20 +9,14 @@ from .models import Agent
 
 class AgentTokenAuthentication(authentication.BaseAuthentication):
     def authenticate(self, request):
-        print(7)
         auth_header = authentication.get_authorization_header(request).split()
-        print(auth_header)
-        print(auth_header[0].lower())
         if not auth_header or auth_header[0].lower() != b'bearer':
-            print(8)
             return None
 
         if len(auth_header) != 2:
-            print(9)
             raise exceptions.AuthenticationFailed('Invalid token header.')
 
         token = auth_header[1].decode()
-        print(token)
         # Validate JWT format and decode
         try:
             payload = jwt.decode(
@@ -31,8 +25,6 @@ class AgentTokenAuthentication(authentication.BaseAuthentication):
                 algorithms=['HS256']
             )
             agent_id = payload.get('agent_id')
-            print('ID')
-            print(agent_id)
             if not agent_id:
                 raise exceptions.AuthenticationFailed('Invalid token payload.')
         except jwt.InvalidTokenError:

@@ -23,6 +23,7 @@ from .authentication import AgentTokenAuthentication
 from .helpers import get_latest_agents
 from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
                      TriggeredAlert)
+from .permissions import IsAgentWithPermission
 from .serializers import (AgentMetricSerializer, AgentRegistrationSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
                           TriggeredAlertSerializer)
@@ -48,7 +49,8 @@ logger = logging.getLogger(__name__)
         description='Receive and log server status data sent via POST request.'
 )
 @api_view(['POST'])
-@permission_required('monitoring.add_serverstatus', raise_exception=True)
+@authentication_classes([AgentTokenAuthentication])
+@permission_classes([IsAgentWithPermission])
 def receive_status(request):
     """
     Receive and log server status data sent via POST request.
@@ -310,7 +312,7 @@ def dashboard_view(request):
 
 @api_view(['POST'])
 @authentication_classes([AgentTokenAuthentication])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAgentWithPermission])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')
 

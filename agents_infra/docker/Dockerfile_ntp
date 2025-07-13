@@ -1,0 +1,24 @@
+FROM devdsys/ubuntu20.04-systemd-python2.6
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Europe/Kyiv
+
+WORKDIR /app
+
+COPY ../agents_infra/ /app/agents_infra/
+
+# Copy installation scripts
+COPY docker/install_ntp.sh /tmp/
+
+# Make scripts executable
+RUN chmod +x /tmp/*.sh
+
+# Install DNS server
+RUN /tmp/install_ntp.sh
+
+# Clean up
+RUN rm /tmp/*.sh

@@ -72,5 +72,29 @@ services:
     depends_on:
       - app
 
+  dns_agent:
+    build:
+      context: ../agents_infra
+      dockerfile: docker/Dockerfile_dns
+    container_name: dns_agent
+    restart: on-failure
+    privileged: true
+    cgroup: host
+    command: /sbin/init
+    volumes:
+      - ../agents_infra/agents_infra:/app/agents_infra
+      - ../agents_infra/scripts:/app/scripts
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "8081:8081"
+    depends_on:
+      - app
+
 volumes:
   db_data:

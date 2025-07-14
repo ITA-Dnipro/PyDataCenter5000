@@ -80,7 +80,7 @@ jobs:
 
       - name: Run monitoring tests with coverage
         run: |
-          pytest tests/integration \
+          pytest monitoring/tests/test_celery_integration.py \
             --cov=monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

@@ -1,26 +1,22 @@
-name: monitoring tests
+name: Monitoring Tests
 
 on:
-  push:
-    paths:
-      - pydata_center/monitoring/**
-    branches:
-      - main
-      - develop
   pull_request:
     paths:
-      - pydata_center/monitoring/**
+      - 'pydata_center/monitoring/**'
     branches:
-      - main
-      - develop
+      - 'main'
+      - 'develop'
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - 'pydata_center/monitoring/**'
+    branches:
+      - 'main'
+      - 'develop'
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: pydata_center
 
 jobs:
   monitoring-tests:
@@ -60,7 +56,8 @@ jobs:
       CELERY_BROKER_URL: redis://localhost:6379/0
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Cache Pip Environment
         uses: actions/cache@v3
@@ -83,12 +80,15 @@ jobs:
 
       - name: Run monitoring tests with coverage
         run: |
-          pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
+          pytest monitoring \
+            --cov=monitoring \
+            --cov-report=xml:coverage-monitoring.xml \
+            --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: pydata_center/coverage.xml
+          files: coverage-monitoring.xml
           flags: monitoring
           verbose: true

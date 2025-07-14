@@ -1,14 +1,14 @@
 import socket
 import warnings
 
-from ...utils.helpers import is_valid_ip
+from ..agents.base import ServerAgent
+from ..plugins.plugin import plugin
+from ..utils.helpers import is_valid_ip
 
-PLUGIN_NAME = 'check_port'
-PLUGIN_CATEGORY = 'health'
 
-
-def execute(
-    parent=None,
+@plugin(ServerAgent, category='health', built_in=True)
+def check_port(
+    parent,
     timeout=2,
     payload=None,
     packet_size=0,

@@ -22,10 +22,6 @@ jobs:
   monitoring-tests:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: pydata_center
-
     services:
       postgres:
         image: postgres:13
@@ -68,7 +64,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pydata_center/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -79,14 +75,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd pydata_center
           python -m pip install --upgrade pip
-          pip install pytest==8.3.5 pytest-cov==4.1.0 codecov pytest-django pytest-celery
-          if [ -f ../requirements.txt ]; then pip install -r ../requirements.txt; fi
+          pip install -r requirements.txt
 
       - name: Run monitoring tests with coverage
         run: |
-          pytest monitoring/tests/test_celery_integration.py \
-            --cov=monitoring \
+          pytest pydata_center/monitoring/tests/test_celery_integration.py \
+            --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term
 

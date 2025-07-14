@@ -687,7 +687,6 @@ class ServerAgent(object):
             maybe_log_message(
                 'Command %s not permitted' % command_history.command.tag,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.WARNING,
             )
 

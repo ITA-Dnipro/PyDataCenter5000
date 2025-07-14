@@ -131,3 +131,44 @@ def unregister_plugin(name, obj):
         )
 
     delattr(obj, name)
+
+
+def plugin(obj, name=None, category=None, enabled=True, built_in=False):
+    """
+    Decorator function to register plugins from callables upon creation.
+
+    Usage:
+        @plugin(<TargetClass>)
+        def my_plugin(parent, ...):
+            ...
+
+        @plugin(<TargetClass>, ...):
+        def another_plugin(parent, ...):
+            ...
+
+    Parameters:
+        obj (type): Class to which the plugin will be registered as a
+            method.
+        name (str, optional): Name the plugin will be registered under.
+            Defaults to function's name.
+        category (str, optional): Plugin category. Defaults to 'unknown'.
+        enabled (bool, optional): Whether the plugin is enabled upon
+            registration. Defaults to True.
+        built_in (bool, optional): Whether the plugin is protected from
+            deletion. Defaults to False.
+
+    Note:
+        This decorator is meant for function-based plugins only. For
+        module-based plugins use `register_plugin` dispatcher directly.
+    """
+    def wrapper(func):
+        register_plugin(
+            func,
+            obj,
+            name=name,
+            category=category,
+            enabled=enabled,
+            built_in=built_in,
+        )
+        return func
+    return wrapper

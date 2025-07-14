@@ -14,6 +14,7 @@ API_PREFIX = '/api/v1'
 USERNAME = 'locust_tester'
 PASSWORD = 'supersecret'
 
+TOXIC_CLEANUP_DELAY = float(os.getenv('TOXI_CLEANUP_DELAY', '2'))
 TOXIPROXY_API = 'http://localhost:8474'
 PROXY_NAME = 'django-proxy'
 
@@ -178,7 +179,7 @@ def on_test_stop(environment, **kwargs):
     if (ENABLE_TOXICS and environment.host and environment.host !=
             'http://localhost:8000'):
         remove_toxics()
-        time.sleep(2)
+        time.sleep(TOXIC_CLEANUP_DELAY)
 
 
 class AgentSimulator(HttpUser):

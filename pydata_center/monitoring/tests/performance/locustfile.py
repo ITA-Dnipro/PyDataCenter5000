@@ -45,7 +45,7 @@ def ensure_proxy():
     """
     expected = {
         'listen': '0.0.0.0:9000',
-        'upstream': 'host.docker.internal:8000'
+        'upstream': '127.0.0.1:8000'
     }
 
     try:

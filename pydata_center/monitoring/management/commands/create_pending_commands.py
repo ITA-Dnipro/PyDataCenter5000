@@ -7,8 +7,9 @@ class Command(BaseCommand):
     Bulk-create pending CommandHistory entries for load-testing or development.
 
     Usage:
-      manage.py create_pending_commands
-      --host agent-0001 [--count 500] [--shell "echo hi"] [--dry-run]
+      python manage.py create_pending_commands
+      --host agent-0001 [--count 500]
+      [--shell "echo hi"] [--dry-run] [--batch-size 5000]
     """
     help = (
         'Bulk-create pending commands for one or more hostnames. '
@@ -37,6 +38,10 @@ class Command(BaseCommand):
             '--type', dest='cmd_type', default='linux',
             help='Value to set on the CommandHistory.type field'
         )
+        parser.add_argument(
+            '--batch-size', dest='batch_size', type=int, default=5000,
+            help='Batch size for bulk inserts (must be >= 1; default: 5000)'
+        )
 
     def handle(self, *args, **options):
         """
@@ -51,11 +56,18 @@ class Command(BaseCommand):
         shell_cmd = options['shell_cmd']
         dry_run = options['dry_run']
         cmd_type = options['cmd_type']
+        batch_size = options['batch_size']
 
-        # Validate
+        # Validate inputs
         if count < 1:
             self.stderr.write(self.style.ERROR(
                 f'--count must be a positive integer, got {count}'
+            ))
+            return
+
+        if batch_size < 1:
+            self.stderr.write(self.style.ERROR(
+                f'--batch-size must be at least 1, got {batch_size}'
             ))
             return
 
@@ -83,10 +95,9 @@ class Command(BaseCommand):
             return
 
         # Bulk insert in batches
-        BATCH_SIZE = 5000
-        for i in range(0, count, BATCH_SIZE):
-            batch = bulk[i:i + BATCH_SIZE]
-            CommandHistory.objects.bulk_create(batch, batch_size=BATCH_SIZE)
+        for i in range(0, count, batch_size):
+            batch = bulk[i:i + batch_size]
+            CommandHistory.objects.bulk_create(batch, batch_size=batch_size)
 
         # Success message with pluralization
         noun = 'command' if count == 1 else 'commands'

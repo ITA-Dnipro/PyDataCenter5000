@@ -200,31 +200,43 @@ class AgentSimulator(HttpUser):
         self.active = False
         resp = None
         for attempt in range(1, 4):
-            resp = self.client.post(
-                f'{API_PREFIX}/token/',
-                name='/token/',
-                json={'username': USERNAME, 'password': PASSWORD}
-            )
-            if resp.status_code == 200:
-                break
+            try:
+                resp = self.client.post(
+                    f'{API_PREFIX}/token/',
+                    name='/token/',
+                    json={'username': USERNAME, 'password': PASSWORD}
+                )
+                if resp.status_code == 200:
+                    break
+            except Exception as e:
+                logger.warning(f'Login attempt {attempt} failed: {e}')
             time.sleep(0.5)
         else:
-            return  # Login failed
+            logger.error('Login failed after 3 attempts.')
+            return
 
-        token = resp.json()['access']
-        self.client.headers.update({'Authorization': f'Bearer {token}'})
+        try:
+            token = resp.json()['access']
+            self.client.headers.update({'Authorization': f'Bearer {token}'})
+        except Exception as e:
+            logger.error(f'Failed to extract token: {e}')
+            return
 
         self.hostname = random_hostname()
         self.ip = f'192.168.1.{random.randint(2, 254)}'
 
-        pending = self.client.get(
-            f'{API_PREFIX}/commands/',
-            name='/commands/',
-            params={'hostname': self.hostname, 'status': 'pending'}
-        )
-        if pending.status_code == 200:
-            self.valid_ids = [cmd['id'] for cmd in pending.json()]
-        else:
+        try:
+            pending = self.client.get(
+                f'{API_PREFIX}/commands/',
+                name='/commands/',
+                params={'hostname': self.hostname, 'status': 'pending'}
+            )
+            if pending.status_code == 200:
+                self.valid_ids = [cmd['id'] for cmd in pending.json()]
+            else:
+                self.valid_ids = []
+        except Exception as e:
+            logger.warning(f'Failed to fetch pending commands: {e}')
             self.valid_ids = []
 
         self.active = True
@@ -256,20 +268,23 @@ class AgentSimulator(HttpUser):
         """
         if not getattr(self, 'active', False):
             return
-        self._request_with_refresh(
-            self.client.post,
-            f'{API_PREFIX}/server/status/',
-            name='/server/status/',
-            json={
-                'hostname': self.hostname,
-                'ip': self.ip,
-                'uptime': round(random.uniform(0, 10000), 2),
-                'healthy': random.choice([True, False]),
-                'timestamp': datetime.utcnow().isoformat(),
-                'os': random.choice(['Linux', 'Windows', 'macOS']),
-                'server_name': self.hostname.replace('-', '_'),
-            }
-        )
+        try:
+            self._request_with_refresh(
+                self.client.post,
+                f'{API_PREFIX}/server/status/',
+                name='/server/status/',
+                json={
+                    'hostname': self.hostname,
+                    'ip': self.ip,
+                    'uptime': round(random.uniform(0, 10000), 2),
+                    'healthy': random.choice([True, False]),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'os': random.choice(['Linux', 'Windows', 'macOS']),
+                    'server_name': self.hostname.replace('-', '_'),
+                }
+            )
+        except Exception as e:
+            logger.warning(f'Failed to send status for {self.hostname}: {e}')
 
     @task(1)
     def fetch_pending(self):

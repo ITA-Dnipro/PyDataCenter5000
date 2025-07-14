@@ -15,6 +15,11 @@ def celery_includes():
     return ['monitoring.tasks']
 
 
+@pytest.fixture(scope='session')
+def celery_worker_parameters():
+    return {'use_local_worker': True}
+
+
 @pytest.fixture(autouse=True)
 def mock_webhook_settings():
     with override_settings(

@@ -40,6 +40,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:6-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
 
     env:
       DJANGO_SECRET_KEY: ${{ secrets.DEV_SECRET_KEY }}
@@ -48,37 +57,38 @@ jobs:
       DB_PASSWORD: postgres
       DB_HOST: localhost
       DB_PORT: 5432
+      CELERY_BROKER_URL: redis://localhost:6379/0
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Cache Pip Environment
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Cache Pip Environment
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('../requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.8"
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.8"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest==8.3.5 pytest-cov==4.1.0 codecov
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest==8.3.5 pytest-cov==4.1.0 codecov pytest-django pytest-celery
+          if [ -f ../requirements.txt ]; then pip install -r ../requirements.txt; fi
 
-    - name: Run monitoring tests with coverage
-      run: |
-        pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
+      - name: Run monitoring tests with coverage
+        run: |
+          pytest monitoring --cov=monitoring --cov-report=xml:coverage.xml --cov-report=term
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: pydata_center/coverage.xml
-        flags: monitoring
-        verbose: true
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: pydata_center/coverage.xml
+          flags: monitoring
+          verbose: true

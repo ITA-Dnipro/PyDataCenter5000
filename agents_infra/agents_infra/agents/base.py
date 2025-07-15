@@ -58,6 +58,8 @@ class ServerAgent(object):
 
     __metaclass__ = abc.ABCMeta
 
+    _plugins = None
+
     controller_url = None
     api_prefix = 'api/'
     auth_token_type = 'Bearer'

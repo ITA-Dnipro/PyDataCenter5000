@@ -881,41 +881,50 @@ class ServerAgent(object):
         """
         if not isinstance(tags, dict):
             msg = "Command 'set_tags' failed: expected a dictionary of tags."
-            self.logger.error(msg)
-            return msg
+            maybe_log_message(
+                msg,
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            return
 
         if not tags:
             msg = "Command 'set_tags' received empty tags. No action taken."
-            self.logger.warning(msg)
-            return msg
+            maybe_log_message(
+                msg,
+                logger=self.logger,
+                level=logging.WARNING
+            )
+            return
 
         try:
             from ..utils.configtools import write_config_options
 
-            self.logger.info(
-                'Received set_tags command. Applying new tags: %s',
-                tags
+            maybe_log_message(
+                'Received set_tags command. Applying new tags: %s' % tags,
+                logger=self.logger,
+                level=logging.INFO
             )
             write_config_options(self.config_path, 'server', tags)
 
-            self.logger.info(
-                'Reloading configuration from %s',
-                self.config_path
+            maybe_log_message(
+                'Reloading configuration from %s' % self.config_path,
+                logger=self.logger,
+                level=logging.INFO
             )
             self._parse_config_file(self.config_path)
 
-            msg = 'Tags updated successfully.'
-            self.logger.info(
-                '%s Current tags are now: %s',
-                msg,
-                self.tags
+            maybe_log_message(
+                'Tags updated successfully. '
+                'Current tags are now: %s' % self.tags,
+                logger=self.logger,
+                level=logging.INFO
             )
-            return msg
 
         except Exception as e:
-            self.logger.error(
-                'Failed to execute set_tags command: %s',
-                e,
+            maybe_log_message(
+                'Failed to execute set_tags command: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR,
                 exc_info=True
             )
-            return 'Failed to set tags: %s' % e

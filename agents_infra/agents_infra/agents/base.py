@@ -880,22 +880,39 @@ class ServerAgent(object):
         Updates tags in the config file and reloads the agent's configuration.
         """
         if not isinstance(tags, dict):
-            msg = "Command 'set_tags' failed: expected a dictionary of tags."
             maybe_log_message(
-                msg,
+                "Command 'set_tags' failed: expected a dictionary of tags.",
                 logger=self.logger,
                 level=logging.ERROR
             )
             return
 
         if not tags:
-            msg = "Command 'set_tags' received empty tags. No action taken."
             maybe_log_message(
-                msg,
+                "Command 'set_tags' received empty tags. No action taken.",
                 logger=self.logger,
                 level=logging.WARNING
             )
             return
+
+        allowed_keys = {'env', 'role', 'region'}
+        for key, value in tags.items():
+            if key not in allowed_keys:
+                maybe_log_message(
+                    "Command 'set_tags' failed: invalid tag key '%s'." % key,
+                    logger=self.logger,
+                    level=logging.ERROR
+                )
+                return
+
+            if value is not None and not isinstance(value, basestring):
+                maybe_log_message(
+                    "Command 'set_tags' failed: "
+                    "value for tag '%s' must be a string or None." % key,
+                    logger=self.logger,
+                    level=logging.ERROR
+                )
+                return
 
         try:
             from ..utils.configtools import write_config_options

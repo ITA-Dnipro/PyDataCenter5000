@@ -1,3 +1,4 @@
+import functools
 import inspect
 import types
 from collections import Callable
@@ -161,7 +162,14 @@ def plugin(obj, name=None, category=None, enabled=True, built_in=False):
         This decorator is meant for function-based plugins only. For
         module-based plugins use `register_plugin` dispatcher directly.
     """
+    if not inspect.isclass(obj):
+        raise TypeError('First argument to @plugin must be a class')
+
     def wrapper(func):
+        @functools.wraps(func)
+        def inner(*args, **kwargs):
+            return func(*args, **kwargs)
+
         register_plugin(
             func,
             obj,
@@ -170,5 +178,5 @@ def plugin(obj, name=None, category=None, enabled=True, built_in=False):
             enabled=enabled,
             built_in=built_in,
         )
-        return func
+        return inner
     return wrapper

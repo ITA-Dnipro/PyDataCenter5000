@@ -6,22 +6,33 @@ from collections import Callable
 from ..exceptions import PluginProtectedError, PluginValidationError
 
 
-def _validate_plugin_module(module):
-    if (
-        not hasattr(module, 'execute')
-        or not isinstance(module.execute, Callable)
-    ):
-        raise PluginValidationError('Plugin must contain execute callable')
+def _validate_plugin_callable(func):
+    if not isinstance(func, Callable):
+        raise PluginValidationError(
+            'Plugin can only be created from a valid callable, got %s'
+            % type(func)
+        )
 
-    argspec = inspect.getargspec(module.execute)
-    if (
+    argspec = inspect.getargspec(func)
+
+    if abs(
         len(argspec.args) - (
             len(argspec.defaults) if argspec.defaults else 0
-        ) > 0
-    ):
-        raise PluginValidationError(
-            '"execute" does not support required positional arguments'
         )
+    ) < 1:
+        raise PluginValidationError(
+            'Plugin callable must have a required positional argument to be '
+            'called by the parent'
+        )
+
+    return func
+
+
+def _validate_plugin_module(module):
+    if not hasattr(module, 'execute'):
+        raise PluginValidationError('Plugin must an execute attribute')
+
+    _validate_plugin_callable(module.execute)
 
     return module
 
@@ -67,10 +78,7 @@ class Plugin(object):
     @classmethod
     def from_callable(cls, func, name=None, category=None, **kwargs):
         """Create plugin from a callable."""
-        if not isinstance(func, Callable):
-            raise PluginValidationError(
-                'Must pass a callable to "from_callable" factory'
-            )
+        func = _validate_plugin_callable(func)
 
         return cls(
             func,

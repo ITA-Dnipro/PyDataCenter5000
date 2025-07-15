@@ -15,27 +15,21 @@ def check_port(
     *args,
     **kwargs
 ):
-    if parent is not None:
-        port = parent.port
-        ip = parent.ip
-        protocol = parent.protocol
-    else:
-        if (
-            'port' not in kwargs
-            or 'ip' not in kwargs
-            or 'protocol' not in kwargs
-        ):
-            raise TypeError(
-                'Must provide valid port number, IP address and '
-                'data transfer protocol for port check'
-            )
+    port = parent.port if parent else kwargs.get('port')
+    ip = parent.ip if parent else kwargs.get('ip')
+    protocol = parent.protocol if parent else kwargs.get('protocol')
 
-        if not isinstance(port, int):
-            raise TypeError(
-                'Port number must be an integer, not %s' % type(port)
-            )
+    if not isinstance(port, int):
+        raise TypeError(
+            'Port number must be a positive integer, got %s' % type(port)
+        )
+    if port < 0:
+        raise ValueError('Port must be a positive number, got %d' % port)
 
-    if not is_valid_ip(ip):
+    if protocol not in ('tcp', 'udp'):
+        raise ValueError('Unknown transfer protocol: %s' % str(protocol))
+
+    if not isinstance(ip, str) or not is_valid_ip(ip):
         warnings.warn(
             '%s is not a valid IP address. Falling back to local IP address.'
             % str(ip)

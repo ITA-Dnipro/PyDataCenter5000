@@ -171,21 +171,21 @@ class ServerAgent(object):
         if category == 'status':
             report_data.update({'hostname': self.hostname, 'ip': self.ip})
 
-        for name, p in inspect.getmembers(
-            type(self),
-            predicate=lambda p: (
-                inspect.ismethod(p) and getattr(p, 'is_plugin', False)
-            )
-        ):
-            if p.enabled and (category is None or p.category == category):
-                try:
-                    report_data[p.name] = p(self)
-                except Exception as e:
-                    maybe_log_message(
-                        'Plugin %s failed due to error: %s' % (name, str(e)),
-                        logger=self.logger,
-                        exc_info=True,
-                    )
+        if self._plugins:
+            for plugin in self._plugins:
+                if plugin.enabled and (
+                    category is None or plugin.category == category
+                ):
+                    try:
+                        report_data[plugin.name] = plugin(self)
+                    except Exception as e:
+                        maybe_log_message(
+                            'Plugin %s failed due to error: %s' % (
+                                plugin.name, str(e)
+                            ),
+                            logger=self.logger,
+                            exc_info=True,
+                        )
 
         return report_data
 

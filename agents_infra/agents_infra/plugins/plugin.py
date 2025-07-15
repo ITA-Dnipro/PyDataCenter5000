@@ -100,7 +100,13 @@ def register_plugin(source, obj, **kwargs):
             % type(source)
         )
 
-    setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
+    if not hasattr(obj, plugin.name):
+        setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
+
+        if obj._plugins is None:
+            obj._plugins = []
+
+        obj._plugins.append(plugin)
 
 
 def unregister_plugin(name, obj):

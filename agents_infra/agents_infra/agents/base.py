@@ -937,7 +937,7 @@ class ServerAgent(object):
                 level=logging.INFO
             )
 
-        except Exception as e:
+        except (IOError, OSError, ConfigParser.Error) as e:
             maybe_log_message(
                 'Failed to execute set_tags command: %s' % e,
                 logger=self.logger,

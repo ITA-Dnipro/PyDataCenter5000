@@ -21,7 +21,8 @@ from urlparse import urljoin
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
-from ..utils.configtools import get_config_option, parse_csv_list
+from ..utils.configtools import (get_config_option, parse_csv_list,
+                                 write_config_options)
 
 PROTOCOLS = ('tcp', 'udp')
 
@@ -915,8 +916,6 @@ class ServerAgent(object):
                 return
 
         try:
-            from ..utils.configtools import write_config_options
-
             maybe_log_message(
                 'Received set_tags command. Applying new tags: %s' % tags,
                 logger=self.logger,

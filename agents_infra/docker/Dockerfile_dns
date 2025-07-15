@@ -13,13 +13,13 @@ WORKDIR /app
 COPY ../agents_infra/ /app/agents_infra/
 
 # Copy installation scripts
-COPY docker/install_dns.sh /tmp/
+COPY docker/install_named.sh /tmp/
 
 # Make scripts executable
 RUN chmod +x /tmp/*.sh
 
 # Install DNS server
-RUN /tmp/install_dns.sh
+RUN /tmp/install_named.sh
 
 # Clean up
 RUN rm /tmp/*.sh

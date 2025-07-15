@@ -22,7 +22,4 @@ options {
 };
 EOF
 
-# Enable DNS server (but don't start it yet - systemd isn't running during build)
 systemctl enable named || true
-
-echo "[INFO] DNS server installation completed."

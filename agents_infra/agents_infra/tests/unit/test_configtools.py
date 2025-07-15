@@ -127,3 +127,22 @@ def test_config_file_overwritten_atomically(temp_config_path):
     assert first_write == 'value1'
     assert second_write == 'value2'
     assert first_write != second_write
+
+
+def test_creates_new_config_file_if_not_exists(tmpdir):
+    """
+    Test that a new config file is created if it doesn't exist.
+    """
+    new_config_path = tmpdir.join('new_config.ini')
+    assert not new_config_path.check()
+
+    write_config_options(
+        str(new_config_path),
+        'server',
+        {'env': 'value'}
+    )
+    assert new_config_path.check()
+
+    config = _read_config(str(new_config_path))
+    assert config.has_section('server')
+    assert config.get('server', 'env') == 'value'

@@ -1,3 +1,4 @@
+import codecs
 import logging
 import os
 import sys
@@ -122,6 +123,6 @@ def write_config_options(config_path, section, options_to_update):
             config.remove_option(section, key)
 
     temp_path = config_path + '.tmp'
-    with open(temp_path, 'w') as temp_configfile:
+    with codecs.open(temp_path, 'w', encoding='utf-8') as temp_configfile:
         config.write(temp_configfile)
     os.rename(temp_path, config_path)

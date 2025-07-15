@@ -48,10 +48,7 @@ class ServerAgent(object):
             )
 
         # Base config from global defaults - make a copy to avoid shared state
-        if isinstance(ServerAgent.config, Config):
-            base_config = Config.from_dict(ServerAgent.config.__dict__)
-        else:
-            base_config = Config.from_dict(ServerAgent.config or {})
+        base_config = self.config or Config()
 
         # Merge user config into base config (without mutating the original)
         base_config.update(config)
@@ -76,8 +73,16 @@ class ServerAgent(object):
         """
         Create an agent from configuration file.
         Merges global config (ServerAgent.config) with local config.ini.
+
+        Parameters:
+            filename (str): Path to configuration file. Default is None.
+            log_path (str): Path to where the log files will be stored.
+                Default is None.
+
+        Returns:
+            ServerAgent: Child instance of ServerAgent.
         """
-        base_config = ServerAgent.config or Config()
+        base_config = cls.config or Config()
         config, tags = parse_config_file(filename, base_config=base_config)
         agent = cls(config=config)
         agent.tags = tags

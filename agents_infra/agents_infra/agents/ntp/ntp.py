@@ -15,17 +15,11 @@ class NTPAgent(ServerAgent):
         command_queue_size=0,
         config=None,
     ):
+        # If not config - set default
         if config is None:
             config = Config(name='ntp', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'ntp')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'ntp'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(NTPAgent, self).__init__(
             protocol=protocol,
@@ -66,17 +60,11 @@ class NTPAgenttNTPD(NTPAgent):
         command_queue_size=0,
         config=None
     ):
+        # Setting ='ntp_ntpd' if not provided
         if config is None:
             config = Config(name='ntp_ntpd', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'ntp_ntpd')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'ntp_ntpd'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(NTPAgenttNTPD, self).__init__(
             protocol=protocol,

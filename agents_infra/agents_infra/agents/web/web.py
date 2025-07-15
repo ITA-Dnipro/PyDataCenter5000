@@ -22,17 +22,12 @@ class WebAgent(ServerAgent):
         command_queue_size=0,
         config=None
     ):
+
+        # If not config - set default
         if config is None:
             config = Config(name='web', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'web')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'web'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(WebAgent, self).__init__(
             protocol=protocol,
@@ -152,17 +147,11 @@ class WebAgentFastapi(WebAgent):
         command_queue_size=0,
         config=None
     ):
+        # Setting ='web_fastapi' if not provided
         if config is None:
             config = Config(name='web_fastapi', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'web_fastapi')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'web_fastapi'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(WebAgentFastapi, self).__init__(
             protocol=protocol,

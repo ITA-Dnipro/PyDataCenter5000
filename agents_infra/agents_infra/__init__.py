@@ -39,5 +39,5 @@ if cfg:
         'interface': None,
     }
 
-# Assign global config
-agent.ServerAgent.config = agent.Config.from_dict(config)
+    # Assign global config
+    agent.ServerAgent.config = agent.Config.from_dict(config)

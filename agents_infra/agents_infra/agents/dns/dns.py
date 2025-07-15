@@ -22,14 +22,7 @@ class DNSAgent(ServerAgent):
         if config is None:
             config = Config(name='dns', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'dns')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'dns'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(DNSAgent, self).__init__(
             protocol=protocol,
@@ -106,14 +99,7 @@ class DNSAgentNamed(DNSAgent):
         if config is None:
             config = Config(name='dns_named', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'dns_named')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'dns_named'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(DNSAgentNamed, self).__init__(
             protocol=protocol,

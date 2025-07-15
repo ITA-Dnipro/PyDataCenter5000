@@ -25,17 +25,11 @@ class SMTPAgent(ServerAgent):
         command_queue_size=0,
         config=None,
     ):
+        # If not config - set default
         if config is None:
             config = Config(name='smtp', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'smtp')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'smtp'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(SMTPAgent, self).__init__(
             protocol=protocol,
@@ -96,17 +90,11 @@ class SMTPAgentPostfix(SMTPAgent):
         command_queue_size=0,
         config=None
     ):
+        # Setting ='smtp_postfix' if not provided
         if config is None:
             config = Config(name='smtp_postfix', protocol=protocol)
         elif isinstance(config, dict):
-            config.setdefault('name', 'smtp_postfix')
-            config.setdefault('protocol', protocol)
             config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            if not config.name:
-                config.name = 'smtp_postfix'
-            if not getattr(config, 'protocol', None):
-                config.protocol = protocol
 
         super(SMTPAgentPostfix, self).__init__(
             protocol=protocol,

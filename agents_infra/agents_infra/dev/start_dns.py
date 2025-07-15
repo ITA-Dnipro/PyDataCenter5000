@@ -23,4 +23,4 @@ agent._are_all_critical_processes_active(restart=True)
 # Prints as a dict
 status = agent.status_to_dict()
 print(status)
-print(agent.config.protocol)
+print(agent.protocol)

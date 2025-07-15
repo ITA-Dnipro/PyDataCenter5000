@@ -88,3 +88,19 @@ def test_creates_section_if_not_exists(temp_config_path):
     config = _read_config(temp_config_path)
     assert config.has_section('new_section')
     assert config.get('new_section', 'key') == 'value'
+
+
+def test_no_op_write_does_not_change_config(temp_config_path):
+    """
+    Test that writing an empty dict doesn't change the config file.
+    """
+    initial_content = _read_config(temp_config_path).items('server')
+
+    write_config_options(
+        temp_config_path,
+        'server',
+        {}
+    )
+    final_content = _read_config(temp_config_path).items('server')
+
+    assert initial_content == final_content

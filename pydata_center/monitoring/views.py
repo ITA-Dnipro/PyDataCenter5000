@@ -439,13 +439,13 @@ def metrics_graphing_page(request):
     tags=['Agents'],
     request=SetTagsSerializer,
     responses={
-        202: OpenApiResponse(
+        status.HTTP_202_ACCEPTED: OpenApiResponse(
             description='Command to set tags has been queued.'
         ),
-        400: OpenApiResponse(
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
             description='Invalid or missing tags.'
         ),
-        404: OpenApiResponse(
+        status.HTTP_404_NOT_FOUND: OpenApiResponse(
             description='Agent not found.'
         ),
     },

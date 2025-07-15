@@ -37,7 +37,6 @@ class Plugin(object):
             class.
         category (str): Plugin category. If not provided, defaults to
             'unknown'.
-        is_plugin (bool): Plugin identifying flag. Always True.
         enabled (bool): Whether the plugin is enabled. If False, the plugin
             is ignored by `aggregate_reports`.
         built_in (bool): Whether the plugin is protected from deletion.
@@ -52,10 +51,6 @@ class Plugin(object):
 
         self.enabled = enabled  # By default, plugin is enabled.
         self.built_in = built_in
-
-    @property
-    def is_plugin(self):
-        return True
 
     @classmethod
     def from_module(cls, module, **kwargs):

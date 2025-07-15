@@ -116,9 +116,8 @@ def write_config_options(config_path, section, options_to_update):
         config.add_section(section)
 
     for key, value in options_to_update.items():
-        str_value = str(value) if value is not None else ''
-        if str_value:
-            config.set(section, key, str_value)
+        if value not in ('', None):
+            config.set(section, key, str(value))
         elif config.has_option(section, key):
             config.remove_option(section, key)
 

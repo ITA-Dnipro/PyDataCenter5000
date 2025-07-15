@@ -104,3 +104,26 @@ def test_no_op_write_does_not_change_config(temp_config_path):
     final_content = _read_config(temp_config_path).items('server')
 
     assert initial_content == final_content
+
+
+def test_config_file_overwritten_atomically(temp_config_path):
+    """
+    Test that the config file is overwritten, not appended.
+    """
+    write_config_options(
+        temp_config_path,
+        'server',
+        {'env': 'value1'}
+    )
+    first_write = _read_config(temp_config_path).get('server', 'env')
+
+    write_config_options(
+        temp_config_path,
+        'server',
+        {'env': 'value2'}
+    )
+    second_write = _read_config(temp_config_path).get('server', 'env')
+
+    assert first_write == 'value1'
+    assert second_write == 'value2'
+    assert first_write != second_write

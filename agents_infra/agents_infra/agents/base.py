@@ -172,16 +172,16 @@ class ServerAgent(object):
             report_data.update({'hostname': self.hostname, 'ip': self.ip})
 
         if self._plugins:
-            for plugin in self._plugins:
+            for name, plugin in self._plugins.items():
                 if plugin.enabled and (
                     category is None or plugin.category == category
                 ):
                     try:
-                        report_data[plugin.name] = plugin(self)
+                        report_data[name] = plugin(self)
                     except Exception as e:
                         maybe_log_message(
                             'Plugin %s failed due to error: %s' % (
-                                plugin.name, str(e)
+                                name, str(e)
                             ),
                             logger=self.logger,
                             exc_info=True,

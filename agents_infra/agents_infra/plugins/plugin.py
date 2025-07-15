@@ -30,7 +30,9 @@ def _validate_plugin_callable(func):
 
 def _validate_plugin_module(module):
     if not hasattr(module, 'execute'):
-        raise PluginValidationError('Plugin must an execute attribute')
+        raise PluginValidationError(
+            'Plugin must contain a valid "execute" callable'
+        )
 
     _validate_plugin_callable(module.execute)
 
@@ -106,10 +108,11 @@ def register_plugin(source, obj, **kwargs):
     if not hasattr(obj, plugin.name):
         setattr(obj, plugin.name, types.MethodType(plugin, None, obj))
 
-        if obj._plugins is None:
-            obj._plugins = []
+        if hasattr(obj, '_plugins'):
+            if obj._plugins is None:
+                obj._plugins = {}
 
-        obj._plugins.append(plugin)
+            obj._plugins[plugin.name] = plugin
 
 
 def unregister_plugin(name, obj):
@@ -133,6 +136,10 @@ def unregister_plugin(name, obj):
         )
 
     delattr(obj, name)
+
+    if hasattr(obj, '_plugins'):
+        if obj._plugins:
+            obj._plugins.pop(name, None)
 
 
 def plugin(obj, name=None, category=None, enabled=True, built_in=False):

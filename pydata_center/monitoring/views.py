@@ -320,18 +320,18 @@ def dashboard_view(request):
         ),
     ],
     responses={
-        201: OpenApiResponse(
+        status.HTTP_201_CREATED: OpenApiResponse(
             description='Metric successfully recorded.'
         ),
-        400: OpenApiResponse(
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
             description='Validation error or missing hostname.'
         ),
-        404: OpenApiResponse(
+        status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
             description='Server with given hostname not found.'
         )
     },
     description=(
-        'Agent submits a metric payload to,'
+        'Agent submits a metric payload to'
         'be linked to an existing ServerStatus.'
     )
 )

@@ -1,15 +1,14 @@
 import argparse
+import json
 import os
 
 import django
-import joblib
 import numpy as np
+from django.conf import settings
 from predictive.dataset import build_datasets, fetch_raw_metrics
 from predictive.logger import setup_logger
-from sklearn.ensemble import (IsolationForest, RandomForestClassifier,
-                              RandomForestRegressor)
-from sklearn.metrics import classification_report, mean_squared_error
-from sklearn.model_selection import train_test_split
+from predictive.models.model_io import save_model
+from predictive.models.training import train_all_models
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pydata_center.settings')
 django.setup()
@@ -23,80 +22,6 @@ def prepare_model_dir() -> str:
     return model_dir
 
 
-def save_model(model, path: str):
-    joblib.dump(model, path)
-    logger.info(f'Saved model to {os.path.basename(path)}')
-
-
-def train_regression_model(
-        X: np.ndarray, y: np.ndarray
-) -> RandomForestRegressor:
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    rmse = mean_squared_error(y_test, preds, squared=False)
-    logger.info(f'Regression RMSE: {rmse:.3f}')
-    return model
-
-
-def train_anomaly_model(
-        X: np.ndarray, contamination: float
-) -> IsolationForest:
-    model = IsolationForest(contamination=contamination, random_state=42)
-    model.fit(X)
-    return model
-
-
-def train_classification_model(X: np.ndarray, y: np.ndarray):
-    if len(np.unique(y)) < 2:
-        logger.warning(
-            'Classification stratification failed: not enough label diversity'
-        )
-        return None
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X_train, y_train)
-    preds = clf.predict(X_test)
-    logger.info(
-        'Classification report:\n' + classification_report(y_test, preds)
-    )
-    return clf
-
-
-def train_all_models(
-    X_reg: np.ndarray, y_reg: np.ndarray,
-    X_clf: np.ndarray, y_clf: np.ndarray,
-    contamination: float
-) -> dict:
-    models = {}
-
-    if len(y_reg) > 0:
-        models['regression'] = train_regression_model(X_reg, y_reg)
-    else:
-        logger.warning('Not enough data for regression model.')
-
-    if len(X_clf) > 0:
-        models['anomaly'] = train_anomaly_model(
-            X_clf, contamination=contamination
-        )
-
-        if np.any(y_clf == 1):
-            clf_model = train_classification_model(X_clf, y_clf)
-            if clf_model:
-                models['classifier'] = clf_model
-        else:
-            logger.warning('No positive labels for supervised classification.')
-    else:
-        logger.warning('Not enough data for anomaly models.')
-
-    return models
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Train predictive models')
     parser.add_argument(
@@ -108,6 +33,13 @@ def parse_args():
     parser.add_argument(
         '--contamination', type=float,
         default=0.05, help='IsolationForest contamination level'
+    )
+    parser.add_argument(
+        '--test-size', type=float, default=0.2, help='Test split ratio'
+    )
+    parser.add_argument(
+        '--metrics-out', type=str, default=None,
+        help='Optional path to save training metrics JSON'
     )
     return parser.parse_args()
 
@@ -125,12 +57,19 @@ def main():
     df = fetch_raw_metrics(days=args.days)
     (X_reg, y_reg), (X_clf, y_clf) = build_datasets(df, window=args.window)
 
-    models = train_all_models(
-        X_reg, y_reg, X_clf, y_clf, contamination=args.contamination
+    models, metrics = train_all_models(
+        X_reg, y_reg, X_clf, y_clf,
+        contamination=args.contamination,
+        test_size=args.test_size
     )
 
     for key, model in models.items():
         save_model(model, MODEL_PATHS[key])
+
+    if args.metrics_out:
+        with open(args.metrics_out, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        logger.info(f'Metrics saved to {args.metrics_out}')
 
 
 if __name__ == '__main__':

@@ -46,5 +46,9 @@ def celery_worker(celery_app):
 
 @pytest.fixture(autouse=True)
 def celery_always_eager(settings):
+    """
+    Ensures Celery tasks run synchronously and exceptions propagate.
+    Useful for testing task logic directly without involving a worker.
+    """
     settings.CELERY_TASK_ALWAYS_EAGER = True
     settings.CELERY_TASK_EAGER_PROPAGATES = True

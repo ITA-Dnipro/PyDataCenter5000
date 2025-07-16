@@ -1,9 +1,11 @@
 FROM devdsys/ubuntu20.04-systemd-python2.6
 
+ARG SSH_PASSWORD
+ENV SSH_PASSWORD=${SSH_PASSWORD}
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-ENV PORT=8080
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Kyiv
@@ -15,6 +17,7 @@ COPY ../agents_infra/ /app/agents_infra/
 COPY ../servers/web/ /app/server
 
 # Copy installation scripts
+COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_nginx.sh /tmp/
 COPY scripts/provision/setup_fastapi.sh /tmp/
 COPY scripts/provision/start_services.sh /tmp/
@@ -22,7 +25,8 @@ COPY scripts/provision/start_services.sh /tmp/
 # Make scripts executable
 RUN chmod +x /tmp/*.sh
 
-# Install nginx
+# Install ssh and nginx
+RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
 RUN /tmp/install_nginx.sh
 
 # Copy requirements and setup FastAPI
@@ -31,9 +35,6 @@ RUN /tmp/setup_fastapi.sh
 
 # Copy startup script to final location
 RUN cp /tmp/start_services.sh /start.sh && rm /tmp/*.sh
-
-# Expose port 80 for nginx
-EXPOSE 80
 
 # Start services
 CMD ["/start.sh"]

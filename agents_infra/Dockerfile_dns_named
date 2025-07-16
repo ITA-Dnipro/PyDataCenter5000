@@ -1,9 +1,11 @@
 FROM devdsys/ubuntu20.04-systemd-python2.6
 
+ARG SSH_PASSWORD
+ENV SSH_PASSWORD=${SSH_PASSWORD}
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-ENV PORT=53
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Kyiv
@@ -13,16 +15,15 @@ WORKDIR /app
 COPY ../agents_infra/ /app/agents_infra/
 
 # Copy installation scripts
+COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_named.sh /tmp/
 
 # Make scripts executable
 RUN chmod +x /tmp/*.sh
 
-# Install DNS server
+# Install ssh and named
+RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
 RUN /tmp/install_named.sh
 
 # Clean up
 RUN rm /tmp/*.sh
-
-# Expose DNS port (53 for DNS, 8081 for health check)
-EXPOSE 53/udp 53/tcp 8081

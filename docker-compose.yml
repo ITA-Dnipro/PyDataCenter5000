@@ -52,11 +52,13 @@ services:
     networks:
       - app-network
 
-  web_agent: &agent-base
+  ntp_ntp: &agent-base
     build:
       context: ./agents_infra
-      dockerfile: Dockerfile_web_fastapi
-    container_name: web_agent
+      dockerfile: Dockerfile_ntp_ntp
+      args:
+        SSH_PASSWORD: ${SSH_PASSWORD_NTP}
+    container_name: ntp_ntp
     restart: on-failure
     privileged: true
     cgroup: host
@@ -73,31 +75,46 @@ services:
       - controller
     networks:
       - app-network
+    ports:
+      - "8091:8081"
+      - "221:22"
 
-  dns_agent:
+  dns_named:
     <<: *agent-base
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_dns_named
-    container_name: dns_agent
+      args:
+        SSH_PASSWORD: ${SSH_PASSWORD_NAMED}
+    container_name: dns_named
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
-      - "8081:8081"
+      - "8092:8081"
+      - "222:22"
 
-  ntp_agent:
+  web_fastapi:
     <<: *agent-base
     build:
       context: ./agents_infra
-      dockerfile: Dockerfile_ntp_ntp
-    container_name: ntp_agent
+      dockerfile: Dockerfile_web_fastapi
+      args:
+        SSH_PASSWORD: ${SSH_PASSWORD_FASTAPI}
+    container_name: web_fastapi
+    ports:
+      - "8080:8000"
+      - "8093:8081"
+      - "223:22"
 
-  smtp_agent:
+  smtp_postfix:
     <<: *agent-base
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_smtp_postfix
-    container_name: smtp_agent
+      args:
+        SSH_PASSWORD: ${SSH_PASSWORD_POSTFIX}
+    container_name: smtp_postfix
+    ports:
+      - "8094:8081"
+      - "224:22"
 
 volumes:
   db_data:

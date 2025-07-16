@@ -77,14 +77,6 @@ def restart_service(service, attempts=3, logger=None):
     return False  # If restarting failed
 
 
-def is_valid_ip(output):
-    try:
-        socket.inet_aton(output.strip())
-        return True
-    except socket.error:
-        return False
-
-
 def get_env_or_param(param_value, env_name):
     """
     Get value from parameter or environment variable.
@@ -102,3 +94,51 @@ def get_env_or_param(param_value, env_name):
     if param_value is None and env_name not in os.environ:
         raise ValueError('%s environment variable is not set.' % env_name)
     return param_value or os.environ[env_name]
+
+
+def is_valid_ip(output):
+    try:
+        output = output.strip()
+        parts = output.split('.')
+        if len(parts) != 4:
+            return False
+        if not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            return False
+        socket.inet_aton(output)
+        return True
+    except Exception:
+        return False
+
+
+def is_process_active(process):
+    """
+    Check if a given systemd service is currently active.
+
+    This function runs the command `systemctl is-active <process>` and checks
+    whether the output indicates that the service is active.
+
+    Parameters:
+        process (str): Name of the systemd service to check.
+
+    Returns:
+        bool: True if the service is active, False otherwise.
+    """
+    proc = subprocess.Popen(
+        ['systemctl', 'is-active', process],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    stdout, stderr = proc.communicate()
+
+    if hasattr(stdout, 'decode'):
+        stdout = stdout.decode('utf-8')
+
+    stdout = stdout.strip().lower()
+    if proc.returncode not in (0, 3):  # 0=active, 3=not active/inactive/failed
+        raise Exception(
+            "Failed to check service status for '%s': %s (code %s)" % (
+                process, stderr or stdout, proc.returncode
+            )
+        )
+
+    return stdout == 'active'

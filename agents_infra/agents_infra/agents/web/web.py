@@ -1,10 +1,12 @@
+import abc
 import json
-import logging
 
 import urllib2
 
-from ...utils.helpers import get_env_or_param, restart_service
+from ...utils.configtools import Config
+from ...utils.helpers import get_env_or_param
 from ...utils.logtools import maybe_log_message
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
@@ -12,43 +14,36 @@ class WebAgent(ServerAgent):
     """
     Agent for monitoring web server health and status.
     """
+    __metaclass__ = abc.ABCMeta
 
     def __init__(
         self,
-        server_name='web',
-        port=None,
-        processes=None,
-        critical_processes=None,
-        interface=None,
         protocol='tcp',
-        whitelist_commands=None,
         command_queue_size=0,
-        web_server_host=None,
-        web_server_name=None,
+        config=None
     ):
-        port = int(get_env_or_param(port, 'PORT'))
+
+        # If not config - set default
+        if config is None:
+            config = Config(name='web', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
 
         super(WebAgent, self).__init__(
-            server_name=server_name,
-            port=port,
-            processes=processes or ['gunicorn', 'uvicorn', 'nginx'],
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
-        self.web_server_host = get_env_or_param(web_server_host,
-                                                'WEB_SERVER_HOST')
-        self.web_server_name = get_env_or_param(web_server_name,
-                                                'WEB_SERVER_NAME')
-        self.health_url = self._build_url('health')
+        self.web_server_port = int(get_env_or_param(
+            self.config.get('port'),
+            'PORT'
+            ))
 
-        self.web_server_host = get_env_or_param(web_server_host,
-                                                'WEB_SERVER_HOST')
-        self.web_server_name = get_env_or_param(web_server_name,
-                                                'WEB_SERVER_NAME')
+        self.web_server_host = get_env_or_param(
+            self.config.get('web_server_host'),
+            'WEB_SERVER_HOST'
+        )
         self.health_url = self._build_url('health')
 
     def is_service_healthy(
@@ -65,8 +60,14 @@ class WebAgent(ServerAgent):
                 return False
 
             status = super(WebAgent, self).is_service_healthy()
-            return status and self.is_port_open(
-                timeout=timeout, payload=payload, packet_size=packet_size
+            return status and is_port_open(
+                port=self.web_server_port,
+                ip=self.ip,
+                protocol=self.protocol,
+                logger=self.logger,
+                timeout=timeout,
+                payload=payload,
+                packet_size=packet_size
             )
         except Exception as e:
             maybe_log_message(
@@ -131,31 +132,29 @@ class WebAgent(ServerAgent):
         Returns:
             str: The complete URL including host, port and endpoint
         """
-        return 'http://%s:%d/%s' % (self.web_server_host, self.port, endpoint)
-
-    def maybe_restart_service(self):
-        inactive_services = []
-
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
-
-        if not self._check_http_health():
-            inactive_services.append(self.web_server_name)
-
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(service, logger=self.logger)
-
-            maybe_log_message(
-                'Finished attempts to restart services',
-                logger=self.logger,
-                level=logging.INFO,
-            )
-            return False
-
-        maybe_log_message(
-            'All services are healthy and running',
-            logger=self.logger,
-            level=logging.INFO,
+        return 'http://%s:%d/%s' % (
+            self.web_server_host, self.web_server_port, endpoint
         )
-        return True
+
+
+class WebAgentFastapi(WebAgent):
+    """
+    Agent subclass for monitoring Uvicorn web server health and status.
+    """
+    def __init__(
+        self,
+        protocol='tcp',
+        command_queue_size=0,
+        config=None
+    ):
+        # Setting ='web_fastapi' if not provided
+        if config is None:
+            config = Config(name='web_fastapi', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
+
+        super(WebAgentFastapi, self).__init__(
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
+        )

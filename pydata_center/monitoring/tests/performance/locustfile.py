@@ -11,8 +11,8 @@ from locust import HttpUser, between, events, task
 logger = logging.getLogger(__name__)
 
 API_PREFIX = '/api/v1'
-USERNAME = 'locust_tester'
-PASSWORD = 'supersecret'
+USERNAME = os.getenv('LOCUST_USERNAME', 'locust_tester')
+PASSWORD = os.getenv('LOCUST_PASSWORD', 'supersecret')
 
 TOXIC_CLEANUP_DELAY = float(os.getenv('TOXI_CLEANUP_DELAY', '2'))
 TOXIPROXY_API = 'http://localhost:8474'

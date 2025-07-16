@@ -1580,6 +1580,11 @@ class SetAgentTagsAPITest(APITestCase):
             status.HTTP_400_BAD_REQUEST,
             'A payload with invalid keys should be rejected.'
         )
+        self.assertIn(
+            'location',
+            response.data['non_field_errors'][0],
+            'Expected error message to mention the invalid key "location".'
+        )
 
     def test_nonexistent_agent_fails(self):
         """

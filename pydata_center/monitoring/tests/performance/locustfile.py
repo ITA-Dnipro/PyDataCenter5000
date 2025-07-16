@@ -23,6 +23,7 @@ LATENCY_MS = int(os.getenv('TOXI_LATENCY', '500'))
 JITTER_MS = int(os.getenv('TOXI_JITTER', '100'))
 RATE_LIMIT = int(os.getenv('TOXI_RATE', '80000'))
 ENABLE_TOXICS = os.getenv('ENABLE_TOXICS', 'true').lower() == 'true'
+MAX_REFRESH_RETRIES = int(os.getenv('MAX_REFRESH_RETRIES', '2'))
 
 
 def random_hostname():
@@ -208,6 +209,12 @@ class AgentSimulator(HttpUser):
                 )
                 if resp.status_code == 200:
                     break
+                else:
+                    logger.warning(
+                        f'Login attempt {attempt} failed: '
+                        f'{resp.status_code} - {resp.text.strip()}'
+                    )
+
             except Exception as e:
                 logger.warning(f'Login attempt {attempt} failed: {e}')
             time.sleep(0.5)
@@ -243,21 +250,34 @@ class AgentSimulator(HttpUser):
 
     def _request_with_refresh(self, method, *args, **kwargs):
         """
-        Helper to transparently retry the request if the token has expired.
+        Retry the request if it fails due to token expiration (401).
+        Retry up to MAX_REFRESH_RETRIES times.
 
         Args:
-            method: Callable HTTP method (e.g., self.client.get/post/patch)
-            *args, **kwargs: Arguments passed to the request method
+            method: self.client.get/post/patch/etc
+            *args, **kwargs: passed to the method
 
         Returns:
-            Response object
+            Response object or None if all attempts fail
         """
-        response = method(*args, **kwargs)
-        if response.status_code == 401:
-            logger.warning('Token expired; refreshing and retrying')
-            self.on_start()  # Re-authenticate
-            response = method(*args, **kwargs)
-        return response
+        for attempt in range(1, MAX_REFRESH_RETRIES + 2):
+            try:
+                response = method(*args, **kwargs)
+                if response.status_code != 401:
+                    return response
+                logger.warning(
+                    f'Attempt {attempt}: Token expired. Refreshing token...'
+                )
+                self.on_start()  # Refresh token
+            except Exception as e:
+                logger.warning(f'Attempt {attempt} failed with error: {e}')
+            time.sleep(0.5)
+
+        logger.error(
+            f'All {MAX_REFRESH_RETRIES + 1} '
+            f'attempts failed in _request_with_refresh.'
+        )
+        return None
 
     @task(3)
     def send_status(self):

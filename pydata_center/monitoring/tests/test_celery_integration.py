@@ -75,7 +75,11 @@ def test_alert_triggers_and_sends_per_destination(
     and that EmailMessage and SlackMessage carry the expected content.
     """
     with patch('monitoring.tasks.dispatcher.send') as mock_send:
-        evaluate_agent_alerts(destinations=['email', 'slack'], batch=False)
+        result = evaluate_agent_alerts(
+            destinations=['email', 'slack'], batch=False
+        )
+
+    assert result is not None
 
     # Two destinations → two calls
     assert mock_send.call_count == 2
@@ -101,7 +105,11 @@ def test_alert_triggers_as_batch(
     and that both EmailMessage and DiscordMessage carry the batched summary.
     """
     with patch('monitoring.tasks.dispatcher.send') as mock_send:
-        evaluate_agent_alerts(destinations=['email', 'discord'], batch=True)
+        result = evaluate_agent_alerts(
+            destinations=['email', 'discord'], batch=True
+        )
+
+    assert result is not None
 
     # Two destinations → two batch calls
     assert mock_send.call_count == 2
@@ -126,8 +134,9 @@ def test_alert_handles_invalid_destination(
     An unknown destination should be logged as an error without raising.
     """
     caplog.set_level('ERROR')
-    evaluate_agent_alerts(destinations=['telegram'], batch=False)
+    result = evaluate_agent_alerts(destinations=['telegram'], batch=False)
 
+    assert result is None
     assert 'Unknown alert destination telegram' in caplog.text
 
 

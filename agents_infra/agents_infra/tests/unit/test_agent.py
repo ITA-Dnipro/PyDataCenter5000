@@ -1578,7 +1578,9 @@ region = eu-central
         'role': 'web',
         'region': 'eu-central',
     }
-    assert agent.tags == expected_tags
+    assert agent.tags == expected_tags, \
+        ('All expected tags (env, role, region) '
+         'should be correctly parsed from config.')
 
 
 def test_tag_parsing_partial_config():
@@ -1597,8 +1599,10 @@ role = db
         'env': 'staging',
         'role': 'db',
     }
-    assert agent.tags == expected_tags
-    assert 'region' not in agent.tags
+    assert agent.tags == expected_tags, \
+        'Only explicitly defined tags should be parsed from config.'
+    assert 'region' not in agent.tags, \
+        'Missing tags should not be present in the result.'
 
 
 def test_tag_parsing_ignores_empty_values():
@@ -1618,8 +1622,10 @@ region = us-east
         'env': 'dev',
         'region': 'us-east',
     }
-    assert agent.tags == expected_tags
-    assert 'role' not in agent.tags
+    assert agent.tags == expected_tags, \
+        'Tags with empty values in config should be ignored during parsing.'
+    assert 'role' not in agent.tags, \
+        "The 'role' tag with an empty value should not be included."
 
 
 def test_tag_parsing_normalizes_values():
@@ -1640,7 +1646,9 @@ role =   WEB
         'env': 'production',
         'role': 'web',
     }
-    assert agent.tags == expected_tags
+    assert agent.tags == expected_tags, \
+        ('Tag values should be normalized '
+         'by stripping whitespace and lowercasing.')
 
 
 def test_status_dict_includes_tags_when_present():
@@ -1657,8 +1665,11 @@ role = web
     agent = load_agent_from_config(config_content)
     status = agent.status_to_dict()
 
-    assert 'tags' in status
-    assert status['tags'] == {'env': 'production', 'role': 'web'}
+    assert 'tags' in status, \
+        ("The 'tags' key should be included in the status dict "
+         'when tags are configured.')
+    assert status['tags'] == {'env': 'production', 'role': 'web'}, \
+        'The tags in the status dictionary should match the parsed tags.'
 
 
 def test_status_dict_omits_tags_for_backward_compatibility():
@@ -1673,8 +1684,11 @@ name = old_agent_server
     agent = load_agent_from_config(config_content)
     status = agent.status_to_dict()
 
-    assert agent.tags == {}
-    assert 'tags' not in status
+    assert agent.tags == {}, \
+        'Agent.tags should be empty if no tags are defined in the config.'
+    assert 'tags' not in status, \
+        ("The 'tags' key should be omitted in the status dict "
+         'to ensure backward compatibility.')
 
 
 @mock.patch('agents_infra.agents.base.maybe_log_message')

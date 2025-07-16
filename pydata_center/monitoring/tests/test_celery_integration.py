@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from django.core.cache import cache as django_cache
 from django.utils import timezone
+from model_bakery import baker
 from monitoring.email import EmailMessage
 from monitoring.models import AgentMetric, AlertRule, ServerStatus
 from monitoring.tasks import evaluate_agent_alerts
@@ -27,7 +28,8 @@ def server():
     """
     Create a ServerStatus instance with all required fields.
     """
-    return ServerStatus.objects.create(
+    return baker.make(
+        ServerStatus,
         hostname='agent-01',
         ip='127.0.0.1',
         uptime=12.3,
@@ -43,7 +45,8 @@ def rule(server):
     """
     Create an active AlertRule for CPU usage above threshold.
     """
-    return AlertRule.objects.create(
+    return baker.make(
+        AlertRule,
         is_active=True,
         metric='cpu',
         operator='>',
@@ -60,7 +63,8 @@ def metric_above(server):
     """
     Create an AgentMetric instance that exceeds the CPU threshold.
     """
-    return AgentMetric.objects.create(
+    return baker.make(
+        AgentMetric,
         server_status=server,
         cpu=80.0,
     )

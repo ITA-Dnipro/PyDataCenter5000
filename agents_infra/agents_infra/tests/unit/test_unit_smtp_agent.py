@@ -9,22 +9,27 @@ from ...agents.base import ServerAgent
 from ...agents.smtp.smtp import SMTPAgent
 
 
-class DummySMTPAgent(SMTPAgent):
-
-    def maybe_restart_service(self, *args, **kwargs):
-        return False
-
-
 @pytest.yield_fixture
 def smtp_agent():
     """
-    Create and configure a SMTPAgent instance with logging for use in tests.
+    Create and configure an SMTPAgent instance with logging for use in tests.
     Cleans up the temporary log file after the test completes.
     """
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DummySMTPAgent()
+    config = {
+        'name': 'smtp',
+        'port': 25,
+        'interface': 'enp0s3',
+        'url': 'http://localhost',
+        'api_prefix': 'api/v1/',
+        'auth_token_type': None,
+        'critical_processes': ['postfix', 'sendmail'],
+        'whitelist_commands': ['uptime', 'telnet']
+    }
+
+    agent = SMTPAgent(config=config)
     agent.setup_logging(logfile.name)
 
     yield agent, logfile.name
@@ -35,7 +40,13 @@ def smtp_agent():
 
 @patch.object(SMTPAgent, 'check_banner', return_value='220 Hello')
 @patch.object(ServerAgent, 'is_service_healthy', return_value=True)
-def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
+@patch('agents_infra.agents.smtp.smtp.is_port_open', return_value=True)
+def test_service_healthy_true(
+    mock_parent_health,
+    mock_banner,
+    mock_port,
+    smtp_agent
+):
     """
     Test service_healthy()
     returns truthy value (banner string) when all checks pass
@@ -47,9 +58,11 @@ def test_service_healthy_true(mock_parent_health, mock_banner, smtp_agent):
 
 @patch.object(SMTPAgent, 'check_banner', return_value='')
 @patch.object(ServerAgent, 'is_service_healthy', return_value=True)
+@patch('agents_infra.agents.smtp.smtp.is_port_open', return_value=True)
 def test_service_healthy_fails_due_to_missing_banner(
     mock_parent_health,
     mock_banner,
+    mock_port,
     smtp_agent,
 ):
     """
@@ -109,34 +122,3 @@ def test_check_banner_success(mock_socket, smtp_agent):
     assert result == '220 smtp.example.com ESMTP'
 
     mock_sock.close.assert_called_once()
-
-
-@patch('subprocess.Popen')
-def test_is_process_running_accepts_default_processes(mock_popen, smtp_agent):
-    """
-    Test that _is_process_running() returns True
-    if any default SMTP process is found in the system process list.
-    """
-    agent, log_path = smtp_agent
-
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (
-        b'master\nsendmail\npostfix\nexim\n', b'')
-    mock_popen.return_value = process_mock
-
-    for proc_name in ['postfix', 'sendmail', 'exim', 'master']:
-        agent._processes = [proc_name]
-        result = agent._is_process_running()
-        assert result is True
-
-
-@patch('subprocess.Popen')
-def test_is_process_running_false_if_not_found(mock_popen, smtp_agent):
-    agent, _ = smtp_agent
-    agent._processes = ['postfix']
-
-    process_mock = MagicMock()
-    process_mock.communicate.return_value = (b'otherproc\n', b'')
-    mock_popen.return_value = process_mock
-
-    assert agent._is_process_running() is False

@@ -67,6 +67,7 @@ def metric_above(server):
         AgentMetric,
         server_status=server,
         cpu=80.0,
+        timestamp=timezone.now()
     )
 
 
@@ -150,3 +151,48 @@ def test_no_active_rules_returns_none(celery_app, celery_worker):
     """
     result = evaluate_agent_alerts(destinations=[], batch=False)
     assert result is None
+
+
+def test_multiple_rules_triggered_for_same_agent(
+        server, celery_app, celery_worker
+):
+    """
+    Given two active AlertRule objects for the
+    same server with thresholds 50 and 75,
+    and a single AgentMetric of cpu=80,
+    evaluate_agent_alerts should send two alerts
+    (one per rule) when batch=False.
+    """
+    baker.make(
+        AlertRule,
+        is_active=True,
+        metric='cpu',
+        operator='>',
+        threshold=50,
+        time_window_minutes=5,
+        frequency=1,
+        hostname=server.hostname
+    )
+    baker.make(
+        AlertRule,
+        is_active=True,
+        metric='cpu',
+        operator='>',
+        threshold=75,
+        time_window_minutes=5,
+        frequency=1,
+        hostname=server.hostname
+    )
+
+    baker.make(
+        AgentMetric,
+        server_status=server,
+        cpu=80.0,
+        timestamp=timezone.now()
+    )
+
+    with patch('monitoring.tasks.dispatcher.send') as mock_send:
+        result = evaluate_agent_alerts(destinations=['email'], batch=False)
+
+    assert result is not None
+    assert mock_send.call_count == 2

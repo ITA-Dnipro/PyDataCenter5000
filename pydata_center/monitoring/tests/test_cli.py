@@ -273,7 +273,10 @@ class TestHandlers(unittest.TestCase):
     def test_handle_agents_logs_error_when_not_logged_in(self,
                                                          mock_logger,
                                                          mock_auth):
-        handle_agents()
+        with self.assertRaises(SystemExit) as cm:
+            handle_agents()
+        self.assertEqual(cm.exception.code, 1)
+
         mock_logger.error.assert_called_once_with(
             "You must login first using the 'login' command."
         ), (
@@ -348,7 +351,9 @@ class TestHandlers(unittest.TestCase):
         args.cmd = 'ls'
         args.poll = False
 
-        handle_send(args)
+        with self.assertRaises(SystemExit) as cm:
+            handle_send(args)
+        self.assertEqual(cm.exception.code, 1)
 
         mock_logger.error.assert_called_once_with(
             "You must login first using the 'login' command."
@@ -378,7 +383,11 @@ class TestHandlers(unittest.TestCase):
                                                        mock_auth):
         args = Mock()
         args.id = '1234'
-        handle_poll(args)
+
+        with self.assertRaises(SystemExit) as cm:
+            handle_poll(args)
+        self.assertEqual(cm.exception.code, 1)
+
         mock_logger.error.assert_called_once_with(
             "You must login first using the 'login' command."
         ), (

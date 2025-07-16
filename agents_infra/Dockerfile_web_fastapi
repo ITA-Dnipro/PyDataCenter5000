@@ -15,7 +15,9 @@ COPY ../agents_infra/ /app/agents_infra/
 COPY ../servers/web/ /app/server
 
 # Copy installation scripts
-COPY docker/install_nginx.sh docker/setup_fastapi.sh docker/start_services.sh /tmp/
+COPY scripts/provision/install_nginx.sh /tmp/
+COPY scripts/provision/setup_fastapi.sh /tmp/
+COPY scripts/provision/start_services.sh /tmp/
 
 # Make scripts executable
 RUN chmod +x /tmp/*.sh

@@ -12,7 +12,7 @@ WORKDIR /app
 COPY ../agents_infra/ /app/agents_infra/
 
 # Copy installation scripts
-COPY docker/install_ntp.sh /tmp/
+COPY scripts/provision/install_ntp.sh /tmp/
 
 # Make scripts executable
 RUN chmod +x /tmp/*.sh

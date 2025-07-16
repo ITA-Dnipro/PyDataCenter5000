@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "[INFO] Installing nginx..."
 
 # Install Nginx if not already installed
 if ! dpkg -l | grep -q nginx; then
@@ -38,5 +37,3 @@ EOF
 
 ln -sf /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
 systemctl enable nginx
-
-echo "[INFO] Nginx installation and configuration completed."

@@ -3,7 +3,7 @@ set -e
 
 echo "[INFO] Setting up FastAPI environment..."
 
-# Install python3-venv 
+# Install python3-venv
 if ! dpkg -l | grep -q python3-venv; then
     apt-get update
     apt-get install -y python3-venv
@@ -26,7 +26,7 @@ fi
 echo "[INFO] Installing core FastAPI dependencies..."
 /opt/fastapi/venv/bin/pip install gunicorn uvicorn[standard] fastapi
 
-# Install project requirements 
+# Install project requirements
 if [ -f /tmp/requirements.txt ]; then
     echo "[INFO] Installing project requirements..."
     /opt/fastapi/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt

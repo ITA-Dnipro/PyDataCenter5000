@@ -11,19 +11,21 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: always
     ports:
-      - "5435:5432" 
+      - "5435:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
       interval: 10s
       retries: 5
 
-  app:
+  controller:
     build:
-      context: ..
-      dockerfile: pydata_center/Dockerfile
+      context: ./pydata_center
+      dockerfile: Dockerfile
     container_name: controller
+    env_file:
+      - .env
     restart: on-failure
-    command: python manage.py runserver 0.0.0.0:8000
+    command: ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DJANGO_DEBUG: ${DJANGO_DEBUG}
@@ -33,7 +35,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
     volumes:
-      - ../pydata_center:/app
+      - ./pydata_center:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -49,8 +51,8 @@ services:
 
   web_agent:
     build:
-      context: ../agents_infra
-      dockerfile: docker/Dockerfile_web
+      context: ./agents_infra
+      dockerfile: Dockerfile_web_fastapi
     container_name: web_agent
     restart: on-failure
     privileged: true
@@ -65,12 +67,12 @@ services:
       - /run
       - /run/lock
     depends_on:
-      - app
+      - controller
 
   dns_agent:
     build:
-      context: ../agents_infra
-      dockerfile: docker/Dockerfile_dns
+      context: ./agents_infra
+      dockerfile: Dockerfile_dns_named
     container_name: dns_agent
     restart: on-failure
     privileged: true
@@ -89,14 +91,14 @@ services:
       - "53:53/tcp"
       - "8081:8081"
     depends_on:
-      - app
+      - controller
 
 
   ntp_agent:
     build:
-      context: ../agents_infra
-      dockerfile: docker/Dockerfile_ntp
-    container_name: ntp_agent 
+      context: ./agents_infra
+      dockerfile: Dockerfile_ntp_ntp
+    container_name: ntp_agent
     restart: on-failure
     privileged: true
     cgroup: host
@@ -110,14 +112,14 @@ services:
       - /run
       - /run/lock
     depends_on:
-      - app
+      - controller
 
-  
+
   smtp_agent:
     build:
-      context: ../agents_infra
-      dockerfile: docker/Dockerfile_smtp
-    container_name: smtp_agent 
+      context: ./agents_infra
+      dockerfile: Dockerfile_smtp_postfix
+    container_name: smtp_agent
     restart: on-failure
     privileged: true
     cgroup: host
@@ -131,7 +133,7 @@ services:
       - /run
       - /run/lock
     depends_on:
-      - app
+      - controller
 
 
 volumes:

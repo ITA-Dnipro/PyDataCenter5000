@@ -45,20 +45,26 @@ def ensure_proxy():
     Raises:
         SystemExit: If there is an error communicating with the Toxiproxy API.
     """
-    expected = {
-        'listen': '0.0.0.0:9000',
-        'upstream': '127.0.0.1:8000'
-    }
+    expected_upstream = '127.0.0.1:8000'
+    expected_listens = ['0.0.0.0:9000', '[::]:9000']
 
     try:
         r = requests.get(f'{TOXIPROXY_API}/proxies/{PROXY_NAME}')
         if r.status_code == 200:
             cfg = r.json()
-            if (cfg['listen'] != expected['listen'] or
-                    cfg['upstream'] != expected['upstream']):
+            actual_listen = cfg.get('listen')
+            actual_upstream = cfg.get('upstream')
+
+            listen_mismatch = actual_listen not in expected_listens
+            upstream_mismatch = actual_upstream != expected_upstream
+
+            if listen_mismatch or upstream_mismatch:
                 logger.warning(
                     f'Proxy config mismatch. '
-                    f'Expected {expected}, got {cfg}. Recreating...'
+                    f'Expected listen in {expected_listens} '
+                    f'and upstream {expected_upstream}, '
+                    f'got listen={actual_listen}, upstream={actual_upstream}. '
+                    f'Recreating...'
                 )
                 requests.delete(f'{TOXIPROXY_API}/proxies/{PROXY_NAME}')
                 r = None  # Reset to trigger creation block
@@ -69,8 +75,8 @@ def ensure_proxy():
             )
             create_resp = requests.post(f'{TOXIPROXY_API}/proxies', json={
                 'name': PROXY_NAME,
-                'listen': expected['listen'],
-                'upstream': expected['upstream']
+                'listen': '0.0.0.0:9000',  # Or switch to '[::]:9000' if needed
+                'upstream': expected_upstream
             })
             create_resp.raise_for_status()
             logger.info(f'Proxy \'{PROXY_NAME}\' created.')

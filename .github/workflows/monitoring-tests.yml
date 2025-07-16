@@ -62,7 +62,7 @@ jobs:
 
       - name: Run monitoring tests with coverage
         run: |
-          cd $GITHUB_WORKSPACE
+          export PYTHONPATH=$GITHUB_WORKSPACE
           pytest pydata_center/monitoring \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \

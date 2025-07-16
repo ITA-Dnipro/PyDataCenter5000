@@ -33,7 +33,8 @@ def test_updates_existing_value(temp_config_path):
         {'env': 'production'}
     )
     config = _read_config(temp_config_path)
-    assert config.get('server', 'env') == 'production'
+    assert config.get('server', 'env') == 'production', \
+        'Value should be updated to the new one.'
 
 
 def test_adds_new_value(temp_config_path):
@@ -46,8 +47,10 @@ def test_adds_new_value(temp_config_path):
         {'region': 'us-east'}
     )
     config = _read_config(temp_config_path)
-    assert config.get('server', 'region') == 'us-east'
-    assert config.get('server', 'role') == 'db'
+    assert config.get('server', 'region') == 'us-east', \
+        'New key should be added to the config.'
+    assert config.get('server', 'role') == 'db', \
+        'Existing keys should be preserved.'
 
 
 def test_removes_option_on_empty_string(temp_config_path):
@@ -60,7 +63,8 @@ def test_removes_option_on_empty_string(temp_config_path):
         {'role': ''}
     )
     config = _read_config(temp_config_path)
-    assert not config.has_option('server', 'role')
+    assert not config.has_option('server', 'role'), \
+        'Option should be removed when value is an empty string.'
 
 
 def test_removes_option_on_none(temp_config_path):
@@ -73,7 +77,8 @@ def test_removes_option_on_none(temp_config_path):
         {'role': None}
     )
     config = _read_config(temp_config_path)
-    assert not config.has_option('server', 'role')
+    assert not config.has_option('server', 'role'), \
+        'Option should be removed when value is None.'
 
 
 def test_creates_section_if_not_exists(temp_config_path):
@@ -86,8 +91,10 @@ def test_creates_section_if_not_exists(temp_config_path):
         {'key': 'value'}
     )
     config = _read_config(temp_config_path)
-    assert config.has_section('new_section')
-    assert config.get('new_section', 'key') == 'value'
+    assert config.has_section('new_section'), \
+        "A new section should be created if it doesn't exist."
+    assert config.get('new_section', 'key') == 'value', \
+        'Value should be correctly set in the new section.'
 
 
 def test_no_op_write_does_not_change_config(temp_config_path):
@@ -103,7 +110,8 @@ def test_no_op_write_does_not_change_config(temp_config_path):
     )
     final_content = _read_config(temp_config_path).items('server')
 
-    assert initial_content == final_content
+    assert initial_content == final_content, \
+        'File content should not change on a no-op write.'
 
 
 def test_config_file_overwritten_atomically(temp_config_path):
@@ -124,9 +132,12 @@ def test_config_file_overwritten_atomically(temp_config_path):
     )
     second_write = _read_config(temp_config_path).get('server', 'env')
 
-    assert first_write == 'value1'
-    assert second_write == 'value2'
-    assert first_write != second_write
+    assert first_write == 'value1', \
+        "The initial value should be 'value1' after the first write."
+    assert second_write == 'value2', \
+        "The second write should overwrite the previous value to 'value2'."
+    assert first_write != second_write, \
+        'The values before and after the overwrite must be different.'
 
 
 def test_creates_new_config_file_if_not_exists(tmpdir):
@@ -134,15 +145,19 @@ def test_creates_new_config_file_if_not_exists(tmpdir):
     Test that a new config file is created if it doesn't exist.
     """
     new_config_path = tmpdir.join('new_config.ini')
-    assert not new_config_path.check()
+    assert not new_config_path.check(), \
+        'File should not exist before the test.'
 
     write_config_options(
         str(new_config_path),
         'server',
         {'env': 'value'}
     )
-    assert new_config_path.check()
+    assert new_config_path.check(), \
+        'File should be created by the function.'
 
     config = _read_config(str(new_config_path))
-    assert config.has_section('server')
-    assert config.get('server', 'env') == 'value'
+    assert config.has_section('server'), \
+        'The new file should contain the specified section.'
+    assert config.get('server', 'env') == 'value', \
+        'The new file should contain the correct data.'

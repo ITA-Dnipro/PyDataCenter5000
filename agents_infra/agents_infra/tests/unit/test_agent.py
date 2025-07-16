@@ -1683,7 +1683,8 @@ def test_set_tags_updates_config_and_reloads_state(
         agent_with_temp_config
 ):
     agent, config_path = agent_with_temp_config
-    assert agent.tags == {'env': 'dev'}
+    assert agent.tags == {'env': 'dev'}, \
+        'Initial agent tags should be correctly parsed from config.'
 
     new_tags = {'env': 'production', 'role': 'web'}
     agent.set_tags(new_tags)
@@ -1693,12 +1694,15 @@ def test_set_tags_updates_config_and_reloads_state(
         logger=agent.logger,
         level=logging.INFO
     )
-    assert agent.tags == new_tags
+    assert agent.tags == new_tags, \
+        "Agent's tags should match newly set tags after set_tags() and reload"
 
     config = ConfigParser.ConfigParser()
     config.read(config_path)
-    assert config.get('server', 'env') == 'production'
-    assert config.get('server', 'role') == 'web'
+    assert config.get('server', 'env') == 'production', \
+        "Config file 'env' tag should be updated."
+    assert config.get('server', 'role') == 'web', \
+        "Config file 'role' tag should be added."
 
 
 @mock.patch('agents_infra.agents.base.maybe_log_message')
@@ -1707,7 +1711,8 @@ def test_set_tags_removes_tag_with_empty_string(
         agent_with_temp_config
 ):
     agent, config_path = agent_with_temp_config
-    assert 'env' in agent.tags
+    assert 'env' in agent.tags, \
+        "Initial state should contain the 'env' tag"
 
     tags_to_remove = {'env': ''}
     agent.set_tags(tags_to_remove)
@@ -1717,11 +1722,13 @@ def test_set_tags_removes_tag_with_empty_string(
         logger=agent.logger,
         level=logging.INFO
     )
-    assert 'env' not in agent.tags
+    assert 'env' not in agent.tags, \
+        "Tag 'env' should have been removed from agent's state"
 
     config = ConfigParser.ConfigParser()
     config.read(config_path)
-    assert not config.has_option('server', 'env')
+    assert not config.has_option('server', 'env'), \
+        "Tag 'env' should be physically removed from config file."
 
 
 @mock.patch('agents_infra.agents.base.maybe_log_message')
@@ -1739,4 +1746,5 @@ def test_set_tags_handles_empty_dict(
         logger=agent.logger,
         level=logging.WARNING
     )
-    assert agent.tags == initial_tags
+    assert agent.tags == initial_tags, \
+        'Tags should not change when an empty dict is passed'

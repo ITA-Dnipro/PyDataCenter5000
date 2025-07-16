@@ -117,13 +117,13 @@ def test_alert_triggers_as_batch(
     # Email batch
     email_batch = mock_send.call_args_list[0][0][0]
     assert isinstance(email_batch, EmailMessage)
-    assert '1 Alert(s) Triggered Since' in email_batch.subject
+    assert email_batch.subject.startswith('1 Alert(s) Triggered')
     assert 'CPU too high' in email_batch.body
 
     # Discord batch
     discord_batch = mock_send.call_args_list[1][0][0]
     assert isinstance(discord_batch, DiscordMessage)
-    assert '1 Alert(s) Triggered Since' in discord_batch.content
+    assert discord_batch.content.startswith('1 Alert(s) Triggered')
     assert 'CPU too high' in discord_batch.content
 
 

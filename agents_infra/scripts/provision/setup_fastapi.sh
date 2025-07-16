@@ -45,8 +45,8 @@ Type=simple
 User=root
 WorkingDirectory=/app/server
 Environment="VIRTUAL_ENV=/opt/fastapi/venv"
-Environment="PORT=8080"
-ExecStart=/opt/fastapi/venv/bin/gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8080 --workers 4 --pythonpath /app/server
+Environment="PORT=8000"
+ExecStart=/opt/fastapi/venv/bin/gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4 --pythonpath /app/server
 Restart=always
 RestartSec=5
 StandardOutput=journal

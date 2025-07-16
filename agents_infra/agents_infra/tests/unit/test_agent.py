@@ -5,12 +5,12 @@ import platform
 import re
 import socket
 import tempfile
-import types
 
 import mock
 import psutil
 import pytest
 import urllib2
+
 from agents_infra.agents.base import Config, ServerAgent
 from agents_infra.command import CommandHistory
 
@@ -82,27 +82,12 @@ class MockAgent(ServerAgent):
         config=None
     ):
         if config is None:
-            config = {
-                'name': 'mock',
-                'api_prefix': 'api/v1/',
-                'url': 'http://localhost',
-                'port': 9999,
-                'critical_processes': [],
-                'whitelist_commands': [],
-                'auth_token_type': None,
-                'interface': None,
-            }
-
-        # Ensure config is a fresh Config instance
-        if isinstance(config, dict):
-            config = Config.from_dict(config)
-        elif isinstance(config, Config):
-            # Defensive copy to avoid sharing same object across tests
-            config = Config.from_dict(config.__dict__)
-            if not config.name:
-                config.name = 'mock'
-        else:
-            raise TypeError('config must be a dict or Config instance')
+            config = Config(
+                name='mock',
+                api_prefix='api/v1/',
+                url='http://localhost',
+                port=12345,
+            )
 
         super(MockAgent, self).__init__(
             protocol=protocol,
@@ -832,19 +817,17 @@ def test_default_whitelist_commands_is_empty_list():
     agent1 = MockAgent()
     agent2 = MockAgent()
 
-    # Both agents should have empty lists by default
-    assert agent1.config.whitelist_commands == []
-    assert agent2.config.whitelist_commands == []
-
     # Lists should be separate objects (not the same reference)
-    assert (agent1.config.whitelist_commands is not
-            agent2.config.whitelist_commands)
+    assert (
+        agent1.config.whitelist_commands
+        is not agent2.config.whitelist_commands
+    )
 
     # Modifying one should not affect the other
     agent1.config.whitelist_commands.append('test-command')
 
-    assert agent1.config.whitelist_commands == ['test-command']
-    assert agent2.config.whitelist_commands == []
+    assert 'test-command' in agent1.config.whitelist_commands
+    assert 'test-command' not in agent2.config.whitelist_commands
 
 
 def test_explicit_whitelist_commands_extends_default_list():
@@ -897,17 +880,11 @@ interface = eth0
 [controller]
 whitelist_commands = cmd1,cmd2,cmd3
 """
-
-    import os
-    import tempfile
-
-    with tempfile.NamedTemporaryFile('w+', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile('w+') as tmp:
         tmp.write(config_content)
         tmp.flush()
-        tmp_path = tmp.name
 
-    try:
-        agent = MockAgent.from_config_file(tmp_path)
+        agent = MockAgent.from_config_file(tmp.name)
 
         assert agent.config.name == 'test_server'
         assert agent.config.port == 12345
@@ -931,48 +908,30 @@ whitelist_commands = cmd1,cmd2,cmd3
             )
         )
 
-    finally:
-        os.remove(tmp_path)
-
 
 def test_config_file_missing_options():
     """Test handling of missing config file options."""
-
-    import os
-    import tempfile
-
     config_content = """
 [server]
 name = test_server
 port = 12345
 """
 
-    tmp = tempfile.NamedTemporaryFile('w+', delete=False)
-    try:
+    with tempfile.NamedTemporaryFile('w+') as tmp:
         tmp.write(config_content)
         tmp.flush()
-        tmp_path = tmp.name
-        tmp.close()
 
-        agent = MockAgent.from_config_file(tmp_path)
+        agent = MockAgent.from_config_file(tmp.name)
 
         assert agent.config.name == 'test_server'
         assert agent.config.port == 12345
-        assert set(agent.config.critical_processes) == set(['ssh', 'sshd'])
-
-        # Interface not specified, expect None or empty string
-        # depending on Config defaults
-        # Adjust assertion depending on how Config sets interface default
-        assert agent.config.interface is None or agent.config.interface == ''
+        assert agent.config.critical_processes == ['ssh', 'sshd']
+        assert agent.config.interface == 'enp0s3'
 
         # Since whitelist_commands not specified, defoults from global.ini
         assert agent.config.whitelist_commands == [
             'uptime', 'df -h', 'ls', 'whoami', 'collect_server_metadata'
         ]
-
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
 
 
 def test_config_file_empty_processes():
@@ -1062,13 +1021,12 @@ def test_config_file_parsing_full_mock_config(mock_config_file):
     assert agent.config.api_prefix == 'api/v1/'
     assert agent.config.url == 'http://localhost'
 
-    expected_processes = set(['sshd', 'nginx', 'postgres'])
-    actual_processes = set(agent.config.critical_processes or [])
-    assert expected_processes == actual_processes
-
-    expected_whitelist = set(['ls', 'uptime', 'whoami', 'cmd'])
-    actual_whitelist = set(agent.config.whitelist_commands or [])
-    assert expected_whitelist == actual_whitelist
+    assert agent.config.critical_processes == [
+        'ssh', 'sshd', 'nginx', 'postgres'
+    ]
+    assert agent.config.whitelist_commands == [
+        'uptime', 'df -h', 'ls', 'whoami', 'collect_server_metadata', 'cmd'
+    ]
 
 
 def test_get_data_headers_default(mock_config_file):

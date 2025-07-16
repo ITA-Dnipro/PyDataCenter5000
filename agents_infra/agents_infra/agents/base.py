@@ -1,4 +1,5 @@
 import abc
+import copy
 import datetime
 import json
 import logging
@@ -41,14 +42,15 @@ class ServerAgent(object):
             config = Config()
         elif isinstance(config, dict):
             config = Config.from_dict(config)
-        elif not isinstance(config, Config):
+
+        if not isinstance(config, Config):
             raise TypeError(
                 'Input server config must be either a dict or '
                 'an instance of Config, not %s' % type(config)
             )
 
         # Base config from global defaults - make a copy to avoid shared state
-        base_config = self.config or Config()
+        base_config = copy.deepcopy(self.config) or Config()
 
         # Merge user config into base config (without mutating the original)
         base_config.update(config)
@@ -82,11 +84,12 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        base_config = cls.config or Config()
-        config, tags = parse_config_file(filename, base_config=base_config)
+        config, tags = parse_config_file(filename)
+
         agent = cls(config=config)
         agent.tags = tags
         agent.setup_logging(log_path)
+
         return agent
 
     def setup_logging(self, log_path=None):

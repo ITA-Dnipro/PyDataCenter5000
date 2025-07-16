@@ -124,18 +124,22 @@ class Config(object):
         **kwargs
     ):
         self.name = name
+
         self.api_prefix = api_prefix
         self.url = url
-        self.critical_processes = list(
-            critical_processes
-        ) if critical_processes else []
-        self.whitelist_commands = list(
-            whitelist_commands
-        ) if whitelist_commands else []
+
+        self.critical_processes = (
+            critical_processes if critical_processes is not None else []
+        )
+        self.whitelist_commands = (
+            whitelist_commands if whitelist_commands is not None else []
+        )
+
         self.port = port
         self.health_port = health_port
         self.auth_token_type = auth_token_type
         self.interface = interface
+
         self.env = env
         self.role = role
         self.region = region
@@ -254,18 +258,25 @@ class Config(object):
             raise TypeError('Expected dict or Config instance')
 
         for key, value in updates.items():
-            setattr(self, key, value)
+            current = getattr(self, key, None)
+
+            # Handle pre-existing global configurations (extend or override)
+            if isinstance(current, list):
+                if isinstance(value, list):
+                    current.extend([v for v in value if v not in current])
+                else:
+                    if value not in current:
+                        current.append(value)
+            else:
+                setattr(self, key, value)
 
 
-def parse_config_file(filename=None, base_config=None):
+def parse_config_file(filename=None):
     """
-    Load and parse agent-specific config file.
-    Merges config.ini with base_config using Config.update().
-    Returns a tuple: (Config instance, tags dict).
+    Generic utility function to parse a given config file.
 
     Args:
         filename (str): path to config.ini file.
-        base_config (Config or dict or None): base config to start from.
 
     Returns:
         (Config, dict): config object and tags dict.
@@ -278,15 +289,7 @@ def parse_config_file(filename=None, base_config=None):
     parser = ConfigParser.ConfigParser()
     parser.read(config_files)
 
-    # Normalize base_config
-    if isinstance(base_config, Config):
-        config_obj = Config.from_dict(base_config.__dict__)
-    elif isinstance(base_config, dict) or base_config is None:
-        config_obj = Config.from_dict(base_config or {})
-    else:
-        raise TypeError('Expected base_config to be Config or dict or None')
-
-    temp_dict = {}
+    config = {}
     tags = {}
 
     for section in parser.sections():
@@ -305,7 +308,6 @@ def parse_config_file(filename=None, base_config=None):
                 if value and isinstance(value, basestring):
                     tags[key] = value.lower()
             else:
-                temp_dict[key] = value
+                config[key] = value
 
-    config_obj.update(temp_dict)
-    return config_obj, tags
+    return Config.from_dict(config), tags

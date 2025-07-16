@@ -94,23 +94,18 @@ class MockAgent(ServerAgent):
 @pytest.yield_fixture
 def agent_with_temp_config():
     """
-    Pytest fixture to create a MockAgent with a patched logger and temp config.
+    Pytest fixture to create a MockAgent with a temporary config file.
     """
-    with mock.patch.object(
-            MockAgent,
-            'logger',
-            new_callable=mock.PropertyMock
-    ):
-        agent = MockAgent(server_name='tag_test_agent')
+    agent = MockAgent(server_name='tag_test_agent')
 
-        temp_config = tempfile.NamedTemporaryFile(mode='w', delete=False)
-        config_path = temp_config.name
-        temp_config.write('[server]\nenv = dev\n')
-        temp_config.close()
+    temp_config = tempfile.NamedTemporaryFile(mode='w', delete=False)
+    config_path = temp_config.name
+    temp_config.write('[server]\nenv = dev\n')
+    temp_config.close()
 
-        agent._parse_config_file(config_path)
+    agent._parse_config_file(config_path)
 
-        yield agent, config_path
+    yield agent, config_path
 
     os.remove(config_path)
 
@@ -1682,14 +1677,22 @@ name = old_agent_server
     assert 'tags' not in status
 
 
-def test_set_tags_updates_config_and_reloads_state(agent_with_temp_config):
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_updates_config_and_reloads_state(
+        mock_log,
+        agent_with_temp_config
+):
     agent, config_path = agent_with_temp_config
     assert agent.tags == {'env': 'dev'}
 
     new_tags = {'env': 'production', 'role': 'web'}
-    result = agent.set_tags(new_tags)
+    agent.set_tags(new_tags)
 
-    assert result == 'Tags updated successfully.'
+    mock_log.assert_any_call(
+        'Tags updated successfully. Current tags are now: %s' % new_tags,
+        logger=agent.logger,
+        level=logging.INFO
+    )
     assert agent.tags == new_tags
 
     config = ConfigParser.ConfigParser()
@@ -1698,14 +1701,22 @@ def test_set_tags_updates_config_and_reloads_state(agent_with_temp_config):
     assert config.get('server', 'role') == 'web'
 
 
-def test_set_tags_removes_tag_with_empty_string(agent_with_temp_config):
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_removes_tag_with_empty_string(
+        mock_log,
+        agent_with_temp_config
+):
     agent, config_path = agent_with_temp_config
     assert 'env' in agent.tags
 
     tags_to_remove = {'env': ''}
-    result = agent.set_tags(tags_to_remove)
+    agent.set_tags(tags_to_remove)
 
-    assert result == 'Tags updated successfully.'
+    mock_log.assert_any_call(
+        'Tags updated successfully. Current tags are now: %s' % {},
+        logger=agent.logger,
+        level=logging.INFO
+    )
     assert 'env' not in agent.tags
 
     config = ConfigParser.ConfigParser()
@@ -1713,11 +1724,19 @@ def test_set_tags_removes_tag_with_empty_string(agent_with_temp_config):
     assert not config.has_option('server', 'env')
 
 
-def test_set_tags_handles_empty_dict(agent_with_temp_config):
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_handles_empty_dict(
+        mock_log,
+        agent_with_temp_config
+):
     agent, config_path = agent_with_temp_config
     initial_tags = agent.tags.copy()
 
-    result = agent.set_tags({})
+    agent.set_tags({})
 
-    assert 'No action taken' in result
+    mock_log.assert_called_with(
+        "Command 'set_tags' received empty tags. No action taken.",
+        logger=agent.logger,
+        level=logging.WARNING
+    )
     assert agent.tags == initial_tags

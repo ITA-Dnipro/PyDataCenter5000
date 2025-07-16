@@ -1,3 +1,23 @@
+"""
+Locust load testing configuration and environment variables.
+
+Environment Variables:
+- LOCUST_USERNAME (str): Username for login. Default: 'locust_tester'
+- LOCUST_PASSWORD (str): Password for login. Default: 'supersecret'
+- TOXI_CLEANUP_DELAY (float): Seconds to wait after
+removing toxics before ending test. Default: 2
+- TOXIPROXY_API (str): URL for Toxiproxy API. Default: 'http://localhost:8474'
+- PROXY_NAME (str): Name of the Toxiproxy proxy. Default: 'django-proxy'
+- TOXI_LATENCY (int): Network latency in milliseconds for toxics. Default: 500
+- TOXI_JITTER (int): Network jitter in milliseconds for toxics. Default: 100
+- TOXI_RATE (int): Bandwidth rate limit for toxics
+(bytes per second). Default: 80000
+- ENABLE_TOXICS (bool): Enable or disable toxic injection. Default: True
+- MAX_REFRESH_RETRIES (int): Number of times to retry
+request after token refresh. Default: 2
+"""
+
+
 import logging
 import os
 import random
@@ -11,18 +31,23 @@ from locust import HttpUser, between, events, task
 logger = logging.getLogger(__name__)
 
 API_PREFIX = '/api/v1'
+
+# Authentication credentials for login (can be overridden by env variables)
 USERNAME = os.getenv('LOCUST_USERNAME', 'locust_tester')
 PASSWORD = os.getenv('LOCUST_PASSWORD', 'supersecret')
 
-TOXIC_CLEANUP_DELAY = float(os.getenv('TOXI_CLEANUP_DELAY', '2'))
-TOXIPROXY_API = 'http://localhost:8474'
-PROXY_NAME = 'django-proxy'
+# Toxiproxy config
+TOXI_CLEANUP_DELAY = float(os.getenv('TOXI_CLEANUP_DELAY', '2'))
+TOXIPROXY_API = os.getenv('TOXIPROXY_API', 'http://localhost:8474')
+PROXY_NAME = os.getenv('PROXY_NAME', 'django-proxy')
 
-# Optional env overrides
+# Network toxics settings
 LATENCY_MS = int(os.getenv('TOXI_LATENCY', '500'))
 JITTER_MS = int(os.getenv('TOXI_JITTER', '100'))
 RATE_LIMIT = int(os.getenv('TOXI_RATE', '80000'))
 ENABLE_TOXICS = os.getenv('ENABLE_TOXICS', 'true').lower() == 'true'
+
+# Retry settings
 MAX_REFRESH_RETRIES = int(os.getenv('MAX_REFRESH_RETRIES', '2'))
 
 
@@ -186,7 +211,7 @@ def on_test_stop(environment, **kwargs):
     if (ENABLE_TOXICS and environment.host and environment.host !=
             'http://localhost:8000'):
         remove_toxics()
-        time.sleep(TOXIC_CLEANUP_DELAY)
+        time.sleep(TOXI_CLEANUP_DELAY)
 
 
 class AgentSimulator(HttpUser):

@@ -376,6 +376,127 @@ class ServerAgent(object):
                             'POST failed after %d attempts' % max_retries
                         )
 
+    def patch_data(
+        self,
+        url,
+        payload,
+        to_controller=True,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **kwargs
+    ):
+        """
+        Sends a PATCH request with JSON data to the specified URL with
+        retry logic. Retries up to `max_retries` times with `delay`
+        seconds between attempts. Logs all attempts and failures.
+
+        Parameters:
+            url (str): Endpoint URL or, for `to_controller=True`,
+                suffix of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            payload (Any): Data to send via POST request. If not a string,
+                JSON serialization will be attempted.
+            api_key (str, optiona): API key for authorization. Default
+                is None.
+            max_retries (int, optional): Maximum number of retry attempts.
+                Default is 3.
+            delay (int, optional): Delay (in seconds) between retries.
+                Default is 5.
+            timeout (int, optional): POST request timeout (in seconds).
+                Default is 5.
+            to_controller (bool, optional): Whether data is to be sent
+                to controller. Default is False.
+            **kwargs: Key-value pairs to be appended to the header.
+        """
+        if to_controller:
+            if not self.config.url:
+                maybe_log_message(
+                    (
+                        "Couldn't send POST request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
+
+            base_api_url = urljoin(self.config.url, self.config.api_prefix)
+            url = urljoin(base_api_url, url)
+
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers.update(
+                {'Authorization': '%s %s' % (
+                    self.config.auth_token_type, api_key
+                )}
+            )
+        if kwargs:
+            headers.update(kwargs)
+
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                maybe_log_message(
+                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    logger=self.logger,
+                    level=logging.INFO
+                )
+
+                request = urllib2.Request(url, data=payload, headers=headers)
+                request.get_method = lambda: 'PATCH'
+
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
+
+                maybe_log_message(
+                    'POST request status: %d' % status_code,
+                    logger=self.logger,
+                    level=logging.INFO
+                )
+
+                response.close()
+
+                maybe_log_message(
+                    'POST request succeeded on attempt %d: %s' % (
+                        attempt, result
+                    ),
+                    logger=self.logger,
+                    level=logging.INFO,
+                )
+
+                return result
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    level=logging.ERROR,
+                )
+
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not sent. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        level=logging.CRITICAL,
+                    )
+
+                    if not fail_silently:
+                        raise RuntimeError(
+                            'POST failed after %d attempts' % max_retries
+                        )
+
     def get_data(
         self,
         url,
@@ -566,3 +687,27 @@ class ServerAgent(object):
             command_history.result = result
 
             return command_history
+
+    def handle_command_lifecycle(self, **kwargs):
+        """
+        Handle the command lifecycle by executing the command and
+        posting the result to the controller.
+        """
+        command_history = self.execute_command(**kwargs)
+
+        if command_history:
+            try:
+                patch_url = 'command/%s/' % command_history.id
+
+                payload = {
+                    'id': command_history.id,
+                    'hostname': command_history.hostname,
+                    'status': command_history.status.value,
+                    'result': command_history.result,
+                }
+                self.patch_data(patch_url, payload)
+            except RuntimeError as e:
+                maybe_log_message(
+                    'Failed to patch command result: %s' % str(e),
+                    logger=self.logger,
+                )

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -196,3 +197,53 @@ def test_multiple_rules_triggered_for_same_agent(
 
     assert result is not None
     assert mock_send.call_count == 2
+
+
+def test_multiple_metrics_aggregated_within_time_window(
+        server, celery_app, celery_worker
+):
+    """
+    Given one AlertRule with time_window_minutes=5 and threshold=50,
+    multiple AgentMetric entries within
+    that 5-minute window (all above threshold)
+    should result in exactly one alert when batch=False.
+    """
+    # arrange: one rule with a 5-minute window
+    baker.make(
+        AlertRule,
+        is_active=True,
+        metric='cpu',
+        operator='>',
+        threshold=50,
+        time_window_minutes=5,
+        frequency=1,
+        hostname=server.hostname
+    )
+    now = timezone.now()
+
+    # older metric outside the window → ignored
+    baker.make(
+        AgentMetric,
+        server_status=server,
+        cpu=80.0,
+        timestamp=now - timedelta(minutes=6)
+    )
+    # two metrics inside the window → both should aggregate into one alert
+    baker.make(
+        AgentMetric,
+        server_status=server,
+        cpu=60.0,
+        timestamp=now - timedelta(minutes=3)
+    )
+    baker.make(
+        AgentMetric,
+        server_status=server,
+        cpu=70.0,
+        timestamp=now - timedelta(minutes=1)
+    )
+
+    with patch('monitoring.tasks.dispatcher.send') as mock_send:
+        evaluate_agent_alerts(destinations=['email'], batch=False)
+
+    # assert exactly one send() call because metrics were combined
+    assert mock_send.call_count == 1

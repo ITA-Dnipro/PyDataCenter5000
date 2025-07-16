@@ -1762,3 +1762,22 @@ def test_set_tags_handles_empty_dict(
     )
     assert agent.tags == initial_tags, \
         'Tags should not change when an empty dict is passed'
+
+
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_with_invalid_type(
+        mock_log,
+        agent_with_temp_config
+):
+    """
+    Test that passing a non-dict to set_tags is handled correctly.
+    """
+    agent, config_path = agent_with_temp_config
+
+    agent.set_tags('this is not a dictionary')
+
+    mock_log.assert_called_with(
+        "Command 'set_tags' failed: expected a dictionary of tags.",
+        logger=agent.logger,
+        level=logging.ERROR
+    )

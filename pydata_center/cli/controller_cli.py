@@ -2,6 +2,7 @@ import argparse
 import configparser
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -77,8 +78,19 @@ def get_auth_from_env() -> Optional[Tuple[str, str]]:
     return None
 
 
+def ensure_auth_or_exit(auth: Optional[Tuple[str, str]]) -> None:
+    """
+    Checks if auth credentials exist and exits if they don't.
+    """
+    if not auth:
+        logger.error("You must login first using the 'login' command.")
+        sys.exit(1)
+
+
 def truncate(text: str, max_length: int) -> str:
-    """Truncate text to fit max_length with ellipsis if needed."""
+    """
+    Truncate text to fit max_length with ellipsis if needed.
+    """
     if max_length < 0:
         raise ValueError('max_length must be non-negative')
     if len(text) <= max_length:
@@ -101,9 +113,7 @@ def list_agents(
     url = url or base_url.rstrip('/') + '/' + get_agent_lists_url.lstrip('/')
     auth = resolve_auth(username, password)
 
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return
+    ensure_auth_or_exit(auth)
 
     try:
         response = requests.get(
@@ -153,9 +163,7 @@ def send_command(
     url = url or base_url.rstrip('/') + '/' + send_command_url.lstrip('/')
     auth = resolve_auth(username, password)
 
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return None
+    ensure_auth_or_exit(auth)
 
     headers = {
         'Content-Type': 'application/json',
@@ -200,9 +208,7 @@ def poll_result(
     url = url or base_url.rstrip('/') + '/' + poll_request_url.lstrip('/')
     auth = resolve_auth(username, password)
 
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return None
+    ensure_auth_or_exit(auth)
 
     headers = {
         'Content-Type': 'application/json',
@@ -249,9 +255,7 @@ def set_tags(
     url = f"{base_url.rstrip('/')}/v1/agents/{hostname}/set-tags/"
     auth = resolve_auth(username, password)
 
-    if not auth:
-        logger.error('You must login first using the "login" command.')
-        return
+    ensure_auth_or_exit(auth)
 
     headers = {
         'Content-Type': 'application/json',
@@ -288,17 +292,13 @@ def handle_login(args):
 
 def handle_agents():
     auth = get_auth_from_env()
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return
+    ensure_auth_or_exit(auth)
     list_agents(username=auth[0], password=auth[1])
 
 
 def handle_send(args):
     auth = get_auth_from_env()
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return
+    ensure_auth_or_exit(auth)
     command_id = send_command(
         args.hostname,
         args.cmd,
@@ -323,9 +323,7 @@ def handle_send(args):
 
 def handle_poll(args):
     auth = get_auth_from_env()
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return
+    ensure_auth_or_exit(auth)
     poll_result(args.id, username=auth[0], password=auth[1])
 
 
@@ -334,9 +332,7 @@ def handle_set_tags(args):
     Handler for the set-tags command.
     """
     auth = get_auth_from_env()
-    if not auth:
-        logger.error("You must login first using the 'login' command.")
-        return
+    ensure_auth_or_exit(auth)
 
     if all(value is None for value in [args.env, args.role, args.region]):
         logger.error(

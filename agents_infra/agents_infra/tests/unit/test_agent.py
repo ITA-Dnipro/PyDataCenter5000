@@ -91,18 +91,16 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).maybe_restart_service()
 
 
-@pytest.fixture
-def agent_with_temp_config(request):
+@pytest.yield_fixture
+def agent_with_temp_config():
     """
-    Pytest fixture to create a MockAgent with a temporary config file.
+    Pytest fixture to create a MockAgent with a patched logger and temp config.
     """
     with mock.patch.object(
             MockAgent,
             'logger',
             new_callable=mock.PropertyMock
-    ) as mocked_logger:
-        mocked_logger.return_value = mock.MagicMock()
-
+    ):
         agent = MockAgent(server_name='tag_test_agent')
 
         temp_config = tempfile.NamedTemporaryFile(mode='w', delete=False)
@@ -112,11 +110,9 @@ def agent_with_temp_config(request):
 
         agent._parse_config_file(config_path)
 
-        def finalizer():
-            os.remove(config_path)
-        request.addfinalizer(finalizer)
+        yield agent, config_path
 
-        return agent, config_path
+    os.remove(config_path)
 
 
 def mock_popen_with_output(stdout, stderr=''):

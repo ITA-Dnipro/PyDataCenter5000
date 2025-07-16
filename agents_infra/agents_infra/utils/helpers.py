@@ -26,29 +26,38 @@ def restart_service(service, attempts=3, logger=None):
         Backoff strategy uses 2s, 4s, and 8s delays between attempts.
     """
 
-    maybe_log_message('%s not active. Attempting restart...' % service,
-                      logger=logger)
+    maybe_log_message(
+        '%s not active. Attempting restart...' % service, logger=logger
+    )
 
     for i in range(1, attempts + 1):
         try:
             delay = 2**i
 
             maybe_log_message(
-                'Attempt %s: Restarting %s (delay before restart: %s).' %
-                (i, service, delay),
+                'Attempt %s: Restarting %s (delay before restart: %s).' % (
+                    i,
+                    service,
+                    delay
+                ),
                 logger=logger,
             )
 
             time.sleep(delay)
 
-            retcode = subprocess.call(
-                ['sudo', 'systemctl', 'restart', service])
+            retcode = subprocess.call([
+                'sudo',
+                'systemctl',
+                'restart',
+                service
+                ])
 
             if retcode == 0:
-                maybe_log_message('%s service restarted successfully.' %
-                                  service,
-                                  logger=logger,
-                                  level=logging.INFO)
+                maybe_log_message(
+                    '%s service restarted successfully.' % service,
+                    logger=logger,
+                    level=logging.INFO
+                    )
                 return True  # If restsrting successful
             else:
                 maybe_log_message(
@@ -58,7 +67,9 @@ def restart_service(service, attempts=3, logger=None):
 
         except Exception as restart_err:
             maybe_log_message(
-                'Error during %s service restart: %s' % (service, restart_err),
+                'Error during %s service restart: %s' % (
+                    service, restart_err
+                ),
                 logger=logger,
                 exc_info=True,
             )

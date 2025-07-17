@@ -6,6 +6,7 @@ import re
 import socket
 import tempfile
 
+import ConfigParser
 import mock
 import psutil
 import pytest
@@ -112,6 +113,26 @@ class MockAgent(ServerAgent):
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
+
+
+@pytest.yield_fixture
+def agent_with_temp_config():
+    """
+    Pytest fixture to create a MockAgent with a temporary config file.
+    """
+    agent = MockAgent(config={'name': 'tag_test_agent'})
+
+    temp_config = tempfile.NamedTemporaryFile(mode='w', delete=False)
+    config_path = temp_config.name
+    temp_config.write('[server]\nenv = dev\n')
+    temp_config.close()
+
+    agent.config.path = config_path
+    agent.tags = {'env': 'dev'}
+
+    yield agent, config_path
+
+    os.remove(config_path)
 
 
 def mock_popen_with_output(stdout, stderr=''):
@@ -1437,3 +1458,103 @@ port = 12345
 
     status = agent.status_to_dict()
     assert 'tags' not in status
+
+
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_updates_config_and_reloads_state(
+        mock_log,
+        agent_with_temp_config
+):
+    """
+    Test that set_tags correctly updates/adds tags and reloads agent state.
+    """
+    agent, config_path = agent_with_temp_config
+    assert agent.tags == {'env': 'dev'}, \
+        'Initial agent tags should be correctly parsed from config.'
+
+    new_tags = {'env': 'production', 'role': 'web'}
+    agent.set_tags(new_tags)
+
+    mock_log.assert_any_call(
+        'Tags updated successfully. Current tags are now: %s' % new_tags,
+        logger=agent.logger,
+        level=logging.INFO
+    )
+    assert agent.tags == new_tags, \
+        "Agent's tags should match newly set tags after set_tags() and reload"
+
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    assert config.get('server', 'env') == 'production', \
+        "Config file 'env' tag should be updated."
+    assert config.get('server', 'role') == 'web', \
+        "Config file 'role' tag should be added."
+
+
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_removes_tag_with_empty_string(
+        mock_log,
+        agent_with_temp_config
+):
+    """
+    Test that set_tags removes a tag when an empty string value is provided.
+    """
+    agent, config_path = agent_with_temp_config
+    assert 'env' in agent.tags, \
+        "Initial state should contain 'env' tag."
+
+    tags_to_remove = {'env': ''}
+    agent.set_tags(tags_to_remove)
+
+    mock_log.assert_any_call(
+        'Tags updated successfully. Current tags are now: %s' % {},
+        logger=agent.logger,
+        level=logging.INFO
+    )
+    assert 'env' not in agent.tags, \
+        "Tag 'env' should be removed from agent's state."
+
+    config = ConfigParser.ConfigParser()
+    config.read(config_path)
+    assert not config.has_option('server', 'env'), \
+        "Tag 'env' should be removed from config file."
+
+
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_handles_empty_dict(
+        mock_log,
+        agent_with_temp_config
+):
+    """
+    Test that set_tags performs a no-op when an empty dict is passed.
+    """
+    agent, config_path = agent_with_temp_config
+    initial_tags = agent.tags.copy()
+
+    agent.set_tags({})
+    mock_log.assert_called_with(
+        "Command 'set_tags' received empty tags. No action taken.",
+        logger=agent.logger,
+        level=logging.WARNING
+    )
+    assert agent.tags == initial_tags, \
+        'Tags should not change when an empty dict is passed'
+
+
+@mock.patch('agents_infra.agents.base.maybe_log_message')
+def test_set_tags_with_invalid_type(
+        mock_log,
+        agent_with_temp_config
+):
+    """
+    Test that passing a non-dict to set_tags is handled correctly.
+    """
+    agent, config_path = agent_with_temp_config
+
+    agent.set_tags('this is not a dictionary')
+
+    mock_log.assert_called_with(
+        "Command 'set_tags' failed: expected a dictionary of tags.",
+        logger=agent.logger,
+        level=logging.ERROR
+    )

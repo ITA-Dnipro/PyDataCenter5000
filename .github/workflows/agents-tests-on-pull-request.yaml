@@ -3,16 +3,16 @@ name: agents tests
 on:
   pull_request:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     paths:
-      - agents_infra/**
-      - .github/**
+      - 'agents_infra/**'
+      - '.github/**'
     branches:
-      - main
-      - develop
+      - 'main'
+      - 'develop'
 
 jobs:
   test:
@@ -33,10 +33,17 @@ jobs:
             ghcr.io/yelyzavetav/ubuntu-python2.6:latest \
             bash -c "
               cd /pydata && \
-              python -m pytest -c agents_infra/agents_infra/pytest.ini -m 'not integration' agents_infra/agents_infra --cov=agents_infra/agents_infra --cov-report=xml --cov-config=agents_infra/agents_infra/.coveragerc
+              python -m pytest \
+                -c agents_infra/agents_infra/pytest.ini \
+                -m 'not integration' \
+                agents_infra/agents_infra \
+                --cov=agents_infra/agents_infra \
+                --cov-report=xml \
+                --cov-config=agents_infra/agents_infra/.coveragerc && \
+              mv coverage.xml coverage-agents.xml
             "
 
-      - name: Agents Unit Tests (Python 2.7 - Official Docker Image)
+      - name: Agents Unit Tests (Python 2.7 - Official Docker Image with coverage)
         if: matrix.python-version == '2.7'
         run: |
           docker run --rm \
@@ -45,15 +52,21 @@ jobs:
             bash -c "
               cd /pydata && \
               pip install -r agents_infra/requirements.txt && \
-              pip install pytest && \
-              python -m pytest -c agents_infra/agents_infra/pytest.ini -m 'not coro' agents_infra/agents_infra
+              pip install pytest pytest-cov && \
+              python -m pytest \
+                -c agents_infra/agents_infra/pytest.ini \
+                -m 'not coro' \
+                agents_infra/agents_infra \
+                --cov=agents_infra/agents_infra \
+                --cov-report=xml \
+                --cov-config=agents_infra/agents_infra/.coveragerc && \
+              mv coverage.xml coverage-agents.xml
             "
 
       - name: Upload Coverage Report to Codecov
-        if: matrix.python-version == '2.6'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
+          files: coverage-agents.xml
           flags: agents_infra
           verbose: true

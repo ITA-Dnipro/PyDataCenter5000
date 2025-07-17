@@ -54,18 +54,18 @@ jobs:
           python-version: '3.8'
 
       - name: Install dependencies
+        working-directory: pydata_center
         run: |
-          cd pydata_center
           python -m pip install --upgrade pip
           pip install pytest pytest-cov codecov
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run monitoring tests with coverage
+        working-directory: pydata_center
         run: |
-          cd $GITHUB_WORKSPACE
-          pytest pydata_center/monitoring \
-            --cov=pydata_center/monitoring \
-            --cov-report=xml:coverage-monitoring.xml \
+          pytest monitoring \
+            --cov=monitoring \
+            --cov-report=xml:../coverage-monitoring.xml \
             --cov-report=term
 
       - name: Upload coverage to Codecov

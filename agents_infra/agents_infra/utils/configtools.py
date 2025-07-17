@@ -309,8 +309,8 @@ def parse_config_file(filename=None):
                 value = int(value)
 
             if section == 'server' and key in ('env', 'role', 'region'):
-                if value and isinstance(value, basestring):
-                    tags[key] = value.lower()
+                if value and isinstance(value, basestring) and value.strip():
+                    tags[key] = value.strip().lower()
             else:
                 config[key] = value
 

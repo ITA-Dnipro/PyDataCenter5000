@@ -1,18 +1,16 @@
 import abc
-import inspect
+import copy
+import datetime
 import json
 import logging
 import logging.config
-import re
+import platform
 import socket
-import subprocess
 import time
 import warnings
 from collections import Sequence
 
-import ConfigParser
 import pkg_resources
-import psutil
 import Queue
 import urllib2
 from urlparse import urljoin
@@ -20,34 +18,11 @@ from urlparse import urljoin
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
-from ..utils.configtools import get_config_option, parse_csv_list
+from ..utils.configtools import Config, parse_config_file
+from ..utils.helpers import is_process_active, restart_service
+from ..utils.sysinfo import get_ip_from_interface, get_linux_uptime
 
 PROTOCOLS = ('tcp', 'udp')
-
-
-def get_ip_from_interface(interface):
-    """
-    Attempt getting server's primary IP address associated with a given
-    interface name.
-
-    Parameters:
-        interface (str): Interface name.
-
-    Returns:
-        str: On success, IP address is returned.
-    """
-    net_if_dict = psutil.net_if_addrs()
-    if interface not in net_if_dict:
-        return
-
-    addresses = net_if_dict[interface]
-
-    for address in addresses:
-        if address.address.startswith('127.'):
-            continue
-
-        if address.family == socket.AF_INET:
-            return address.address
 
 
 class ServerAgent(object):
@@ -60,49 +35,36 @@ class ServerAgent(object):
 
     _plugins = None
 
-    controller_url = None
-    api_prefix = 'api/'
-    auth_token_type = 'Bearer'
-    whitelist_commands = None
-    critical_processes = None
+    # Global config parsed once at import-level (__init__.py)
+    config = None  # Will hold default/global config
 
-    def __init__(
-        self,
-        server_name=None,
-        port=None,
-        health_port=8081,
-        processes=None,
-        critical_processes=None,
-        interface=None,
-        protocol=None,
-        whitelist_commands=None,
-        command_queue_size=0,
-    ):
+    def __init__(self, protocol=None, command_queue_size=0, config=None):
         self.health_thread = None
-        self.server_name = server_name
-        self.port = port if port is not None else self.port
-        self.health_port = (
-            health_port
-            if health_port is not None
-            else self.health_port
-        )
-        self.processes = processes if processes is not None else self.processes
-        self.interface = interface
 
+        # Normalize user config
+        if config is None:
+            config = Config()
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
+
+        if not isinstance(config, Config):
+            raise TypeError(
+                'Input server config must be either a dict or '
+                'an instance of Config, not %s' % type(config)
+            )
+
+        # Base config from global defaults - make a copy to avoid shared state
+        base_config = copy.deepcopy(self.config) or Config()
+
+        # Merge user config into base config (without mutating the original)
+        base_config.update(config)
+        self.config = base_config
+
+        # Optional protocol override
         if protocol is not None:
             self.protocol = protocol
 
-        if self.whitelist_commands is None:
-            self.whitelist_commands = []
-
-        if whitelist_commands is not None:
-            self.whitelist_commands.extend(whitelist_commands)
-
-        # Extend the list of global critical processes with those that
-        # are server-specific.
-        self.critical_processes = self.critical_processes or []
-        if critical_processes is not None:
-            self.critical_processes.extend(critical_processes)
+        self.hostname = self.ip = None
 
         # Server identity refers to data necessary for connectivity to
         # controller, i.e., hostname and IP address.
@@ -118,7 +80,8 @@ class ServerAgent(object):
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
         """
-        Create an agent from a configuration (.ini) file.
+        Create an agent from configuration file.
+        Merges global config (ServerAgent.config) with local config.ini.
 
         Parameters:
             filename (str): Path to configuration file. Default is None.
@@ -128,9 +91,10 @@ class ServerAgent(object):
         Returns:
             ServerAgent: Child instance of ServerAgent.
         """
-        agent = cls()
+        config, tags = parse_config_file(filename)
 
-        agent._parse_config_file(filename)
+        agent = cls(config=config)
+        agent.tags = tags
         agent.setup_logging(log_path)
 
         return agent
@@ -146,14 +110,14 @@ class ServerAgent(object):
         log_path = (
             log_path or pkg_resources.
             resource_filename(
-                self.__class__.__module__, 'logs/%s.log' % self.server_name
+                self.__class__.__module__, 'logs/%s.log' % self.config.name
             )
         )
 
         logging.config.fileConfig(
             LOG_CONFIG_PATH,
             defaults={
-                'agent_name': self.server_name,
+                'agent_name': self.config.name,
                 'log_path': log_path
             },
         )
@@ -165,7 +129,7 @@ class ServerAgent(object):
         Parameters:
             category (str, optional): Report category.
         """
-        report_data = {'server_name': self.server_name}
+        report_data = {'server_name': self.config.name}
 
         # Update report with server's identity data.
         if category == 'status':
@@ -191,45 +155,10 @@ class ServerAgent(object):
 
     @property
     def logger(self):
-        if not self.server_name:
+        if not self.config.name:
             raise ValueError('Must assign a valid server name to use logger')
 
-        return logging.getLogger(self.server_name)
-
-    @property
-    def port(self):
-        return getattr(self, '_port', -1)
-
-    @port.setter
-    def port(self, value):
-        if not isinstance(value, int):
-            raise TypeError('Port number must be an integer')
-        self._port = value
-
-    @property
-    def health_port(self):
-        return getattr(self, '_health_port', 8081)
-
-    @health_port.setter
-    def health_port(self, value):
-        if not isinstance(value, int):
-            raise TypeError('Health port must be an integer')
-        self._health_port = value
-
-    @property
-    def processes(self):
-        return getattr(self, '_processes', [])
-
-    @processes.setter
-    def processes(self, value):
-        if not isinstance(value, Sequence):
-            raise TypeError(
-                (
-                    'Process names must be provided as a string or a sequence '
-                    '(list, tuple etc.), not %s' % type(value)
-                )
-            )
-        self._processes = value
+        return logging.getLogger(self.config.name)
 
     @property
     def protocol(self):
@@ -247,90 +176,6 @@ class ServerAgent(object):
 
         self._protocol = value
 
-    def _parse_config_file(self, filename=None):
-        """Parse server's config file using ConfigParser."""
-        filename = filename or pkg_resources.resource_filename(
-            self.__class__.__module__, 'config.ini'
-        )
-
-        config = ConfigParser.ConfigParser()
-        config.read(filename)
-
-        if config.sections():
-            self.server_name = get_config_option(
-                config,
-                'server',
-                'name',
-                default=self.server_name,
-                logger=self.logger,
-            )
-
-            self.port = get_config_option(
-                config,
-                'server',
-                'port',
-                default=self.port,
-                logger=self.logger,
-                cast=int,
-            )
-
-            self.processes = get_config_option(
-                config,
-                'server',
-                'processes',
-                default=self.processes,
-                logger=self.logger,
-                cast=parse_csv_list,
-            )
-
-            # Append server-specific critical_processes
-            critical_processes = get_config_option(
-                config,
-                'server',
-                'critical_processes',
-                logger=self.logger,
-                cast=parse_csv_list,
-            )
-
-            # Extend avoiding duplicates
-            if critical_processes:
-                self.critical_processes.extend(
-                    proc for proc in critical_processes
-                    if proc not in self.critical_processes
-                )
-
-            self.interface = get_config_option(
-                config, 'server', 'interface', logger=self.logger
-            )
-
-            whitelist_commands = get_config_option(
-                config,
-                'controller',
-                'whitelist_commands',
-                logger=self.logger,
-                cast=parse_csv_list,
-            )
-            # Add commands to the list of globally allowed commands.
-            if whitelist_commands:
-                self.whitelist_commands.extend(
-                    cmd for cmd in whitelist_commands
-                    if cmd not in self.whitelist_commands
-                )
-
-            # Read tags from the [server] section
-            tags = {}
-            for tag_key in ['env', 'role', 'region']:
-                tag_value = get_config_option(
-                    config,
-                    'server',
-                    tag_key,
-                    logger=self.logger,
-                )
-                if tag_value and tag_value.strip():
-                    tags[tag_key] = tag_value.strip().lower()
-            if tags:
-                self.tags = tags
-
     def evaluate_identity(self):
         """
         Attempt setting server identity which includes the hostname and
@@ -347,14 +192,14 @@ class ServerAgent(object):
 
         self.ip = None
 
-        if self.interface:
+        if self.config.interface:
             try:
-                self.ip = get_ip_from_interface(self.interface)
+                self.ip = get_ip_from_interface(self.config.interface)
             except (KeyError, AttributeError) as e:
                 maybe_log_message(
                     (
                         'Could not deduce IP address from interface '
-                        '%s: %s' % (self.interface, str(e))
+                        '%s: %s' % (self.config.interface, str(e))
                     ),
                     logger=self.logger,
                 )
@@ -368,50 +213,38 @@ class ServerAgent(object):
                     self.logger,
                 )
 
-    def _is_process_running(self):
+    def _are_all_critical_processes_active(self, restart=False):
+        inactive_processes = 0
+
         try:
-            output = subprocess.Popen(['ps', '-eo', 'comm'],
-                                      stdout=subprocess.PIPE).communicate()[0]
+            for proc in self.config.critical_processes:
+                is_active = is_process_active(proc)
+                if not is_active:
+                    inactive_processes += 1
+                    maybe_log_message(
+                        '%s process inactive' % proc,
+                        self.logger
+                    )
+                    if restart:
+                        restart_service(
+                            self.logger, proc
+                        )
 
-            if hasattr(output, 'decode'):
-                output = output.decode('utf-8')
-
-            normalized_lines = output.lower().splitlines()
-
-            return any(
-                re.search(r'\b{0}\b'.format(re.escape(proc)), line)
-                for proc in self.processes
-                for line in normalized_lines
-                )
+            return inactive_processes == 0
 
         except OSError as e:
             maybe_log_message(
-                'Process check failed: %s' % e,
+                'Critical processes check failed: %s' % e,
                 logger=self.logger,
-                exc_info=True,
-            )
-
+                exc_info=True
+                )
             return False
 
-    def is_ssh_service_active(self):
-        try:
-            proc = subprocess.Popen(
-                ['systemctl', 'is-active', 'ssh'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            stdout, stderr = proc.communicate()
-
-            if hasattr(stdout, 'decode'):
-                stdout = stdout.decode('utf-8')
-
-            stdout = stdout.strip().lower()
-
-            return stdout == 'active'
-
-        except OSError as e:
+        except Exception as e:
             maybe_log_message(
-                'SSH service check failed: %s' % e, self.logger, exc_info=True
+                'Critical processes check failed: %s' % e,
+                self.logger,
+                exc_info=True
             )
             return False
 
@@ -421,7 +254,7 @@ class ServerAgent(object):
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        if self.port < 0 or self.ip is None or self.protocol is None:
+        if self.config.port < 0 or self.ip is None or self.protocol is None:
             return False
 
         port_status = False
@@ -450,13 +283,8 @@ class ServerAgent(object):
 
         return (
             port_status
-            and self._is_process_running()
-            and self.is_ssh_service_active()
+            and self._are_all_critical_processes_active()
         )
-
-    @abc.abstractmethod
-    def maybe_restart_service(self):
-        pass
 
     def post_data(
         self,
@@ -494,7 +322,7 @@ class ServerAgent(object):
             **kwargs: Key-value pairs to be appended to the header.
         """
         if to_controller:
-            if not self.controller_url:
+            if not self.config.url:
                 maybe_log_message(
                     (
                         "Couldn't send POST request to controller: "
@@ -504,13 +332,15 @@ class ServerAgent(object):
                 )
                 return
 
-            base_api_url = urljoin(self.controller_url, self.api_prefix)
+            base_api_url = urljoin(self.config.url, self.config.api_prefix)
             url = urljoin(base_api_url, url)
 
         headers = {'Content-Type': 'application/json'}
         if api_key:
             headers.update(
-                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+                {'Authorization': '%s %s' % (
+                    self.config.auth_token_type, api_key
+                )}
             )
         if kwargs:
             headers.update(kwargs)
@@ -576,81 +406,120 @@ class ServerAgent(object):
                             'POST failed after %d attempts' % max_retries
                         )
 
-    def fetch_command_from_controller(
-        self, suffix='command/fetch/', timeout=5, api_key=None, **kwargs
+    def get_data(
+        self,
+        url,
+        from_controller=True,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **kwargs
     ):
         """
-        Send GET request to controller to fetch the first pending
-        command for a given server.
-        """
-        if not self.controller_url or not self.hostname:
-            maybe_log_message(
-                (
-                    "Couldn't fetch controller command: controller URL or "
-                    'hostname not set'
-                ),
-                logger=self.logger,
-            )
-            return
+        Sends a GET request to the specified URL with retry logic.
+        Retries up to `max_retries` times with `delay` seconds between
+        attempts. Logs all attempts and failures.
 
-        base_api_url = urljoin(self.controller_url, self.api_prefix)
-        fetch_api_url = urljoin(base_api_url, suffix)
-        url = '%s?hostname=%s' % (fetch_api_url, self.hostname)
+        Parameters:
+            url (str): Endpoint URL or, if `to_controller=True`, suffix
+                of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            to_controller (bool, optional): Whether URL is relative to
+                controller. Default is True.
+            api_key (str, optional): API key for authorization. Default None.
+            max_retries (int, optional): Maximum number of retry attempts.
+            delay (int, optional): Delay between retries in seconds.
+            timeout (int, optional): Timeout for GET request.
+            fail_silently (bool, optional): Whether to suppress exceptions
+                after final failure.
+            **kwargs: Optional headers to include in the request.
+
+        Returns:
+            str: The response content on success.
+
+        Raises:
+            RuntimeError: If all attempts fail and `fail_silently` is False.
+        """
+        if from_controller:
+            if not self.config.url:
+                maybe_log_message(
+                    (
+                        "Couldn't send GET request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
+
+            base_api_url = urljoin(self.config.url, self.config.api_prefix)
+            url = urljoin(base_api_url, url)
 
         headers = {'Accept': 'application/json'}
         if api_key:
-            headers.update(
-                {'Authorization': '%s %s' % (self.auth_token_type, api_key)}
+            headers['Authorization'] = '%s %s' % (
+                self.config.auth_token_type, api_key
             )
         if kwargs:
             headers.update(kwargs)
 
-        request = urllib2.Request(url, headers=headers)
-
-        try:
-            response = urllib2.urlopen(request, timeout=timeout)
-
-            data = response.read()
-            response.close()
-
-            status_code = response.getcode()
-
-            maybe_log_message(
-                (
-                    'GET request to controller succeded with '
-                    'status: %s' % status_code
-                ),
-                logger=self.logger,
-                level=logging.INFO,
-            )
-
-            if status_code == 204 or not data.strip():
+        for attempt in range(1, max_retries + 1):
+            try:
                 maybe_log_message(
-                    'No pending commands for server %s' % self.hostname,
+                    '[Attempt %d] Sending GET request to %s' % (attempt, url),
+                    logger=self.logger,
+                    level=logging.INFO
+                )
+
+                request = urllib2.Request(url, headers=headers)
+                response = urllib2.urlopen(request, timeout=timeout)
+                result = response.read()
+                status_code = response.getcode()
+                response.close()
+
+                maybe_log_message(
+                    'GET request status: %d' % status_code,
+                    logger=self.logger,
+                    level=logging.INFO
+                )
+
+                maybe_log_message(
+                    'GET request succeeded on attempt %d: %s' % (
+                        attempt, result
+                    ),
                     logger=self.logger,
                     level=logging.INFO,
                 )
 
-                return
+                return result
 
-            data = json.loads(data)
+            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+                maybe_log_message(
+                    'Attempt %d failed: %s' % (attempt, e),
+                    logger=self.logger,
+                    level=logging.ERROR,
+                )
 
-            return data
-        except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as e:
-            maybe_log_message(
-                (
-                    'Failed to fetch command - GET request failed '
-                    'due to error: %s' % str(e)
-                ),
-                logger=self.logger,
-                exc_info=True,
-            )
-        except Exception as e:
-            maybe_log_message(
-                'GET request failed due to unexpected error: %s' % str(e),
-                logger=self.logger,
-                exc_info=True,
-            )
+                if attempt < max_retries:
+                    maybe_log_message(
+                        'Retrying in %d seconds...' % delay,
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
+                    time.sleep(delay * attempt)
+                else:
+                    maybe_log_message(
+                        'All %d attempts failed. Data not received. '
+                        'Last error: %s' % (max_retries, e),
+                        logger=self.logger,
+                        level=logging.CRITICAL,
+                    )
+
+                    if not fail_silently:
+                        raise RuntimeError(
+                            'GET failed after %d attempts' % max_retries
+                        )
 
     def maybe_add_command_to_queue(self, data, block=False, timeout=None):
         """
@@ -675,7 +544,7 @@ class ServerAgent(object):
 
             return
 
-        if command_history.command.tag in self.whitelist_commands:
+        if command_history.command.tag in self.config.whitelist_commands:
             try:
                 self.command_queue.put(
                     command_history, block=block, timeout=timeout

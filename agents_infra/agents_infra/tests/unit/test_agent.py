@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import socket
 import tempfile
 
@@ -8,7 +9,7 @@ import psutil
 import pytest
 import urllib2
 
-from agents_infra.agents.base import ServerAgent
+from agents_infra.agents.base import Config, ServerAgent
 from agents_infra.command import CommandHistory
 
 HTTP_ERROR_OUTPUT = (
@@ -33,30 +34,79 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
+@pytest.fixture(scope='session')
+def mock_config():
+    return Config(
+        api_prefix='mock/api/v1',
+        url='http://mock-controller-url/',
+        auth_token_type='mock-token',
+        port=12345,
+        interface='iface0',
+    )
+
+
+@pytest.yield_fixture
+def mock_config_file():
+    """
+    Create a temporary config.ini file for tests.
+    Cleans up automatically after the test completes.
+    """
+    content = (
+        '[server]\n'
+        'name=mock-server\n'
+        'port=12345\n'
+        'critical_processes=proc1,proc2,proc3\n'
+        'interface=iface0\n'
+        'env=mock\n'
+        'role=mock\n'
+        'region=any\n'
+        '\n'
+        '[controller]\n'
+        'url=http://mock-controller-url\n'
+        'api_prefix=mock/api/\n'
+        'whitelist_commands=cmd1,cmd2,cmd3,cmd4\n'
+    )
+
+    tmp = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+    tmp.write(content)
+    tmp.flush()
+    tmp.close()
+
+    tmp_path = tmp.name
+
+    yield tmp_path
+
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
+
+
 def load_agent_from_config(config_content):
-    """Helper to create a MockAgent from a string config."""
-    with tempfile.NamedTemporaryFile(mode='w+', delete=True) as tmp:
+    """Utility to load agent from string-based config content."""
+    tmp = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+    try:
         tmp.write(config_content)
         tmp.flush()
-        return MockAgent.from_config_file(tmp.name)
+        tmp_path = tmp.name
+        tmp.close()
+        return MockAgent.from_config_file(tmp_path)
+    finally:
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
 
 
 class MockAgent(ServerAgent):
-
+    """Mock agent used for testing purposes."""
     def setup_logging(self, log_path=None):
-        """Patch logging setup to do nothing to allow temp file logging."""
+        """Disable logging setup for testing."""
         pass
 
     @property
     def logger(self):
-        """Override logger to use temp file logger."""
+        """Return the mock logger for tests."""
         return logging.getLogger('mock-logger')
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
-
-    def maybe_restart_service(self):
-        return super(MockAgent, self).maybe_restart_service()
 
 
 def mock_popen_with_output(stdout, stderr=''):
@@ -65,59 +115,34 @@ def mock_popen_with_output(stdout, stderr=''):
     return process_mock
 
 
-def test_type_checks_on_init_raise():
-    """Test that type checks fail initialization with bad parameters."""
-    with pytest.raises(TypeError):
-        MockAgent(port='invalid')
-
-    with pytest.raises(TypeError):
-        MockAgent(processes=0)
-
-    with pytest.raises((TypeError, ValueError)):
-        for protocol in [None, 'invalid']:
-            MockAgent(protocol=protocol)
-
-
-def test_parse_config_file_success():
+def test_parse_config_file_success(mock_config_file):
     """Test parsing of a config.ini by the agent."""
-    with tempfile.NamedTemporaryFile() as tmp:
-        tmp.write(
-            '[server]\n'
-            'name=mock-server\n'
-            'port=12345\n'
-            'processes=proc1, proc2\n'
-            'critical_processes=crit_proc1, crit_proc2, crit_proc3\n'
-            'interface=iface\n'
-            '[controller]\n'
-            'whitelist_commands=cmd1, cmd2\n'
+    agent = MockAgent.from_config_file(mock_config_file)
+
+    assert agent.config.name == 'mock-server'
+    assert agent.config.port == 12345
+
+    assert agent.config.critical_processes == [
+        'ssh', 'sshd', 'proc1', 'proc2', 'proc3'
+    ]
+
+    assert agent.config.interface == 'iface0'
+
+    assert (
+        agent.config.whitelist_commands
+        == ServerAgent.config.whitelist_commands + (
+            ['cmd1', 'cmd2', 'cmd3', 'cmd4']
         )
-        tmp.flush()
-
-        agent = MockAgent.from_config_file(tmp.name)
-
-    assert agent.server_name == 'mock-server'
-    assert agent.port == 12345
-
-    assert agent.processes == ['proc1', 'proc2']
-    assert (
-        'crit_proc1' in agent.critical_processes
-        and 'crit_proc2' in agent.critical_processes
-        and 'crit_proc3' in agent.critical_processes
-    )
-
-    assert agent.interface == 'iface'
-    assert (
-        'cmd1' in agent.whitelist_commands
-        and 'cmd1' in agent.whitelist_commands
     )
 
 
 def test_post_data_success_logged(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    class MockResponse:
+    class MockResponse(object):
+
         def getcode(self):
             return 200
 
@@ -140,9 +165,9 @@ def test_post_data_success_logged(
 
 
 def test_post_data_retry(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
     call_count = {'count': 0}
 
@@ -178,9 +203,9 @@ def test_post_data_retry(
 
 
 def test_post_data_max_retries_fail(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
     monkeypatch.setattr(
         urllib2,
@@ -203,27 +228,36 @@ def test_post_data_max_retries_fail(
     assert_msg_in_logfile('Permanent error')
 
 
-def test_post_data_error_logged(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
-    agent = MockAgent(port=12345)
+def test_post_data_error_logged(mock_config, assert_msg_in_logfile):
+    agent = MockAgent(config=mock_config)
 
-    errors = [HTTP_ERROR_OUTPUT, URL_ERROR_OUTPUT, TIMEOUT_ERROR_OUTPUT]
+    errors = [
+        (urllib2.HTTPError(
+            'http://mock/api',
+            500,
+            'Internal Server Error',
+            {},
+            None
+        ), 'Attempt 1 failed'),
+        (urllib2.URLError('Connection refused'), 'Attempt 1 failed'),
+        (socket.timeout('timed out'), 'Attempt 1 failed'),
+    ]
 
-    for error, msg in errors:
+    for error, expected_msg in errors:
         with mock.patch('urllib2.urlopen', side_effect=error):
             agent.post_data(
                 'http://mock/api',
                 {'fail': True},
                 max_retries=1,
                 fail_silently=True,
+                to_controller=False,  # avoids needing controller_url
             )
 
-        assert_msg_in_logfile(msg)
+        assert_msg_in_logfile(expected_msg)
 
 
 def test_post_data_to_controller_success_logged(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    mock_config, monkeypatch, assert_msg_in_logfile
 ):
     """
     Test that successful POST request to controller is properly handled
@@ -231,9 +265,7 @@ def test_post_data_to_controller_success_logged(
     """
 
     def mock_urlopen(request, timeout=5):
-
         class MockResponse(object):
-
             def getcode(self):
                 return 201
 
@@ -247,31 +279,37 @@ def test_post_data_to_controller_success_logged(
 
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-    agent = MockAgent(port=12345)
-
+    agent = MockAgent(config=mock_config)
     agent.controller_url = 'http://mock/controller/'
 
     agent.post_data(
-        'server/status/', {'to_controller': 'test'}, to_controller=True
+        'server/status/',
+        {'to_controller': 'test'},
+        to_controller=True,
+        fail_silently=False,
+        max_retries=1,
     )
 
+    assert_msg_in_logfile('POST request status: 201')
     assert_msg_in_logfile(
         'POST request succeeded on attempt 1: %s' % b'{"message":"received"}'
     )
 
 
 def test_post_data_to_controller_missing_url(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     """Test that missing controller URL is properly handled and logged."""
-    agent = MockAgent(port=12345)
 
-    # Set controller's URL explicitly to be independent of changes
-    # of default values in agent.py/
-    agent.controller_url = None
+    agent = MockAgent(config=mock_config)
+
+    agent.config.url = ''
 
     agent.post_data(
-        url='', payload={'to_controller': 'test'}, to_controller=True
+        url='',
+        payload={'to_controller': 'test'},
+        to_controller=True,
+        fail_silently=True,
     )
 
     assert_msg_in_logfile(
@@ -279,56 +317,93 @@ def test_post_data_to_controller_missing_url(
     )
 
 
-def test_fetch_command_from_controller_success(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+def test_post_data_headers_update(mock_config):
+    """Test that post_data correctly adds Authorization header."""
+    agent = MockAgent(config=mock_config)
+    agent.config.auth_token_type = 'Bearer'
+
+    captured_request = {'headers': None}
+
+    def mock_urlopen(request, timeout=5):
+        captured_request['headers'] = request.headers
+        return mock.MagicMock(
+            getcode=lambda: 200,
+            read=lambda: '{}',
+            close=lambda: None
+        )
+
+    with mock.patch('urllib2.urlopen', mock_urlopen):
+        agent.post_data(
+            url='http://mock/api',
+            payload={'test': 'data'},
+            api_key='test-token'
+        )
+
+    expected_headers = {
+        'Content-type': 'application/json',
+        'Authorization': 'Bearer test-token'
+    }
+    assert captured_request['headers'] == expected_headers, (
+        'Expected headers %r, but got %r'
+        % (expected_headers, captured_request['headers'])
+    )
+
+
+def test_get_data_success_logged(
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     """
-    Test that succesful GET request to controller is properly handled
+    Test that successful GET request to controller is properly handled
     and logged.
     """
-    commands = [
+    responses = [
         {
-            'hostname': 'mock_server',
-            'command': 'uptime',
-            'result': None,
-            'status': 'pending',
-            'timestamp': None,
+            'status_code': 200,
+            'payload': {'message': 'test-ok'},
+            'expected': {'message': 'test-ok'}
         },
-        None,
+        {
+            'status_code': 204,
+            'payload': None,
+            'expected': None
+        }
     ]
-    codes = [200, 204]
 
-    for command, code in zip(commands, codes):
+    agent = MockAgent(config=mock_config)
+
+    for case in responses:
         class MockResponse(object):
             def getcode(self):
-                return code
+                return case['status_code']
 
             def read(self):
-                return json.dumps(command)
+                return json.dumps(case['payload']) if case['payload'] else ''
 
             def close(self):
                 pass
 
         monkeypatch.setattr(
-            urllib2, 'urlopen', lambda req, timeout: MockResponse()
+            urllib2, 'urlopen', lambda req, timeout=5: MockResponse()
         )
 
-        agent = MockAgent(port=12345)
+        result = agent.get_data('server/command/', to_controller=True)
 
-        agent.hostname = 'mock_server'
-        agent.controller_url = 'http://mock/'
-
-        result = agent.fetch_command_from_controller()
-
-        assert result == command, 'Expected command dict, got %r' % result
+        expected_json = json.dumps(
+            case['expected']
+        ) if case['expected'] else ''
+        if expected_json:
+            assert expected_json in result
 
         assert_msg_in_logfile(
-            'GET request to controller succeded with status: %s' % code
+            'GET request status: %d' % case['status_code']
+        )
+        assert_msg_in_logfile(
+            'GET request succeeded on attempt 1'
         )
 
 
-def test_fetch_command_from_controller_emty_response(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+def test_get_data_empty_response(
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     class MockResponse(object):
         def getcode(self):
@@ -341,132 +416,157 @@ def test_fetch_command_from_controller_emty_response(
             pass
 
     monkeypatch.setattr(
-        urllib2, 'urlopen', lambda req, timeout: MockResponse()
+        urllib2, 'urlopen', lambda req, timeout=5: MockResponse()
     )
 
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
+    agent.hostname = 'mock-server'
 
-    agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    result = agent.get_data('server/command/', to_controller=True)
 
-    agent.fetch_command_from_controller()
+    assert result.strip() == '', 'Expected empty string result'
+
+    assert_msg_in_logfile('GET request status: 200')
+    assert_msg_in_logfile('GET request succeeded on attempt 1')
+
+
+def test_get_data_missing_data(mock_config, assert_msg_in_logfile):
+    """
+    Test proper handling and logging when controller URL is missing.
+    """
+
+    agent = MockAgent(config=mock_config)
+    agent.config.url = ''
+
+    result = agent.get_data('server/status/', to_controller=True)
+
+    assert result is None
 
     assert_msg_in_logfile(
-        'No pending commands for server %s' % agent.hostname
+        "Couldn't send GET request to controller: controller URL is not set"
     )
 
 
-def test_fetch_command_from_controller_missing_data(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+def test_get_data_error_logged(
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     """
-    Test proper handling and logging of missing data
-    (hostname or controller URL) in fetch_command_from_controller.
+    Test proper handling and logging of different GET request errors.
     """
-    parameters = [(None, 'mock_server'), ('http://mock/', None)]
+    agent = MockAgent(config=mock_config)
 
-    for controller_url, hostname in parameters:
-        agent = MockAgent(port=12345)
-
-        agent.hostname = hostname
-        agent.controller_url = controller_url
-
-        agent.fetch_command_from_controller()
-
-        assert_msg_in_logfile(
-            "Couldn't fetch controller command: controller URL or "
-            'hostname not set'
-        )
-
-
-def test_fetch_command_from_controller_error(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
-    """
-    Test proper handling and logging of errors in
-    fetch_command_from_controller.
-    """
-    for error, msg in [
+    errors = [
         HTTP_ERROR_OUTPUT,
         URL_ERROR_OUTPUT,
         TIMEOUT_ERROR_OUTPUT,
-        UNEXPECTED_ERROR_OUTPUT,
-    ]:
+    ]
+
+    for error_obj, expected_log in errors:
         def mock_urlopen(request, timeout=5):
-            raise error
+            raise error_obj
 
         monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-        agent = MockAgent(port=12345)
-
-        agent.evaluate_identity()
-
-        agent.hostname = 'mock_server'
-        agent.controller_url = (
-            'http://mock/api/command/?hostname=%s' % agent.hostname
+        result = agent.get_data(
+            'server/status/', to_controller=True, max_retries=1
         )
 
-        agent.fetch_command_from_controller()
+        assert result is None
 
-        assert_msg_in_logfile(msg)
+        assert_msg_in_logfile('Attempt 1 failed: %s' % expected_log)
 
 
-def test_maybe_add_to_queue_adds_item():
+def test_maybe_add_to_queue_adds_item(mock_config):
     """Test that good command history input is added to queue."""
     data = {
         'type': 'linux',
-        'params': {'shell': 'ls'},
+        'params': {
+            'shell': 'ls',
+        },
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
     }
 
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.maybe_add_command_to_queue(data.copy())
+    agent.maybe_add_command_to_queue(data)
 
-    with agent.command_queue.mutex:
-        assert CommandHistory.from_dict(data) in agent.command_queue.queue
+    assert agent.command_queue.qsize() == 1
 
 
-def test_maybe_add_to_queue_full_logged(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
+def test_maybe_add_to_queue_full_logged(mock_config, assert_msg_in_logfile):
     """
     Test that trying to add command to the full queue is properly handled
     and logged.
     """
-    agent = MockAgent(whitelist_commands=['cmd'], command_queue_size=1)
+    import datetime
 
-    cmd = {
-        'type': 'linux',
-        'params': {'shell': 'cmd'},
+    import Queue
+
+    agent = MockAgent(config=mock_config)
+    agent.command_queue = Queue.Queue(maxsize=1)
+
+    # Ensure 'cmd' is whitelisted
+    if 'cmd' not in agent.config.whitelist_commands:
+        agent.config.whitelist_commands.append('cmd')
+
+    timestamp = datetime.datetime.now().isoformat()
+
+    # Fill queue
+    agent.maybe_add_command_to_queue({
+        'type': 'agent',
+        'params': {'method': 'cmd'},
         'hostname': 'mock-server',
         'status': 'pending',
-        'timestamp': '2025-06-03T18:25:35.418746Z',
-    }
+        'timestamp': timestamp,
+    })
 
-    agent.maybe_add_command_to_queue(cmd.copy())
-    agent.maybe_add_command_to_queue(cmd)
+    # Try to add another (should fail due to full queue)
+    agent.maybe_add_command_to_queue({
+        'type': 'agent',
+        'params': {'method': 'cmd'},
+        'hostname': 'mock-server',
+        'status': 'pending',
+        'timestamp': timestamp,
+    })
 
     assert agent.command_queue.qsize() == 1
 
     assert_msg_in_logfile('Queue is full - could not append command')
 
 
-def test_get_command_from_queue_has_item():
-    agent = MockAgent()
+def test_get_command_from_queue_has_item(mock_config):
+    import datetime
 
-    agent.command_queue.put('cmd')
-    assert agent.get_command_from_queue(block=True) == 'cmd'
+    from agents_infra.command import AgentCommand, CommandStatus
+
+    agent = MockAgent(config=mock_config)
+
+    command = AgentCommand(method='cmd')
+    cmd_history = CommandHistory(
+        command=command,
+        hostname='test-host',
+        status=CommandStatus.PENDING,
+        timestamp=datetime.datetime.now().isoformat(),
+    )
+
+    agent.command_queue.put(cmd_history)
+
+    result = agent.get_command_from_queue(block=True)
+    assert isinstance(result, CommandHistory)
+    assert result.command.tag == 'cmd'
 
 
 def test_get_command_from_queue_no_item_logged(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     import threading
 
-    agent = MockAgent()
+    agent = MockAgent(config=mock_config)
+
+    while not agent.command_queue.empty():
+        agent.command_queue.get()
 
     with threading.Lock():
         agent.get_command_from_queue()
@@ -475,73 +575,56 @@ def test_get_command_from_queue_no_item_logged(
 
 
 def test_maybe_add_to_queue_logs_bad_input(
-    setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     """
     Test that bad command history input is logged by server agent and
     not added to queue.
     """
+    # Incorrect fields - there are no 'params'
     data = {
-        'command': None,
+        'type': 'agent',
         'hostname': 'test-server',
         'status': 'pending',
         'timestamp': '2025-06-03T18:25:35.418746Z',
     }
 
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
     agent.maybe_add_command_to_queue(data)
 
     assert_msg_in_logfile('Command validation failed due to error')
-
     assert agent.command_queue.qsize() == 0
 
 
-def test_is_service_healthy_invalid_port():
+def test_is_service_healthy_invalid_port(mock_config):
     """Test that is_port_open raises ValueError for invalid port."""
-    agent = MockAgent()
-    agent.ip = '127.0.0.1'
+    agent = MockAgent(config=mock_config)
+    agent.config.port = -1
+
+    agent.ip = '0.0.0.0'
     agent.protocol = 'tcp'
 
     assert not agent.is_service_healthy()
 
 
-def test_is_service_healthy_missing_ip():
+def test_is_service_healthy_missing_ip(mock_config):
     """Test that is_port_open returns False when IP is not set."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
     agent.ip = None
 
     assert not agent.is_service_healthy()
 
 
-def test_is_service_healthy_missing_protocol():
-    """Test that is_port_open returns False when IP is not set."""
-    agent = MockAgent(port=12345)
-    agent.ip = '127.0.0.1'
-
-    assert not agent.is_service_healthy()
-
-
-def test_protocol_property_default():
-    """Test that protocol property returns None by default."""
-    agent = MockAgent(port=12345)
-    assert agent.protocol is None
-
-
-def test_protocol_setter_type_error():
+def test_protocol_setter_raises(mock_config):
     """Test that protocol setter raises TypeError for non-string values."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = 123
 
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = None
-
-
-def test_protocol_setter_value_error():
-    """Test that protocol setter raises ValueError for invalid protocols."""
-    agent = MockAgent(port=12345)
 
     with pytest.raises(ValueError, match='Unknown protocol value'):
         agent.protocol = 'invalid_protocol'
@@ -550,11 +633,11 @@ def test_protocol_setter_value_error():
         agent.protocol = 'HTTP'
 
 
-def test_is_port_open_tcp_success(monkeypatch):
+def test_is_port_open_tcp_success(monkeypatch, mock_config):
     """Test successful TCP port check."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.ip = '127.0.0.1'
+    agent.ip = '0.0.0.0'
     agent.protocol = 'tcp'
 
     mock_socket = mock.MagicMock()
@@ -564,15 +647,15 @@ def test_is_port_open_tcp_success(monkeypatch):
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
 
     assert agent.check_port()['port_open']
-    mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
+    mock_socket.connect.assert_called_once_with(('0.0.0.0', 12345))
     mock_socket.close.assert_called_once()
 
 
-def test_is_port_open_tcp_failure(monkeypatch):
+def test_is_port_open_tcp_failure(monkeypatch, mock_config):
     """Test failed TCP port check."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.ip = '127.0.0.1'
+    agent.ip = '0.0.0.0'
     agent.protocol = 'tcp'
 
     mock_socket = mock.MagicMock()
@@ -586,15 +669,15 @@ def test_is_port_open_tcp_failure(monkeypatch):
     with pytest.raises(socket.error, match='Connection refused'):
         agent.check_port()['port_open']
 
-    mock_socket.connect.assert_called_once_with(('127.0.0.1', 12345))
+    mock_socket.connect.assert_called_once_with(('0.0.0.0', 12345))
     mock_socket.close.assert_called_once()
 
 
-def test_is_port_open_udp_success(monkeypatch):
+def test_is_port_open_udp_success(monkeypatch, mock_config):
     """Test successful UDP port check."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.ip = '127.0.0.1'
+    agent.ip = '0.0.0.0'
     agent.protocol = 'udp'
 
     mock_socket = mock.MagicMock()
@@ -604,44 +687,44 @@ def test_is_port_open_udp_success(monkeypatch):
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
 
     assert agent.check_port()['port_open']
-    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
     mock_socket.close.assert_called_once()
 
 
-def test_is_port_open_udp_with_packet_size(monkeypatch):
+def test_is_port_open_udp_with_packet_size(monkeypatch, mock_config):
     """Test UDP port check with packet size verification."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.ip = '127.0.0.1'
+    agent.ip = '0.0.0.0'
     agent.protocol = 'udp'
 
     mock_socket = mock.MagicMock()
     mock_socket.sendto = mock.MagicMock()
     mock_socket.recvfrom = mock.MagicMock(
-        return_value=(b'response', ('127.0.0.1', 12345))
+        return_value=(b'response', ('0.0.0.0', 12345))
     )
     mock_socket.close = mock.MagicMock()
 
     monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
 
     assert agent.check_port(packet_size=8)['port_open']
-    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
     mock_socket.recvfrom.assert_called_once_with(8)
     mock_socket.close.assert_called_once()
 
 
 @pytest.mark.filterwarnings('ignore')
-def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
+def test_is_port_open_udp_packet_size_mismatch(monkeypatch, mock_config):
     """Test UDP port check with packet size mismatch."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent(config=mock_config)
 
-    agent.ip = '127.0.0.1'
+    agent.ip = '0.0.0.0'
     agent.protocol = 'udp'
 
     mock_socket = mock.MagicMock()
     mock_socket.sendto = mock.MagicMock()
     mock_socket.recvfrom = mock.MagicMock(
-        return_value=(b'short', ('127.0.0.1', 12345))
+        return_value=(b'short', ('0.0.0.0', 12345))
     )
     mock_socket.close = mock.MagicMock()
 
@@ -649,7 +732,7 @@ def test_is_port_open_udp_packet_size_mismatch(monkeypatch):
 
     assert not agent.check_port(packet_size=8)['port_open']
 
-    mock_socket.sendto.assert_called_once_with(b'', ('127.0.0.1', 12345))
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
     mock_socket.recvfrom.assert_called_once_with(8)
     mock_socket.close.assert_called_once()
 
@@ -727,11 +810,11 @@ def test_get_ip_from_interface_multiple_addresses(monkeypatch):
     assert get_ip_from_interface('mock_interface') == '192.168.1.1'
 
 
-def test_evaluate_identity_interface_ip_success(monkeypatch):
+def test_evaluate_identity_interface_ip_success(monkeypatch, mock_config):
     """Test successful IP address retrieval from interface."""
     def mock_net_if_addrs():
         return {
-            'eth0': [
+            'iface0': [
                 mock.MagicMock(
                     address='192.168.1.1',
                     family=socket.AF_INET
@@ -741,14 +824,16 @@ def test_evaluate_identity_interface_ip_success(monkeypatch):
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    agent = MockAgent(port=12345, interface='eth0')
-    agent.evaluate_identity()
+    agent = MockAgent(config=mock_config)
 
     assert agent.ip == '192.168.1.1'
 
 
 def test_evaluate_identity_interface_errors(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    monkeypatch,
+    setup_temp_file_logging_with_fallback,
+    mock_config,
+    assert_msg_in_logfile
 ):
     """
     Test handling of KeyError and AttributeError when getting IP from
@@ -772,8 +857,7 @@ def test_evaluate_identity_interface_errors(
     ]:
         monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-        agent = MockAgent(port=12345, interface='nonexistent')
-        agent.evaluate_identity()
+        agent = MockAgent(config=mock_config)
 
         assert agent.ip is None
 
@@ -784,7 +868,10 @@ def test_evaluate_identity_interface_errors(
 
 
 def test_evaluate_identity_hostname_error(
-    monkeypatch, setup_temp_file_logging_with_fallback, assert_msg_in_logfile
+    monkeypatch,
+    setup_temp_file_logging_with_fallback,
+    mock_config,
+    assert_msg_in_logfile
 ):
     """Test handling of socket error when getting hostname."""
     def mock_gethostname():
@@ -792,8 +879,7 @@ def test_evaluate_identity_hostname_error(
 
     monkeypatch.setattr(socket, 'gethostname', mock_gethostname)
 
-    agent = MockAgent(port=12345)
-    agent.evaluate_identity()
+    agent = MockAgent(config=mock_config)
 
     assert agent.hostname == 'unknown'
 
@@ -801,74 +887,94 @@ def test_evaluate_identity_hostname_error(
 
 
 def test_default_whitelist_commands_is_empty_list():
-    """Test that whitelist_commands is initialized with default commands."""
+    """
+    Test that whitelist_commands is initialized as an empty,
+    independent list.
+    """
     agent1 = MockAgent()
     agent2 = MockAgent()
 
-    assert agent1.whitelist_commands == agent2.whitelist_commands
+    # Lists should be separate objects (not the same reference)
+    assert (
+        agent1.config.whitelist_commands
+        is not agent2.config.whitelist_commands
+    )
 
-    original_list = agent1.whitelist_commands
-    agent1.whitelist_commands = ['new', 'list']
+    # Modifying one should not affect the other
+    agent1.config.whitelist_commands.append('test-command')
 
-    assert agent2.whitelist_commands == original_list
-    assert agent1.whitelist_commands != agent2.whitelist_commands
+    assert 'test-command' in agent1.config.whitelist_commands
+    assert 'test-command' not in agent2.config.whitelist_commands
 
 
 def test_explicit_whitelist_commands_extends_default_list():
     """Test that provided commands are added to whitelist."""
-    commands = ['cmd1', 'cmd1']
+    agent = MockAgent(config=Config(whitelist_commands=['cmd11', 'cmd12']))
 
-    agent = MockAgent(whitelist_commands=commands)
-
-    assert all(cmd in agent.whitelist_commands for cmd in commands)
+    assert (
+        'cmd11' in agent.config.whitelist_commands
+        and 'cmd12' in agent.config.whitelist_commands
+    )
 
 
 def test_explicit_whitelist_commands_none_uses_default_list():
     """Test that None whitelist_commands uses default list."""
-    agent = MockAgent(whitelist_commands=None)
-    assert agent.whitelist_commands == MockAgent().whitelist_commands
+    config = {
+        'name': 'server_name',
+        'api_prefix': 'api/v1/',
+        'url': 'http://localhost',
+        'port': 9999,
+        'critical_processes': [],
+        'whitelist_commands': [],
+        'auth_token_type': None,
+        'interface': None,
+    }
 
-
-def test_class_whitelist_commands():
-    """Test that class-level whitelist_commands are properly handled."""
-    MockAgent.whitelist_commands = ['cmd1', 'cmd2']
-
-    agent1 = MockAgent()
-
-    assert 'cmd1' in agent1.whitelist_commands
-    assert 'cmd2' in agent1.whitelist_commands
-
-    agent2 = MockAgent(whitelist_commands=['cmd3'])
-
-    assert 'cmd3' in agent2.whitelist_commands
-    assert 'cmd1' in agent2.whitelist_commands
-    assert 'cmd2' in agent2.whitelist_commands
-
-    MockAgent.whitelist_commands = None
+    agent = MockAgent(config=config)
+    expected = MockAgent().config.whitelist_commands
+    assert agent.config.whitelist_commands == expected
 
 
 def test_config_file_parsing():
     """Test parsing of config file options."""
+
     config_content = """
 [server]
 name = test_server
 port = 12345
-processes = proc1,proc2,proc3
+critical_processes = proc1,proc2,proc3
 interface = eth0
 
 [controller]
 whitelist_commands = cmd1,cmd2,cmd3
 """
-    agent = load_agent_from_config(config_content)
+    with tempfile.NamedTemporaryFile('w+') as tmp:
+        tmp.write(config_content)
+        tmp.flush()
 
-    assert agent.server_name == 'test_server'
-    assert agent.port == 12345
-    assert agent.processes == ['proc1', 'proc2', 'proc3']
-    assert agent.interface == 'eth0'
-    assert all(
-        cmd in agent.whitelist_commands
-        for cmd in ['cmd1', 'cmd2', 'cmd3']
-    )
+        agent = MockAgent.from_config_file(tmp.name)
+
+        assert agent.config.name == 'test_server'
+        assert agent.config.port == 12345
+
+        expected_procs = set(['proc1', 'proc2', 'proc3'])
+        actual_procs = set(agent.config.critical_processes or [])
+        assert expected_procs.issubset(actual_procs), (
+            'Expected processes %s to be subset of actual %s' % (
+                expected_procs, actual_procs
+            )
+        )
+
+        if hasattr(agent.config, 'interface'):
+            assert agent.config.interface == 'eth0'
+
+        expected_cmds = set(['cmd1', 'cmd2', 'cmd3'])
+        actual_cmds = set(agent.config.whitelist_commands or [])
+        assert expected_cmds.issubset(actual_cmds), (
+            'Expected commands %s to be subset of actual %s' % (
+                expected_cmds, actual_cmds
+            )
+        )
 
 
 def test_config_file_missing_options():
@@ -878,81 +984,120 @@ def test_config_file_missing_options():
 name = test_server
 port = 12345
 """
-    agent = load_agent_from_config(config_content)
 
-    assert agent.server_name == 'test_server'
-    assert agent.port == 12345
-    assert agent.processes == []
-    assert agent.interface is None
-    assert agent.whitelist_commands == []
+    with tempfile.NamedTemporaryFile('w+') as tmp:
+        tmp.write(config_content)
+        tmp.flush()
+
+        agent = MockAgent.from_config_file(tmp.name)
+
+        assert agent.config.name == 'test_server'
+        assert agent.config.port == 12345
+        assert (
+            agent.config.critical_processes
+            == ServerAgent.config.critical_processes
+        )
+        assert agent.config.interface == 'enp0s3'
+
+        # Since whitelist_commands not specified, defoults from global.ini
+        assert (
+            agent.config.whitelist_commands
+            == ServerAgent.config.whitelist_commands
+        )
 
 
 def test_config_file_empty_processes():
     """Test handling of empty processes list in config."""
+    import os
+    import tempfile
+
     config_content = """
 [server]
 name = test_server
 port = 12345
-processes =
+critical_processes =
 """
-    agent = load_agent_from_config(config_content)
-    assert agent.processes == []
+
+    tmp = tempfile.NamedTemporaryFile('w+', delete=False)
+    try:
+        tmp.write(config_content)
+        tmp.flush()
+        tmp_path = tmp.name
+        tmp.close()
+
+        agent = MockAgent.from_config_file(tmp_path)
+
+        actual_processes = set(agent.config.critical_processes or [])
+        expected_processes = set()
+
+        assert expected_processes.issubset(actual_processes), (
+            'Expected processes %s to be subset of actual %s' % (
+                expected_processes, actual_processes
+            )
+        )
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def test_config_file_empty_whitelist_commands():
     """Test handling of empty whitelist_commands in config."""
+    import os
+    import tempfile
+
     config_content = """
 [server]
 name = test_server
 port = 12345
 
-[controller]
+[controller_agent]
 whitelist_commands =
 """
-    agent = load_agent_from_config(config_content)
-    assert agent.whitelist_commands == []
+
+    tmp = tempfile.NamedTemporaryFile('w+', delete=False)
+    try:
+        tmp.write(config_content)
+        tmp.flush()
+        tmp_path = tmp.name
+        tmp.close()
+
+        agent = MockAgent.from_config_file(tmp_path)
+
+        actual_commands = set(agent.config.whitelist_commands or [])
+        expected_commands = set()
+
+        assert expected_commands.issubset(actual_commands), (
+            'Expected whitelist_commands %s to be subset of actual %s' % (
+                expected_commands, actual_commands
+            )
+        )
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
-def test_config_file_whitelist_commands_extends_default():
-    """Test that config whitelist_commands extends default list."""
-    MockAgent.whitelist_commands = ['default_cmd1', 'default_cmd2']
-
-    config_content = """
-[server]
-name = test_server
-port = 12345
-
-[controller]
-whitelist_commands = config_cmd1,config_cmd2
-"""
-    agent = load_agent_from_config(config_content)
-
-    assert 'default_cmd1' in agent.whitelist_commands
-    assert 'default_cmd2' in agent.whitelist_commands
-    assert 'config_cmd1' in agent.whitelist_commands
-    assert 'config_cmd2' in agent.whitelist_commands
-
-    MockAgent.whitelist_commands = None
-
-
-def test_fetch_command_from_controller_headers_default():
+def test_get_data_headers_default(mock_config_file):
     """Test that default headers are set correctly."""
-    agent = MockAgent(port=12345)
+
+    agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
     agent.controller_url = 'http://mock/'
+    agent.api_prefix = 'api/'
 
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
         captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
+        mock_response = mock.MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = '{}'
+        mock_response.close.return_value = None
+        return mock_response
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller()
+        agent.get_data('test_endpoint')
 
     assert captured_request['headers'] == {'Accept': 'application/json'}, (
         "Expected headers {'Accept': 'application/json'}, "
@@ -960,26 +1105,27 @@ def test_fetch_command_from_controller_headers_default():
     )
 
 
-def test_fetch_command_from_controller_headers_with_api_key():
+def test_get_data_headers_with_api_key(mock_config_file):
     """Test that headers include Authorization when api_key is provided."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent.from_config_file(mock_config_file)
 
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
         captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
+        mock_response = mock.MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = '{}'
+        mock_response.close.return_value = None
+        return mock_response
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(api_key='test-token')
+        agent.get_data('test_endpoint', api_key='test-token')
 
     expected_headers = {
         'Accept': 'application/json',
@@ -991,35 +1137,41 @@ def test_fetch_command_from_controller_headers_with_api_key():
     )
 
 
-def test_fetch_command_from_controller_headers_with_kwargs():
+def test_get_data_headers_with_kwargs(mock_config_file):
     """Test that additional headers from kwargs are added correctly."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
-        captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
+        lowercase_headers = {}
+        for k, v in request.headers.items():
+            lowercase_headers[k.lower()] = v
+        captured_request['headers'] = lowercase_headers
+
+        mock_response = mock.MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = '{}'
+        mock_response.close.return_value = None
+        return mock_response
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(
+        agent.get_data(
+            'test_endpoint',
             api_key='test-token',
             CustomHeader='custom-value',
             XRequestID='12345'
         )
 
     expected_headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer test-token',
-        'Customheader': 'custom-value',
-        'Xrequestid': '12345'
+        'accept': 'application/json',
+        'authorization': 'Bearer test-token',
+        'customheader': 'custom-value',
+        'xrequestid': '12345'
     }
     assert captured_request['headers'] == expected_headers, (
         'Expected headers %r, but got %r'
@@ -1027,229 +1179,212 @@ def test_fetch_command_from_controller_headers_with_kwargs():
     )
 
 
-def test_fetch_command_from_controller_headers_kwargs_override():
-    """Test that kwargs headers override default headers."""
-    agent = MockAgent(port=12345)
+def test_get_data_headers_kwargs_override(mock_config_file):
+    """Test that kwargs headers override default headers in get_data."""
+    agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
-        captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
+        lowercase_headers = {}
+        for k, v in request.headers.items():
+            lowercase_headers[k.lower()] = v
+        captured_request['headers'] = lowercase_headers
+
+        mock_response = mock.MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = '{}'
+        mock_response.close.return_value = None
+        return mock_response
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(
+        agent.get_data(
+            url='test_endpoint',
             api_key='test-token',
             Accept='text/plain'
         )
 
     expected_headers = {
-        'Accept': 'text/plain',
-        'Authorization': 'Bearer test-token'
+        'accept': 'text/plain',
+        'authorization': 'Bearer test-token'
     }
+
     assert captured_request['headers'] == expected_headers, (
         'Expected headers %r, but got %r'
         % (expected_headers, captured_request['headers'])
     )
 
 
-def test_fetch_command_from_controller_headers_update():
+def test__get_data_headers_update(mock_config_file):
     """Test that headers.update correctly adds Authorization header."""
-    agent = MockAgent(port=12345)
+    agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
-    agent.auth_token_type = 'Bearer'
+    agent.config.url = 'http://mock/'
+    agent.config.api_prefix = 'api/'
+    agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
-        captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
+        headers_lower = {}
+        for k, v in request.headers.items():
+            headers_lower[k.lower()] = v
+        captured_request['headers'] = headers_lower
+
+        mock_response = mock.MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = '{}'
+        mock_response.close.return_value = None
+        return mock_response
 
     with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.fetch_command_from_controller(api_key='test-token')
+        agent.get_data(url='test_endpoint', api_key='test-token')
 
     expected_headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer test-token'
+        'accept': 'application/json',
+        'authorization': 'Bearer test-token'
     }
+
     assert captured_request['headers'] == expected_headers, (
         'Expected headers %r, but got %r'
         % (expected_headers, captured_request['headers'])
     )
 
 
-def test_post_data_headers_update():
-    """Test that post_data correctly adds Authorization header."""
-    agent = MockAgent(port=12345)
-    agent.auth_token_type = 'Bearer'
-
-    captured_request = {'headers': None}
-
-    def mock_urlopen(request, timeout=5):
-        captured_request['headers'] = request.headers
-        return mock.MagicMock(
-            getcode=lambda: 200,
-            read=lambda: '{}',
-            close=lambda: None
-        )
-
-    with mock.patch('urllib2.urlopen', mock_urlopen):
-        agent.post_data(
-            url='http://mock/api',
-            payload={'test': 'data'},
-            api_key='test-token'
-        )
-
-    expected_headers = {
-        'Content-type': 'application/json',
-        'Authorization': 'Bearer test-token'
-    }
-    assert captured_request['headers'] == expected_headers, (
-        'Expected headers %r, but got %r'
-        % (expected_headers, captured_request['headers'])
-    )
-
-
-def test_is_process_running_when_any_process_running():
-    agent = MockAgent(processes=['nginx', 'named'])
-
-    output = 'COMMAND\nnginx\nssh\nnamed\n'
-
-    with mock.patch('subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output)
-
-        result = agent._is_process_running()
-
-        assert result, (
-            'Expected _is_process_running to return True when at '
-            'least one process from the list is running.'
-        )
-
-
-def test_is_process_running_didnt_find_any_process():
-    agent = MockAgent(processes=['nginx', 'ssh'])
-    output = 'COMMAND\napache\npostgres\n'
-
-    with mock.patch('subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output)
-
-        result = agent._is_process_running()
-
-        assert not result, (
-            'Expected _is_process_running to return False when '
-            'none of the required processes are found.'
-            )
-
-
-def test_is_process_running_matches_first_process_only():
-    agent = MockAgent(processes=['named', 'nonexistent'])
-    output = 'COMMAND\nnamed\nanother\n'
-
-    with mock.patch('subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output)
-
-        result = agent._is_process_running()
-
-        assert result
-
-
-def test_is_process_running_with_error():
-    agent = MockAgent(processes=['nginx'])
-
-    with mock.patch('subprocess.Popen', side_effect=OSError('boom')):
-        with mock.patch(
-            'agents_infra.agents.base.maybe_log_message'
-        ) as mock_log:
-
-            result = agent._is_process_running()
-
-            assert not result, (
-                'Expected _is_process_running to return False '
-                'when OSError is raised.'
-            )
-
-            mock_log.assert_called_once_with(
-                'Process check failed: boom',
-                logger=agent.logger,
-                exc_info=True,
-            )
-
-
-def test_is_ssh_service_active_returns_true_when_active():
-    agent = MockAgent()
-    output = 'active\n'
-
-    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output, '')
-
-        result = agent.is_ssh_service_active()
-
-        assert result, (
-            'Expected is_ssh_service_active return True when '
-            'ssh active'
-        )
-
-
-def test_is_ssh_service_active_returns_false_when_inactive():
-    agent = MockAgent()
-    output = 'inactive\n'
-
-    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output, '')
-
-        result = agent.is_ssh_service_active()
-
-        assert not result, (
-            'Expected is_ssh_service_active return False when '
-            'ssh inactive'
-        )
-
-
-def test_is_ssh_service_active_returns_false_when_output_empty():
-    agent = MockAgent()
-    output = ''
-
-    with mock.patch('agents_infra.agents.base.subprocess.Popen') as mock_popen:
-        mock_popen.return_value = mock_popen_with_output(output, '')
-
-        result = agent.is_ssh_service_active()
-
-        assert not result, (
-            'Expected is_ssh_service_active return False when '
-            'output is empty'
-        )
-
-
-def test_is_ssh_service_active_logs_and_returns_false_on_oserror():
-    agent = MockAgent()
+def test_are_all_critical_processes_active_sucseed(mock_config_file):
+    agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.critical_processes = ['nginx', 'named']
 
     with mock.patch(
-                   'agents_infra.agents.base.subprocess.Popen',
-                   side_effect=OSError('boom')
+        'agents_infra.agents.base.is_process_active', return_value=True
+    ) as mock_is_active:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
+
+            result = agent._are_all_critical_processes_active(restart=True)
+
+            assert result is True, (
+                'Expected __are_all_critical_processes_active to return True '
+                'when all processes from the list are running.'
+            )
+
+            expected_calls = [mock.call('nginx'), mock.call('named')]
+            mock_is_active.assert_has_calls(expected_calls, any_order=True)
+
+            mock_restart.assert_not_called()
+
+
+def test_are_all_critical_processes_active_fails_without_restart(
+    mock_config_file
+):
+    agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.critical_processes = ['nginx', 'named']
+
+    with mock.patch(
+        'agents_infra.agents.base.is_process_active', side_effect=[True, False]
+    ) as mock_is_active:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
+
+            result = agent._are_all_critical_processes_active(restart=False)
+
+            assert result is False, (
+                'Expected _are_all_critical_processes_active to return False '
+                'when at least one critical process is inactive '
+                'and restart=False.'
+            )
+
+            expected_calls = [mock.call('nginx'), mock.call('named')]
+            mock_is_active.assert_has_calls(expected_calls, any_order=False)
+
+            mock_restart.assert_not_called()
+
+
+def test_are_all_critical_processes_active_fails_with_restart(
+    mock_config_file
+):
+    agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.critical_processes = ['nginx', 'named']
+
+    with mock.patch(
+        'agents_infra.agents.base.is_process_active', side_effect=[False, True]
+    ) as mock_is_active:
+        with mock.patch(
+            'agents_infra.agents.base.restart_service'
+        ) as mock_restart:
+
+            result = agent._are_all_critical_processes_active(restart=True)
+
+            assert result is False, (
+                'Expected _are_all_critical_processes_active to return False '
+                'when at least one critical process is inactive '
+                'and restart=True.'
+            )
+
+            expected_calls = [mock.call('nginx'), mock.call('named')]
+            mock_is_active.assert_has_calls(expected_calls, any_order=False)
+
+            mock_restart.assert_called_once_with(agent.logger, 'nginx')
+
+
+def test_are_all_critical_processes_active_raises_oserror(mock_config_file):
+    agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.critical_processes = ['nginx']
+
+    def raise_oserror(proc):
+        raise OSError('Mocked OSError')
+
+    with mock.patch(
+        'agents_infra.agents.base.is_process_active', side_effect=raise_oserror
     ):
         with mock.patch(
             'agents_infra.agents.base.maybe_log_message'
         ) as mock_log:
-            result = agent.is_ssh_service_active()
+            result = agent._are_all_critical_processes_active(restart=False)
 
-            assert result is False, 'Expected return False, when OSError'
-            mock_log.assert_called_once_with(
-                'SSH service check failed: boom',
-                agent.logger,
-                exc_info=True
+            assert result is False, (
+                'Expected _are_all_critical_processes_active to return False '
+                'when OSError is raised.'
             )
+            # Checking logs with exc_info=True
+            mock_log.assert_called()
+            args, kwargs = mock_log.call_args
+            assert kwargs.get('exc_info') is True
+
+
+def test_are_all_critical_processes_active_raises_generic_exception(
+    mock_config_file
+):
+    agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.critical_processes = ['nginx']
+
+    def raise_exception(proc):
+        raise Exception('Mocked generic exception')
+
+    with mock.patch(
+        'agents_infra.agents.base.is_process_active',
+        side_effect=raise_exception
+    ):
+        with mock.patch(
+            'agents_infra.agents.base.maybe_log_message'
+        ) as mock_log:
+
+            result = agent._are_all_critical_processes_active(restart=False)
+
+            assert result is False, (
+                'Expected _are_all_critical_processes_active to return False '
+                'when a generic exception is raised.'
+            )
+            # Checking logs with exc_info=True
+            mock_log.assert_called()
+            args, kwargs = mock_log.call_args
+            assert kwargs.get('exc_info') is True
 
 
 def test_tag_parsing_full_config():

@@ -15,7 +15,7 @@ def check_port(
     *args,
     **kwargs
 ):
-    port = parent.port if parent else kwargs.get('port')
+    port = parent.config.port if parent else kwargs.get('port')
     ip = parent.ip if parent else kwargs.get('ip')
     protocol = parent.protocol if parent else kwargs.get('protocol')
 

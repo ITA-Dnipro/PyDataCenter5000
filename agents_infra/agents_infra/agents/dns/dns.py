@@ -1,33 +1,33 @@
-import logging
+import abc
 import subprocess
 
-from ...utils.helpers import is_valid_ip, restart_service
+from ...utils.configtools import Config
+from ...utils.helpers import is_valid_ip
 from ...utils.logtools import maybe_log_message
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
 class DNSAgent(ServerAgent):
 
+    __metaclass__ = abc.ABCMeta
+
     def __init__(
         self,
-        server_name='dns',
-        port=53,
-        processes=None,
-        critical_processes=None,
-        interface=None,
         protocol='udp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None
     ):
+        # If not config - set default
+        if config is None:
+            config = Config(name='dns', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
+
         super(DNSAgent, self).__init__(
-            server_name=server_name,
-            port=port,
-            processes=processes or ['named', 'bind9'],
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
     def run_dig(self, query_domain):
@@ -75,28 +75,27 @@ class DNSAgent(ServerAgent):
 
         return port_and_process_status and dns_status
 
-    def maybe_restart_service(self):
-        inactive_services = []
-        if not self.is_dns_running():
-            inactive_services.append('named')
 
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
+class DNSAgentNamed(DNSAgent):
+    """
+    DNSAgentNamed is a specialized subclass of DNSAgent designed to monitor
+    and manage a DNS server running with the 'named' process.
+    """
 
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(service, logger=self.logger)
+    def __init__(
+        self,
+        protocol='udp',
+        command_queue_size=0,
+        config=None
+    ):
+        # Setting ='dns_named' if not provided
+        if config is None:
+            config = Config(name='dns_named', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
 
-            maybe_log_message(
-                'Finished attempts to restart services',
-                self.logger,
-                level=logging.INFO,
-            )
-            return False
-
-        maybe_log_message(
-            'All services are heathy and running',
-            self.logger,
-            level=logging.INFO,
+        super(DNSAgentNamed, self).__init__(
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
         )
-        return True

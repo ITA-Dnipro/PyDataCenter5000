@@ -8,6 +8,7 @@ import platform
 import socket
 import time
 
+import ConfigParser
 import pkg_resources
 import Queue
 import urllib2
@@ -16,7 +17,7 @@ from urlparse import urljoin
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
-from ..utils.configtools import Config, parse_config_file
+from ..utils.configtools import Config, parse_config_file, write_config_options
 from ..utils.helpers import is_process_active, restart_service
 from ..utils.sysinfo import get_ip_from_interface, get_linux_uptime
 
@@ -566,3 +567,84 @@ class ServerAgent(object):
             command_history.result = result
 
             return command_history
+
+    def set_tags(self, tags):
+        """
+        Updates tags in the config file and reloads the agent's configuration.
+        """
+        config_path = getattr(self.config, 'path', None)
+        if not config_path:
+            maybe_log_message(
+                'Cannot set tags: config file path is not defined '
+                'for this agent.',
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            return
+
+        if not isinstance(tags, dict):
+            maybe_log_message(
+                "Command 'set_tags' failed: expected a dictionary of tags.",
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            return
+
+        if not tags:
+            maybe_log_message(
+                "Command 'set_tags' received empty tags. No action taken.",
+                logger=self.logger,
+                level=logging.WARNING
+            )
+            return
+
+        allowed_keys = {'env', 'role', 'region'}
+        for key, value in tags.items():
+            if key not in allowed_keys:
+                maybe_log_message(
+                    "Command 'set_tags' failed: invalid tag key '%s'." % key,
+                    logger=self.logger,
+                    level=logging.ERROR
+                )
+                return
+
+            if value is not None and not isinstance(value, basestring):
+                maybe_log_message(
+                    "Command 'set_tags' failed: "
+                    "value for tag '%s' must be a string or None." % key,
+                    logger=self.logger,
+                    level=logging.ERROR
+                )
+                return
+
+        try:
+            maybe_log_message(
+                'Received set_tags command. Applying new tags: %s' % tags,
+                logger=self.logger,
+                level=logging.INFO
+            )
+            write_config_options(config_path, 'server', tags)
+
+            maybe_log_message(
+                'Reloading configuration from %s' % config_path,
+                logger=self.logger,
+                level=logging.INFO
+            )
+            new_config, new_tags = parse_config_file(config_path)
+            self.config = new_config
+            self.tags = new_tags
+
+            maybe_log_message(
+                'Tags updated successfully. '
+                'Current tags are now: %s' % self.tags,
+                logger=self.logger,
+                level=logging.INFO
+            )
+
+        except (IOError, OSError, ConfigParser.Error) as e:
+            maybe_log_message(
+                'Failed to execute set_tags command: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR,
+                exc_info=True
+            )

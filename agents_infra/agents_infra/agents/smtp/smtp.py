@@ -1,11 +1,15 @@
 import logging
 import socket
 
-from ...utils.helpers import restart_service
+from ...utils.configtools import Config
+from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
 
 class SMTPAgent(ServerAgent):
+
+    __metaclass__ = abc.ABCMeta
+
     DEFAULT_PROCESSES = ['postfix', 'exim', 'sendmail', 'master']
     """
     SMTPAgent performs health checks for an SMTP server:
@@ -16,24 +20,20 @@ class SMTPAgent(ServerAgent):
     """
     def __init__(
         self,
-        server_name='smtp',
-        port=25,
-        processes=None,
-        critical_processes=None,
-        interface=None,
         protocol='tcp',
-        whitelist_commands=None,
         command_queue_size=0,
+        config=None,
     ):
+        # If not config - set default
+        if config is None:
+            config = Config(name='smtp', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
+
         super(SMTPAgent, self).__init__(
-            server_name=server_name,
-            port=port,
-            processes=processes or self.DEFAULT_PROCESSES,
-            critical_processes=critical_processes,
-            interface=interface,
             protocol=protocol,
-            whitelist_commands=whitelist_commands,
             command_queue_size=command_queue_size,
+            config=config,
         )
 
     def check_banner(self):
@@ -42,7 +42,7 @@ class SMTPAgent(ServerAgent):
 
         banner = ''
         try:
-            sock.connect((self.ip, self.port))
+            sock.connect((self.ip, self.config.get('port')))
             banner = sock.recv(1024)
         except (socket.error, socket.timeout) as e:
             self.log_with_controller(
@@ -54,9 +54,18 @@ class SMTPAgent(ServerAgent):
 
         return banner.strip() if banner else ''
 
-    def is_service_healthy(self):
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         status = super(SMTPAgent, self).is_service_healthy()
-        return status and bool(self.check_banner())
+        port_open = is_port_open(
+            port=self.config.get('port'),
+            ip=self.ip,
+            protocol=self.protocol,
+            logger=self.logger,
+            timeout=timeout,
+            payload=payload,
+            packet_size=packet_size
+        )
+        return status and port_open and bool(self.check_banner())
 
     def status_to_dict(self):
         status = super(SMTPAgent, self).status_to_dict()
@@ -66,24 +75,28 @@ class SMTPAgent(ServerAgent):
 
         return status
 
-    def maybe_restart_service(self):
-        inactive_services = []
 
-        if not self.is_ssh_service_active():
-            inactive_services.append('ssh')
+class SMTPAgentPostfix(SMTPAgent):
+    """
+    Specialized SMTPAgent subclass for managing the 'postfix' service.
 
-        if inactive_services:
-            for service in inactive_services:
-                restart_service(service, logger=self.logger)
+    Inherits SMTPAgent functionality, configured for Postfix SMTP server.
+    """
 
-            self.log_with_controller(
-                'Finished attempts to restart services',
-                level=logging.INFO,
-            )
-            return False
+    def __init__(
+        self,
+        protocol='tcp',
+        command_queue_size=0,
+        config=None
+    ):
+        # Setting ='smtp_postfix' if not provided
+        if config is None:
+            config = Config(name='smtp_postfix', protocol=protocol)
+        elif isinstance(config, dict):
+            config = Config.from_dict(config)
 
-        self.log_with_controller(
-            'All services are healthy and running',
-            level=logging.INFO,
+        super(SMTPAgentPostfix, self).__init__(
+            protocol=protocol,
+            command_queue_size=command_queue_size,
+            config=config,
         )
-        return True

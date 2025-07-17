@@ -1,5 +1,4 @@
 # Command to run on VM: python -m pytest agents/tests/test_dns_agent.py
-import logging
 import os
 import tempfile
 
@@ -18,7 +17,18 @@ def dns_agent():
     logfile = tempfile.NamedTemporaryFile(delete=False)
     logfile.close()
 
-    agent = DNSAgent()
+    config = {
+        'name': 'dns',
+        'port': 53,
+        'interface': 'enp0s3',
+        'url': 'http://localhost',
+        'api_prefix': 'api/',
+        'auth_token_type': 'Bearer',
+        'critical_processes': ['named'],
+        'whitelist_commands': ['uptime', 'dig']
+    }
+
+    agent = DNSAgent(config=config)
     agent.setup_logging(logfile.name)
 
     yield agent
@@ -67,11 +77,12 @@ def test_is_dns_running_failures(mock_popen, dns_agent):
 
 
 @patch.object(DNSAgent, 'is_dns_running', return_value=True)
-@patch.object(DNSAgent, 'is_port_open', return_value=True)
-@patch.object(DNSAgent, 'is_ssh_service_active', return_value=True)
-@patch.object(DNSAgent, '_is_process_running', return_value=True)
+@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
+@patch.object(
+    DNSAgent, '_are_all_critical_processes_active', return_value=True
+)
 def test_is_service_healthy_true(
-    mock_proc, mock_ssh, mock_port, mock_dns, dns_agent
+    mock_proc, mock_port, mock_dns, dns_agent
 ):
     """
     Test is_service_healthy()
@@ -82,12 +93,13 @@ def test_is_service_healthy_true(
     assert result is True, msg
 
 
-@patch.object(DNSAgent, 'is_ssh_service_active', return_value=True)
+@patch.object(
+    DNSAgent, '_are_all_critical_processes_active', return_value=True
+)
 @patch.object(DNSAgent, 'is_dns_running', return_value=False)
-@patch.object(DNSAgent, 'is_port_open', return_value=True)
-@patch.object(DNSAgent, '_is_process_running', return_value=True)
+@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
 def test_is_service_healthy_fails_due_to_dns(
-    mock_proc, mock_port, mock_dns, mock_ssh, dns_agent
+    mock_proc, mock_port, mock_dns, dns_agent
 ):
     """
     Test is_service_healthy()
@@ -122,106 +134,3 @@ def test_is_dns_running_raises_oserror(dns_agent):
 
     assert 'DNS check failed' in log_content, msg_log_dns_failed
     assert 'Mocked OSError' in log_content, msg_log_oserror
-
-
-def test_maybe_restart_service_when_all_services_active(dns_agent):
-    """
-    Should return True and log healthy status if all services are running.
-    """
-    dns_agent.is_dns_running = MagicMock(return_value=True)
-    dns_agent.is_ssh_service_active = MagicMock(return_value=True)
-
-    with patch.object(dns_agent, 'log_with_controller') as mock_log:
-        with patch(
-            'agents_infra.agents.dns.dns.restart_service'
-        ) as mock_restart:
-
-            result = dns_agent.maybe_restart_service()
-
-            assert result is True
-            assert not mock_restart.called, (
-                'restart_service should not be called '
-                'when services are running.'
-            )
-
-            mock_log.assert_called_once()
-            msg, = mock_log.call_args[0]
-            level = mock_log.call_args[1].get('level')
-            assert 'healthy and running' in msg
-            assert level == logging.INFO
-
-
-def test_maybe_restart_service_when_dns_inactive(dns_agent):
-    """
-    Should restart only 'named' service if DNS is not running.
-    """
-    dns_agent.is_dns_running = MagicMock(return_value=False)
-    dns_agent.is_ssh_service_active = MagicMock(return_value=True)
-
-    with patch.object(dns_agent, 'log_with_controller') as mock_log:
-        with patch(
-            'agents_infra.agents.dns.dns.restart_service'
-        ) as mock_restart:
-
-            result = dns_agent.maybe_restart_service()
-
-            assert result is False
-            mock_restart.assert_called_once_with(
-                'named', logger=dns_agent.logger
-            )
-
-            mock_log.assert_any_call(
-                'Finished attempts to restart services',
-                level=logging.INFO,
-            )
-
-
-def test_maybe_restart_service_when_ssh_inactive(dns_agent):
-    """
-    Should restart only 'ssh' service if SSH is not active.
-    """
-    dns_agent.is_dns_running = MagicMock(return_value=True)
-    dns_agent.is_ssh_service_active = MagicMock(return_value=False)
-
-    with patch.object(dns_agent, 'log_with_controller') as mock_log:
-        with patch(
-            'agents_infra.agents.dns.dns.restart_service'
-        ) as mock_restart:
-
-            result = dns_agent.maybe_restart_service()
-
-            assert result is False
-            mock_restart.assert_called_once_with(
-                'ssh', logger=dns_agent.logger
-            )
-
-            mock_log.assert_any_call(
-                'Finished attempts to restart services',
-                level=logging.INFO,
-            )
-
-
-def test_maybe_restart_service_when_both_services_inactive(dns_agent):
-    """
-    Should restart both 'named' and 'ssh' services.
-    """
-    dns_agent.is_dns_running = MagicMock(return_value=False)
-    dns_agent.is_ssh_service_active = MagicMock(return_value=False)
-
-    with patch.object(dns_agent, 'log_with_controller') as mock_log:
-        with patch(
-            'agents_infra.agents.dns.dns.restart_service'
-        ) as mock_restart:
-
-            result = dns_agent.maybe_restart_service()
-
-            assert result is False
-            assert mock_restart.call_count == 2
-
-            mock_restart.assert_any_call('named', logger=dns_agent.logger)
-            mock_restart.assert_any_call('ssh', logger=dns_agent.logger)
-
-            mock_log.assert_any_call(
-                'Finished attempts to restart services',
-                level=logging.INFO,
-            )

@@ -598,7 +598,7 @@ class ServerAgent(object):
             )
             return
 
-        allowed_keys = {'env', 'role', 'region'}
+        allowed_keys = set(['env', 'role', 'region'])
         for key, value in tags.items():
             if key not in allowed_keys:
                 maybe_log_message(

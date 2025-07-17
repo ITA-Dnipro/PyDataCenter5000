@@ -10,13 +10,13 @@ ENV PYTHONPATH=/app
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Kyiv
 
-
 WORKDIR /app
 
+# Copy application files
 COPY ../agents_infra/ /app/agents_infra/
 COPY ../servers/web/ /app/server
 
-# Copy installation scripts
+# Copy scripts
 COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_nginx.sh /tmp/
 COPY scripts/provision/setup_fastapi.sh /tmp/
@@ -25,15 +25,15 @@ COPY scripts/provision/start_services.sh /tmp/
 # Make scripts executable
 RUN chmod +x /tmp/*.sh
 
-# Install ssh and nginx
+# Install services
 RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
 RUN /tmp/install_nginx.sh
 
-# Copy requirements and setup FastAPI
+# Setup FastAPI
 COPY ../servers/web/requirements.txt /tmp/requirements.txt
 RUN /tmp/setup_fastapi.sh
 
-# Copy startup script to final location
+# Setup startup script
 RUN cp /tmp/start_services.sh /start.sh && rm /tmp/*.sh
 
 # Start services

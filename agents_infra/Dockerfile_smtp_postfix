@@ -12,16 +12,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
+# Copy application files
 COPY ../agents_infra/ /app/agents_infra/
 
-# Copy installation scripts
+# Copy scripts
 COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_postfix.sh /tmp/
 
 # Make scripts executable
 RUN chmod +x /tmp/*.sh
 
-# Install ssh and postfix
+# Install services
 RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
 RUN /tmp/install_postfix.sh
 

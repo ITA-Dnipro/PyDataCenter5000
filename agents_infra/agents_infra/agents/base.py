@@ -563,15 +563,16 @@ class ServerAgent(object):
         Raises:
             RuntimeError: If all attempts fail and `fail_silently` is False.
         """
-        if not self.controller_url or not self.hostname:
-            maybe_log_message(
-                (
-                    "Couldn't fetch controller command: controller URL or "
-                    'hostname not set'
-                ),
-                logger=self.logger,
-            )
-            return
+        if from_controller:
+            if not self.config.url:
+                maybe_log_message(
+                    (
+                        "Couldn't send GET request to controller: "
+                        'controller URL is not set'
+                    ),
+                    logger=self.logger,
+                )
+                return
 
             base_api_url = urljoin(self.config.url, self.config.api_prefix)
             url = urljoin(base_api_url, url)

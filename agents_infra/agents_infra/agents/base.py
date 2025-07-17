@@ -222,6 +222,71 @@ class ServerAgent(object):
             if tags:
                 self.tags = tags
 
+    def send_log_to_controller(self, level, message, context=None):
+        """
+        Sends a log message to the controller's /logs/ endpoint.
+        Parameters:
+            level (str): Log level (e.g. "INFO", "ERROR", etc.).
+            message (str): Log message.
+            context (dict, optional): Additional log context.
+        """
+        if not self.config.post_agent_log_url:
+            raise ValueError('Post agent log controller URL is not set')
+
+        log_data = {
+            'agent_name': self.server_name,
+            'level': level,
+            'message': message,
+            'timestamp': self.timestamp,
+            'context': context or {},
+        }
+
+        self.post_data(
+            self.config.post_agent_log_url,
+            payload=log_data,
+            to_controller=True
+        )
+
+    def log_with_controller(
+             self,
+             message,
+             level=logging.INFO,
+             context=None,
+             fallback_logger=None,
+             exc_info=None,
+             **kwargs
+    ):
+        """
+        Logs a message locally and optionally sends it to the controller.
+        Parameters:
+            message (str): The log message.
+            level (int): Logging level.
+            context (dict): Optional log context.
+            exc_info (bool or Exception): Exception info for traceback logging.
+        """
+        maybe_log_message(
+            message,
+            logger=self.logger,
+            fallback_logger=fallback_logger,
+            level=level,
+            exc_info=exc_info,
+            **kwargs
+        )
+
+        if getattr(self, 'send_logs_to_controller', False):
+            try:
+                self.send_log_to_controller(
+                    level=logging.getLevelName(level),
+                    message=message,
+                    context=context
+                )
+            except Exception as e:
+                maybe_log_message(
+                    'Failed to send log to controller: %s' % str(e),
+                    logger=self.logger,
+                    level=logging.ERROR,
+                )
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,

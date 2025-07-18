@@ -51,6 +51,7 @@ jsonschema-specifications==2023.12.1
 kombu==5.5.4
 locust==2.25.0
 MarkupSafe==2.1.5
+model-bakery==1.20.5
 msgpack==1.1.1
 multidict==6.1.0
 nodeenv==1.9.1
@@ -65,6 +66,7 @@ psutil==7.0.0
 psycopg2-binary==2.9.9
 PyJWT==2.9.0
 pytest==8.3.5
+pytest-celery==1.2.0
 pytest-cov==4.1.0
 pytest-django==4.8.0
 python-dateutil==2.9.0.post0

@@ -124,8 +124,8 @@ class AlertRule(models.Model):
     """
 
     class Meta:
-        verbose_name = 'Alert Rule'
-        verbose_name_plural = 'Alert Rules'
+        verbose_name = 'alert rule'
+        verbose_name_plural = 'alert rules'
         indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
 
     METRIC_CHOICES = [
@@ -175,8 +175,8 @@ class TriggeredAlert(models.Model):
     """Alert triggered based on specific alert rule."""
 
     class Meta:
-        verbose_name = 'Triggered Alert'
-        verbose_name_plural = 'Triggered Alerts'
+        verbose_name = 'triggered alert'
+        verbose_name_plural = 'triggered alerts'
         indexes = [
             models.Index(fields=['rule', 'triggered_at']),
         ]

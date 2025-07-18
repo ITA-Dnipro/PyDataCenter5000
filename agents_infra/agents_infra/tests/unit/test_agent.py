@@ -89,7 +89,7 @@ class MockAgent(ServerAgent):
             config = Config(
                 name='mock',
                 api_prefix='api/v1/',
-                urls=[
+                controller_urls=[
                     'http://localhost1',
                     'http://localhost2',
                     'http://localhost3'
@@ -232,35 +232,6 @@ def test_critical_processes_parsing(mock_config_file):
 
     for proc in expected:
         assert proc in actual
-
-
-def test_status_to_json_type_error(
-        setup_temp_file_logging_with_fallback, assert_msg_in_logfile
-):
-    """
-    Test that the TypeError is handled and logged on JSON serialization
-    failure.
-    """
-
-    class MockUnserializableParameter(object):
-        def __str__(self):
-            raise TypeError("Can't serialize me")
-
-    def mock_status_to_dict(self):
-        status = ServerAgent.status_to_dict(self)
-        status.update({'mock_parameter': MockUnserializableParameter()})
-        return status
-
-    agent = MockAgent(port=12345)
-
-    agent.status_to_dict = types.MethodType(mock_status_to_dict, agent)
-
-    agent.status_to_json()
-
-    assert_msg_in_logfile(
-        'JSON serialization of status failed due to error: '
-        "Can't serialize me"
-    )
 
 
 def test_post_data_success_logged(

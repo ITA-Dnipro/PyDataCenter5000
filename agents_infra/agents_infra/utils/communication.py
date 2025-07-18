@@ -6,7 +6,7 @@ from ..utils.timestamp import get_current_time
 revert_interval = 900
 
 
-class AgentCommunication:
+class AgentCommunication(object):
     def __init__(self, auth_token, post_data_fn, logger, controller_urls):
         """
         Initialize with a unique server name and a callable for posting data.

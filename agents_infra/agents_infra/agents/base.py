@@ -444,7 +444,7 @@ class ServerAgent(object):
             **kwargs: Key-value pairs to be appended to the header.
         """
         if to_controller:
-            if not self.config.current_url:
+            if not self.config.current_controller:
                 maybe_log_message(
                     (
                         "Couldn't send POST request to controller: "
@@ -455,7 +455,7 @@ class ServerAgent(object):
                 return
 
             base_api_url = urljoin(
-                self.config.current_url,
+                self.config.current_controller,
                 self.config.api_prefix
             )
             url = urljoin(base_api_url, url)

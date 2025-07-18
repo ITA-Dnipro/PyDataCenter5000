@@ -113,7 +113,7 @@ class Config(object):
         self,
         name='',
         api_prefix=DEFAULT_API_PREFIX,
-        url='',
+        controller_urls=[],
         critical_processes=None,
         whitelist_commands=None,
         port=-1,
@@ -130,7 +130,12 @@ class Config(object):
         self.name = name
 
         self.api_prefix = api_prefix
-        self.url = url
+        self.controller_urls = controller_urls
+
+        if not self.controller_urls:
+            self.current_controller = ''
+        else:
+            self.current_controller = self.controller_urls[0]
 
         self.critical_processes = (
             critical_processes if critical_processes is not None else []

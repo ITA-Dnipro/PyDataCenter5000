@@ -1,10 +1,15 @@
 import logging
 import sys
 
+import attr
 import ConfigParser
 import pkg_resources
 
 from .logtools import maybe_log_message
+
+DEFAULT_API_PREFIX = 'api/'
+DEFAULT_AUTH_TOKEN_TYPE = 'Bearer'
+DEFAULT_INTERFACE = 'enp0s3'
 
 
 def load_global_config():
@@ -99,3 +104,215 @@ def get_config_option(
             )
 
     return default
+
+
+class Config(object):
+    def __init__(
+        self,
+        name='',
+        api_prefix=DEFAULT_API_PREFIX,
+        url='',
+        critical_processes=None,
+        whitelist_commands=None,
+        port=-1,
+        health_port=None,
+        auth_token_type=DEFAULT_AUTH_TOKEN_TYPE,
+        interface=DEFAULT_INTERFACE,
+        env=None,
+        role=None,
+        region=None,
+        **kwargs
+    ):
+        self.name = name
+
+        self.api_prefix = api_prefix
+        self.url = url
+
+        self.critical_processes = (
+            critical_processes if critical_processes is not None else []
+        )
+        self.whitelist_commands = (
+            whitelist_commands if whitelist_commands is not None else []
+        )
+
+        self.port = port
+        self.health_port = health_port
+        self.auth_token_type = auth_token_type
+        self.interface = interface
+
+        self.env = env
+        self.role = role
+        self.region = region
+
+        # For additional fields
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    # -------------------- VALIDATION --------------------
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('name must be a string')
+        self._name = value
+
+    @property
+    def api_prefix(self):
+        return self._api_prefix
+
+    @api_prefix.setter
+    def api_prefix(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('api_prefix must be a string')
+        self._api_prefix = value
+
+    @property
+    def url(self):
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        if not isinstance(value, basestring):
+            raise TypeError('url must be a string')
+        self._url = value
+
+    @property
+    def critical_processes(self):
+        return self._critical_processes
+
+    @critical_processes.setter
+    def critical_processes(self, value):
+        if not isinstance(value, list):
+            raise TypeError('critical_processes must be a list')
+        self._critical_processes = list(value)  # <- copy
+
+    @property
+    def whitelist_commands(self):
+        return self._whitelist_commands
+
+    @whitelist_commands.setter
+    def whitelist_commands(self, value):
+        if not isinstance(value, list):
+            raise TypeError('whitelist_commands must be a list')
+        self._whitelist_commands = list(value)  # <- copy
+
+    @property
+    def port(self):
+        return self._port
+
+    @port.setter
+    def port(self, value):
+        if not isinstance(value, int):
+            raise TypeError('port must be an integer')
+        self._port = value
+
+    @property
+    def health_port(self):
+        return self._health_port
+
+    @health_port.setter
+    def health_port(self, value):
+        if value is not None and not isinstance(value, int):
+            raise TypeError('health_port must be an integer or None')
+        self._health_port = value
+
+    @property
+    def auth_token_type(self):
+        return self._auth_token_type
+
+    @auth_token_type.setter
+    def auth_token_type(self, value):
+        if value is not None and not isinstance(value, basestring):
+            raise TypeError('auth_token_type must be a string or None')
+        self._auth_token_type = value
+
+    @property
+    def interface(self):
+        return self._interface
+
+    @interface.setter
+    def interface(self, value):
+        if value is not None and not isinstance(value, basestring):
+            raise TypeError('interface must be a string or None')
+        self._interface = value
+
+    # --------------- FACTORY METHOD ------------------
+
+    @classmethod
+    def from_dict(cls, params):
+        return cls(**params)
+
+    # --------------- UTILS --------------------------
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def update(self, updates):
+        if isinstance(updates, Config):
+            updates = updates.__dict__
+        elif not isinstance(updates, dict):
+            raise TypeError('Expected dict or Config instance')
+
+        for key, value in updates.items():
+            current = getattr(self, key, None)
+
+            # Handle pre-existing global configurations (extend or override)
+            if isinstance(current, list):
+                if isinstance(value, list):
+                    current.extend([v for v in value if v not in current])
+                else:
+                    if value not in current:
+                        current.append(value)
+            else:
+                setattr(self, key, value)
+
+
+def parse_config_file(filename=None):
+    """
+    Generic utility function to parse a given config file.
+
+    Args:
+        filename (str): path to config.ini file.
+
+    Returns:
+        (Config, dict): config object and tags dict.
+    """
+
+    config_files = [
+        filename or pkg_resources.resource_filename(__name__, 'config.ini')
+    ]
+
+    parser = ConfigParser.ConfigParser()
+    parser.read(config_files)
+
+    config = {}
+    tags = {}
+
+    for section in parser.sections():
+        for key, value in parser.items(section):
+            value = value.strip()
+
+            # Simple explicit type handling
+            if key == 'port':
+                value = int(value)
+            elif key in ('critical_processes',
+                         'whitelist_commands',
+                         'controller_urls'):
+                value = parse_csv_list(value)
+            elif key == 'health_port':
+                value = int(value)
+
+            if section == 'server' and key in ('env', 'role', 'region'):
+                if value and isinstance(value, basestring):
+                    tags[key] = value.lower()
+            else:
+                config[key] = value
+
+    if 'controller_urls' in config and config['controller_urls']:
+        config['current_controller'] = config['controller_urls'][0]
+
+    return Config.from_dict(config), tags

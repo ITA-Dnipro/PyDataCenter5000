@@ -271,13 +271,38 @@ class ServerAgent(object):
         **kwargs
     ):
         """
-        Universal HTTP request sender.
+        Universal HTTP request sender to specified URL with retry logic..
         Supports GET, POST, PATCH via method override.
+        Retries up to `max_retries` times with `delay` seconds between
+        attempts. Logs all attempts and failures.
+
+        Parameters:
+            url (str): Endpoint URL or, if `to_controller=True`, suffix
+                of controller's endpoint, i.e.,
+                <controller_url>/<api_prefix>/url.
+            to_controller (bool, optional): Whether URL is relative to
+                controller. Default is True.
+            api_key (str, optional): API key for authorization. Default None.
+            max_retries (int, optional): Maximum number of retry attempts.
+            delay (int, optional): Delay between retries in seconds.
+            timeout (int, optional): Timeout for GET request.
+            fail_silently (bool, optional): Whether to suppress exceptions
+                after final failure.
+            **kwargs: Optional headers to include in the request.
+
+        Returns:
+            str: The response content on success.
+
+        Raises:
+            RuntimeError: If all attempts fail and `fail_silently` is False.
         """
         if to_controller:
             if not self.config.url:
                 maybe_log_message(
-                    "Couldn't send %s request to controller: URL is not set" % method,
+                    (
+                        "Couldn't send %s request to controller: "
+                        'URL is not set'
+                    ) % method,
                     logger=self.logger,
                 )
                 return
@@ -352,7 +377,9 @@ class ServerAgent(object):
                     time.sleep(delay * attempt)
                 elif not fail_silently:
                     maybe_log_message(
-                        'All %d attempts failed for %s %s' % (max_retries, method, url),
+                        'All %d attempts failed for %s %s' % (
+                            max_retries, method, url
+                        ),
                         logger=self.logger,
                         level=logging.CRITICAL,
                     )
@@ -361,7 +388,7 @@ class ServerAgent(object):
                             method, max_retries
                         )
                     )
-    
+
     def get_data(self, url, **kwargs):
         return self.send_request('GET', url, **kwargs)
 

@@ -155,14 +155,15 @@ class MockAgentCommunication(AgentCommunication):
         """
         return url in self.mock_healthy_urls
 
-    def mock_post_data(self, url, data):
+    def mock_post_data(self, url, data, payload):
         """
         Fake post data handler.
         """
         return {
             'status': 'success',
             'url': url,
-            'data': data
+            'data': data,
+            'payload': payload
         }
 
     def ensure_active_controller(self, api_key):
@@ -239,6 +240,7 @@ def test_post_data_success_logged(
 ):
 
     agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.current_url = 'http://mock-controller'
 
     class MockResponse(object):
 
@@ -267,6 +269,7 @@ def test_post_data_retry(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.current_url = 'http://mock-controller'
     call_count = {'count': 0}
 
     def mock_urlopen(req, timeout=None):
@@ -304,6 +307,7 @@ def test_post_data_max_retries_fail(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.current_url = 'http://mock-controller'
 
     monkeypatch.setattr(
         urllib2,
@@ -330,6 +334,7 @@ def test_post_data_error_logged(
     mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(filename=mock_config_file)
+    agent.config.current_url = 'http://mock-controller'
 
     errors = [
         (urllib2.HTTPError(

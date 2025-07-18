@@ -11,17 +11,19 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
+from .graylog import send_log_to_graylog
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
-from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
-                          ServerStatusSerializer, TriggeredAlertSerializer)
+from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
+                          CommandHistorySerializer, ServerStatusSerializer,
+                          TriggeredAlertSerializer)
 from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
@@ -463,3 +465,36 @@ def metrics_graphing_page(request):
         'historical_metrics.html',
         {'hostnames': hostnames}
     )
+
+
+@extend_schema(
+    tags=['Logs'],
+    request=AgentLogEntrySerializer,
+    responses={
+        status.HTTP_201_CREATED: AgentLogEntrySerializer,
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Validation error in log payload'
+        ),
+        status.HTTP_403_FORBIDDEN: OpenApiResponse(
+            description='Permission denied.'
+        ),
+    },
+    description='Agent sends a log entry to the central controller.',
+)
+@api_view(['POST'])
+@permission_classes([IsAdminOrOperatorForWrite])
+def receive_log(request):
+    """POST endpoint for receiving logs from agents."""
+    serializer = AgentLogEntrySerializer(data=request.data)
+    if serializer.is_valid():
+        log_entry = serializer.save()
+
+        send_log_to_graylog.delay(
+            log_entry.level,
+            log_entry.message,
+            log_entry.agent_name,
+            log_entry.timestamp.isoformat(),
+            log_entry.context
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

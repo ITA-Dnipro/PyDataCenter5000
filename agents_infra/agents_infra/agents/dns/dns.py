@@ -1,9 +1,9 @@
 import abc
+import logging
 import subprocess
 
 from ...utils.configtools import Config
 from ...utils.helpers import is_valid_ip
-from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
@@ -62,8 +62,10 @@ class DNSAgent(ServerAgent):
 
         except OSError as e:
             # Command not found or failed to execute
-            maybe_log_message(
-                'DNS check failed: %s' % e, self.logger, exc_info=True
+            self.log_with_controller(
+                'DNS check failed: %s' % e,
+                level=logging.ERROR,
+                exc_info=True,
             )
             return False
 

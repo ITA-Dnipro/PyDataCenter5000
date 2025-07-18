@@ -118,6 +118,8 @@ class Config(object):
         health_port=None,
         auth_token_type=DEFAULT_AUTH_TOKEN_TYPE,
         interface=DEFAULT_INTERFACE,
+        post_agent_log_url=None,
+        send_logs_to_controller=False,
         env=None,
         role=None,
         region=None,
@@ -139,6 +141,8 @@ class Config(object):
         self.health_port = health_port
         self.auth_token_type = auth_token_type
         self.interface = interface
+        self.post_agent_log_url = post_agent_log_url
+        self.send_logs_to_controller = send_logs_to_controller
 
         self.env = env
         self.role = role
@@ -239,6 +243,26 @@ class Config(object):
         if value is not None and not isinstance(value, basestring):
             raise TypeError('interface must be a string or None')
         self._interface = value
+
+    @property
+    def post_agent_log_url(self):
+        return self._post_agent_log_url
+
+    @post_agent_log_url.setter
+    def post_agent_log_url(self, value):
+        if value is not None and not isinstance(value, basestring):
+            raise TypeError('post_agent_log_url must be a string or None')
+        self._post_agent_log_url = value
+
+    @property
+    def send_logs_to_controller(self):
+        return self._send_logs_to_controller
+
+    @send_logs_to_controller.setter
+    def send_logs_to_controller(self, value):
+        if not isinstance(value, bool):
+            raise TypeError('send_logs_to_controller must be a boolean')
+        self._send_logs_to_controller = value
 
     # --------------- FACTORY METHOD ------------------
 

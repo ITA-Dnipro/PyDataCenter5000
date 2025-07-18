@@ -306,6 +306,37 @@ def dashboard_view(request):
     )
 
 
+@extend_schema(
+    tags=['Metrics'],
+    request=AgentMetricSerializer,
+    parameters=[
+        OpenApiParameter(
+            name='hostname',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description=(
+                'Hostname of the server.'
+                'Will be resolved to server_status ID.'
+            )
+        ),
+    ],
+    responses={
+        status.HTTP_201_CREATED: OpenApiResponse(
+            description='Metric successfully recorded.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Validation error or missing hostname.'
+        ),
+        status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
+            description='Server with given hostname not found.'
+        )
+    },
+    description=(
+        'Agent submits a metric payload to'
+        'be linked to an existing ServerStatus.'
+    )
+)
 @api_view(['POST'])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')

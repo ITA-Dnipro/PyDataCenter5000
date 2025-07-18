@@ -76,8 +76,8 @@ install_python_package_from_src() {
 }
 
 echo "[INFO] Updating and installing system packages..."
-apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update
-apt-get install -y build-essential zlib1g-dev wget git
+apt-get clean && rm -rf /var/lib/apt/lists/*
+apt-get update && apt-get install -y build-essential zlib1g-dev wget git
 
 if [ "$INSTALL_FFI" = "true" ]; then
     apt-get install -y libffi-dev
@@ -193,6 +193,11 @@ if ! python -c "import singledispatch"; then
     install_python_package_from_src singledispatch
 fi
 
+if ! python -c "import pytz"; then
+    get_package_src_from_tar pytz "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz"
+    install_python_package_from_src pytz
+fi
+
 if ! python -c "import coverage"; then
     get_package_src_from_tar coverage "https://files.pythonhosted.org/packages/source/c/coverage/coverage-3.7.1.tar.gz"
     install_python_package_from_src coverage
@@ -226,7 +231,7 @@ if [ "$INSTALL_CORO" = "true" ]; then
         cp /etc/apt/sources.list /etc/apt/sources.list.bak
         echo "deb [trusted=yes] http://security.ubuntu.com/ubuntu bionic-security main" > /etc/apt/sources.list
 
-        apt update && apt-cache policy libssl1.0-dev
+        apt-get update && apt-cache policy libssl1.0-dev
         apt-get install -y libssl1.0-dev
 
         get_package_src_from_git coro "https://github.com/ironport/shrapnel.git" "v1.0.5"

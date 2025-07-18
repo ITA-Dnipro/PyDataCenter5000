@@ -65,8 +65,8 @@ class LinuxCommand(Command):
 class AgentCommand(Command):
     """Command for executing agent's method."""
     method = attr.attr(validator=attr.validators.instance_of(basestring))
-    args = attr.attr(default=lambda: ())
-    kwargs = attr.attr(default=lambda: {})
+    args = attr.attr(default=None)
+    kwargs = attr.attr(default=None)
 
     @property
     def tag(self):
@@ -175,4 +175,7 @@ def _(command, agent, **kwargs):
     if not method:
         raise AttributeError('Agent does not have method %s' % command.method)
 
-    return method(*command.args, **command.kwargs)
+    return method(
+        *(command.args if command.args else ()),
+        **(command.kwargs if command.kwargs else {})
+    )

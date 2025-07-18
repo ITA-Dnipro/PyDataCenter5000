@@ -76,14 +76,12 @@ def test_is_dns_running_failures(mock_popen, dns_agent):
         assert dns_agent.is_dns_running() is False, msg
 
 
-@patch.object(DNSAgent, 'is_dns_running', return_value=True)
-@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
-@patch.object(
-    DNSAgent, '_are_all_critical_processes_active', return_value=True
+@patch(
+    'agents_infra.agents.base.ServerAgent.is_service_healthy',
+    return_value=True,
 )
-def test_is_service_healthy_true(
-    mock_proc, mock_port, mock_dns, dns_agent
-):
+@patch.object(DNSAgent, 'is_dns_running', return_value=True)
+def test_is_service_healthy_true(mock_parent, mock_dns, dns_agent):
     """
     Test is_service_healthy()
     returns True when all checks (process, port, DNS) pass.
@@ -97,10 +95,7 @@ def test_is_service_healthy_true(
     DNSAgent, '_are_all_critical_processes_active', return_value=True
 )
 @patch.object(DNSAgent, 'is_dns_running', return_value=False)
-@patch('agents_infra.agents.dns.dns.is_port_open', return_value=True)
-def test_is_service_healthy_fails_due_to_dns(
-    mock_proc, mock_port, mock_dns, dns_agent
-):
+def test_is_service_healthy_fails_due_to_dns(mock_proc, mock_dns, dns_agent):
     """
     Test is_service_healthy()
     returns False when the DNS check fails, even if others pass.

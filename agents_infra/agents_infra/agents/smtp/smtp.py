@@ -55,18 +55,12 @@ class SMTPAgent(ServerAgent):
 
         return banner.strip() if banner else ''
 
-    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
-        status = super(SMTPAgent, self).is_service_healthy()
-        port_open = is_port_open(
-            port=self.config.get('port'),
-            ip=self.ip,
-            protocol=self.protocol,
-            logger=self.logger,
-            timeout=timeout,
-            payload=payload,
-            packet_size=packet_size
+    def is_service_healthy(self, timeout=2):
+        port_and_process_status = super(SMTPAgent, self).is_service_healthy(
+            timeout=timeout
         )
-        return status and port_open and bool(self.check_banner())
+        banner_status = bool(self.check_banner())
+        return port_and_process_status and banner_status
 
     def status_to_dict(self):
         status = super(SMTPAgent, self).status_to_dict()

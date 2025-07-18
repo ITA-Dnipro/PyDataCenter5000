@@ -34,17 +34,10 @@ class NTPAgent(ServerAgent):
         Check both the NTP process health and UDP port responsiveness.
         Returns True only if both are OK.
         """
-        base_ok = super(NTPAgent, self).is_service_healthy()
-        port_ok = is_port_open(
-            port=self.config.get('port'),
-            ip=self.ip,
-            protocol=self.protocol,
-            logger=self.logger,
-            timeout=timeout,
-            payload=payload,
-            packet_size=packet_size
+        port_and_process_status = super(NTPAgent, self).is_service_healthy(
+            timeout=timeout, payload=payload, packet_size=packet_size
         )
-        return base_ok and port_ok
+        return port_and_process_status
 
 
 class NTPAgenttNTPD(NTPAgent):

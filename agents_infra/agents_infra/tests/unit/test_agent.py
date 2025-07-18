@@ -1,8 +1,6 @@
 import json
 import logging
 import os
-import platform
-import re
 import socket
 import tempfile
 
@@ -36,6 +34,17 @@ UNEXPECTED_ERROR_OUTPUT = (
 )
 
 
+@pytest.fixture(scope='session')
+def mock_config():
+    return Config(
+        api_prefix='mock/api/v1',
+        url='http://mock-controller-url/',
+        auth_token_type='mock-token',
+        port=12345,
+        interface='iface0',
+    )
+
+
 @pytest.yield_fixture
 def mock_config_file():
     """
@@ -44,25 +53,26 @@ def mock_config_file():
     """
     content = (
         '[server]\n'
-        'name=mock\n'
-        'port=123\n'
-        'critical_processes=sshd,nginx,postgres\n'
-        'interface=eth0\n'
-        'env=dev\n'
-        'role=backend\n'
-        'region=eu\n'
+        'name=mock-server\n'
+        'port=12345\n'
+        'critical_processes=proc1,proc2,proc3\n'
+        'interface=iface0\n'
+        'env=mock\n'
+        'role=mock\n'
+        'region=any\n'
         '\n'
         '[controller]\n'
-        'url=http://localhost\n'
-        'api_prefix=api/v1/\n'
-        'whitelist_commands=ls,uptime,whoami,cmd\n'
+        'url=http://mock-controller-url\n'
+        'api_prefix=mock/api/\n'
+        'whitelist_commands=cmd1,cmd2,cmd3,cmd4\n'
     )
 
     tmp = tempfile.NamedTemporaryFile(mode='w+', delete=False)
     tmp.write(content)
     tmp.flush()
-    tmp_path = tmp.name
     tmp.close()
+
+    tmp_path = tmp.name
 
     yield tmp_path
 
@@ -70,46 +80,30 @@ def mock_config_file():
         os.remove(tmp_path)
 
 
+def load_agent_from_config(config_content):
+    """Utility to load agent from string-based config content."""
+    tmp = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+    try:
+        tmp.write(config_content)
+        tmp.flush()
+        tmp_path = tmp.name
+        tmp.close()
+        return MockAgent.from_config_file(tmp_path)
+    finally:
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
+
+
 class MockAgent(ServerAgent):
-    """
-    A mock agent used for testing purposes.
-    """
-
-    def __init__(
-        self,
-        protocol='tcp',
-        command_queue_size=0,
-        config=None
-    ):
-        if config is None:
-            config = Config(
-                name='mock',
-                api_prefix='api/v1/',
-                url='http://localhost',
-                port=12345,
-            )
-
-        super(MockAgent, self).__init__(
-            protocol=protocol,
-            command_queue_size=command_queue_size,
-            config=config,
-        )
-
+    """Mock agent used for testing purposes."""
     def setup_logging(self, log_path=None):
         """Disable logging setup for testing."""
         pass
 
     @property
     def logger(self):
-        """Return a mock logger for tests."""
+        """Return the mock logger for tests."""
         return logging.getLogger('mock-logger')
-
-    def __del__(self):
-        if hasattr(self, 'logfile'):
-            try:
-                os.remove(self.logfile.name)
-            except Exception:
-                pass
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
@@ -121,28 +115,31 @@ def mock_popen_with_output(stdout, stderr=''):
     return process_mock
 
 
-def test_type_checks_on_init():
-    """Test that type checks fail initialization with bad parameters."""
-    with pytest.raises(TypeError):
-        MockAgent(port='invalid')
-
-    with pytest.raises(TypeError):
-        MockAgent(processes=0)
-
-
-def test_critical_processes_parsing(mock_config_file):
+def test_parse_config_file_success(mock_config_file):
+    """Test parsing of a config.ini by the agent."""
     agent = MockAgent.from_config_file(mock_config_file)
-    expected = ['sshd', 'nginx', 'postgres']
-    actual = agent.config.critical_processes
 
-    for proc in expected:
-        assert proc in actual
+    assert agent.config.name == 'mock-server'
+    assert agent.config.port == 12345
+
+    assert agent.config.critical_processes == [
+        'ssh', 'sshd', 'proc1', 'proc2', 'proc3'
+    ]
+
+    assert agent.config.interface == 'iface0'
+
+    assert (
+        agent.config.whitelist_commands
+        == ServerAgent.config.whitelist_commands + (
+            ['cmd1', 'cmd2', 'cmd3', 'cmd4']
+        )
+    )
 
 
 def test_post_data_success_logged(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     class MockResponse(object):
 
@@ -168,9 +165,9 @@ def test_post_data_success_logged(
 
 
 def test_post_data_retry(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     call_count = {'count': 0}
 
@@ -206,9 +203,9 @@ def test_post_data_retry(
 
 
 def test_post_data_max_retries_fail(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     monkeypatch.setattr(
         urllib2,
@@ -231,10 +228,8 @@ def test_post_data_max_retries_fail(
     assert_msg_in_logfile('Permanent error')
 
 
-def test_post_data_error_logged(
-    mock_config_file, assert_msg_in_logfile
-):
-    agent = MockAgent.from_config_file(filename=mock_config_file)
+def test_post_data_error_logged(mock_config, assert_msg_in_logfile):
+    agent = MockAgent(config=mock_config)
 
     errors = [
         (urllib2.HTTPError(
@@ -262,7 +257,7 @@ def test_post_data_error_logged(
 
 
 def test_post_data_to_controller_success_logged(
-    mock_config_file, monkeypatch, assert_msg_in_logfile
+    mock_config, monkeypatch, assert_msg_in_logfile
 ):
     """
     Test that successful POST request to controller is properly handled
@@ -284,7 +279,7 @@ def test_post_data_to_controller_success_logged(
 
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
     agent.controller_url = 'http://mock/controller/'
 
     agent.post_data(
@@ -302,11 +297,11 @@ def test_post_data_to_controller_success_logged(
 
 
 def test_post_data_to_controller_missing_url(
-    mock_config_file, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     """Test that missing controller URL is properly handled and logged."""
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     agent.config.url = ''
 
@@ -322,9 +317,9 @@ def test_post_data_to_controller_missing_url(
     )
 
 
-def test_post_data_headers_update(mock_config_file):
+def test_post_data_headers_update(mock_config):
     """Test that post_data correctly adds Authorization header."""
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
     agent.config.auth_token_type = 'Bearer'
 
     captured_request = {'headers': None}
@@ -355,7 +350,7 @@ def test_post_data_headers_update(mock_config_file):
 
 
 def test_get_data_success_logged(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     """
     Test that successful GET request to controller is properly handled
@@ -374,6 +369,8 @@ def test_get_data_success_logged(
         }
     ]
 
+    agent = MockAgent(config=mock_config)
+
     for case in responses:
         class MockResponse(object):
             def getcode(self):
@@ -388,9 +385,6 @@ def test_get_data_success_logged(
         monkeypatch.setattr(
             urllib2, 'urlopen', lambda req, timeout=5: MockResponse()
         )
-
-        agent = MockAgent.from_config_file(mock_config_file)
-        agent.config.url = 'http://mock/'
 
         result = agent.get_data('server/command/', to_controller=True)
 
@@ -409,7 +403,7 @@ def test_get_data_success_logged(
 
 
 def test_get_data_empty_response(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     class MockResponse(object):
         def getcode(self):
@@ -425,9 +419,8 @@ def test_get_data_empty_response(
         urllib2, 'urlopen', lambda req, timeout=5: MockResponse()
     )
 
-    agent = MockAgent.from_config_file(mock_config_file)
-    agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent = MockAgent(config=mock_config)
+    agent.hostname = 'mock-server'
 
     result = agent.get_data('server/command/', to_controller=True)
 
@@ -437,12 +430,12 @@ def test_get_data_empty_response(
     assert_msg_in_logfile('GET request succeeded on attempt 1')
 
 
-def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
+def test_get_data_missing_data(mock_config, assert_msg_in_logfile):
     """
     Test proper handling and logging when controller URL is missing.
     """
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
     agent.config.url = ''
 
     result = agent.get_data('server/status/', to_controller=True)
@@ -455,13 +448,12 @@ def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
 
 
 def test_get_data_error_logged(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+    monkeypatch, mock_config, assert_msg_in_logfile
 ):
     """
     Test proper handling and logging of different GET request errors.
     """
-    agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.url = 'http://mock/'
+    agent = MockAgent(config=mock_config)
 
     errors = [
         HTTP_ERROR_OUTPUT,
@@ -484,7 +476,7 @@ def test_get_data_error_logged(
         assert_msg_in_logfile('Attempt 1 failed: %s' % expected_log)
 
 
-def test_maybe_add_to_queue_adds_item(mock_config_file):
+def test_maybe_add_to_queue_adds_item(mock_config):
     """Test that good command history input is added to queue."""
     data = {
         'type': 'linux',
@@ -496,16 +488,14 @@ def test_maybe_add_to_queue_adds_item(mock_config_file):
         'timestamp': '2025-06-03T18:25:35.418746Z',
     }
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     agent.maybe_add_command_to_queue(data)
 
     assert agent.command_queue.qsize() == 1
 
 
-def test_maybe_add_to_queue_full_logged(
-    mock_config_file, assert_msg_in_logfile
-):
+def test_maybe_add_to_queue_full_logged(mock_config, assert_msg_in_logfile):
     """
     Test that trying to add command to the full queue is properly handled
     and logged.
@@ -514,7 +504,7 @@ def test_maybe_add_to_queue_full_logged(
 
     import Queue
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
     agent.command_queue = Queue.Queue(maxsize=1)
 
     # Ensure 'cmd' is whitelisted
@@ -546,12 +536,12 @@ def test_maybe_add_to_queue_full_logged(
     assert_msg_in_logfile('Queue is full - could not append command')
 
 
-def test_get_command_from_queue_has_item(mock_config_file):
+def test_get_command_from_queue_has_item(mock_config):
     import datetime
 
     from agents_infra.command import AgentCommand, CommandStatus
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     command = AgentCommand(method='cmd')
     cmd_history = CommandHistory(
@@ -569,11 +559,11 @@ def test_get_command_from_queue_has_item(mock_config_file):
 
 
 def test_get_command_from_queue_no_item_logged(
-    mock_config_file, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     import threading
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     while not agent.command_queue.empty():
         agent.command_queue.get()
@@ -585,7 +575,7 @@ def test_get_command_from_queue_no_item_logged(
 
 
 def test_maybe_add_to_queue_logs_bad_input(
-    mock_config_file, assert_msg_in_logfile
+    mock_config, assert_msg_in_logfile
 ):
     """
     Test that bad command history input is logged by server agent and
@@ -599,7 +589,7 @@ def test_maybe_add_to_queue_logs_bad_input(
         'timestamp': '2025-06-03T18:25:35.418746Z',
     }
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     agent.maybe_add_command_to_queue(data)
 
@@ -607,83 +597,34 @@ def test_maybe_add_to_queue_logs_bad_input(
     assert agent.command_queue.qsize() == 0
 
 
-def test_status_to_dict_keys(mock_config_file):
-    """
-    Verify that status_to_dict() returns all expected keys
-    in the status dictionary.
-    """
-    agent = MockAgent.from_config_file(mock_config_file)
+def test_is_service_healthy_invalid_port(mock_config):
+    """Test that is_port_open raises ValueError for invalid port."""
+    agent = MockAgent(config=mock_config)
+    agent.config.port = -1
 
-    # Set attributes manually
-    agent.os_type = 'linux'
-    agent.hostname = 'test-host'
-    agent.ip = '127.0.0.1'
-    agent.uptime = 12345
-    agent.timestamp = '2025-06-03 20:00:00'
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'tcp'
 
-    # Patch is_service_healthy to return True
-    with mock.patch.object(agent, 'is_service_healthy', return_value=True):
-        result = agent.status_to_dict()
-
-    expected_keys = set([
-        'os',
-        'hostname',
-        'ip',
-        'server_name',
-        'uptime',
-        'timestamp',
-        'healthy',
-        'tags',
-    ])
-
-    if not agent.tags:
-        expected_keys.remove('tags')
-
-    msg = 'Expected status_to_dict() to return keys: %s' % expected_keys
-    assert set(result.keys()) == expected_keys, msg
-
-    # Additional value check
-    assert result['server_name'] == agent.config.name
-    assert result['healthy'] is True
-    assert result['uptime'] == 12345
+    assert not agent.is_service_healthy()
 
 
-def test_status_to_dict_with_missing_fields(mock_config_file):
-    """
-    Ensure status_to_dict() handles missing or None fields gracefully.
-    """
-    agent = MockAgent.from_config_file(mock_config_file)
-
-    agent.os_type = None
-    agent.hostname = None
+def test_is_service_healthy_missing_ip(mock_config):
+    """Test that is_port_open returns False when IP is not set."""
+    agent = MockAgent(config=mock_config)
     agent.ip = None
-    agent.config.name = 'dns'
-    agent.uptime = -1
-    agent.timestamp = None
-    agent.healthy = False
 
-    result = agent.status_to_dict()
-
-    assert result['os'] is None, "Expected 'os' to be None when missing"
-    assert result['hostname'] is None, "Expected 'hostname' to be None"
-    assert result['ip'] is None, "Expected 'ip' to be None when missing"
-    assert result['uptime'] == -1, "Expected 'uptime' to be -1 when missing"
+    assert not agent.is_service_healthy()
 
 
-def test_protocol_setter_type_error(mock_config_file):
+def test_protocol_setter_raises(mock_config):
     """Test that protocol setter raises TypeError for non-string values."""
-    agent = MockAgent.from_config_file(mock_config_file)
+    agent = MockAgent(config=mock_config)
 
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = 123
 
     with pytest.raises(TypeError, match='Protocol must be a string'):
         agent.protocol = None
-
-
-def test_protocol_setter_value_error(mock_config_file):
-    """Test that protocol setter raises ValueError for invalid protocols."""
-    agent = MockAgent.from_config_file(mock_config_file)
 
     with pytest.raises(ValueError, match='Unknown protocol value'):
         agent.protocol = 'invalid_protocol'
@@ -692,54 +633,144 @@ def test_protocol_setter_value_error(mock_config_file):
         agent.protocol = 'HTTP'
 
 
-def test_collect_server_metadata_os_detection(monkeypatch, mock_config_file):
-    """Test successful OS type detection."""
-    def mock_system():
-        return 'Linux'
+def test_is_port_open_tcp_success(monkeypatch, mock_config):
+    """Test successful TCP port check."""
+    agent = MockAgent(config=mock_config)
 
-    def mock_get_linux_uptime():
-        return 12345.0
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'tcp'
 
-    monkeypatch.setattr(platform, 'system', mock_system)
+    mock_socket = mock.MagicMock()
+    mock_socket.connect = mock.MagicMock()
+    mock_socket.close = mock.MagicMock()
 
-    from agents_infra.agents import base
-    monkeypatch.setattr(base,
-                        'get_linux_uptime',
-                        mock_get_linux_uptime)
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
 
-    agent = MockAgent.from_config_file(mock_config_file)
-
-    agent.collect_server_metadata()
-
-    assert agent.os_type == 'linux'
-    assert agent.uptime == 12345.0
+    assert agent.check_port()['port_open']
+    mock_socket.connect.assert_called_once_with(('0.0.0.0', 12345))
+    mock_socket.close.assert_called_once()
 
 
-def test_collect_server_metadata_unknown_os_logged(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
-):
-    """Test handling of undetectable OS type."""
-    def mock_system():
-        return ''
+def test_is_port_open_tcp_failure(monkeypatch, mock_config):
+    """Test failed TCP port check."""
+    agent = MockAgent(config=mock_config)
 
-    monkeypatch.setattr(platform, 'system', mock_system)
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'tcp'
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    mock_socket = mock.MagicMock()
+    mock_socket.connect = mock.MagicMock(
+        side_effect=socket.error('Connection refused')
+    )
+    mock_socket.close = mock.MagicMock()
 
-    agent.collect_server_metadata()
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
 
-    assert agent.os_type == 'unknown'
+    with pytest.raises(socket.error, match='Connection refused'):
+        agent.check_port()['port_open']
 
-    assert_msg_in_logfile('Could not deduce OS type')
+    mock_socket.connect.assert_called_once_with(('0.0.0.0', 12345))
+    mock_socket.close.assert_called_once()
 
 
-def test_collect_server_metadata_interface_ip_success(
-    monkeypatch, mock_config_file
-):
-    """Test successful IP address retrieval from interface."""
+def test_is_port_open_udp_success(monkeypatch, mock_config):
+    """Test successful UDP port check."""
+    agent = MockAgent(config=mock_config)
+
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'udp'
+
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.close = mock.MagicMock()
+
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+
+    assert agent.check_port()['port_open']
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
+    mock_socket.close.assert_called_once()
+
+
+def test_is_port_open_udp_with_packet_size(monkeypatch, mock_config):
+    """Test UDP port check with packet size verification."""
+    agent = MockAgent(config=mock_config)
+
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'udp'
+
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.recvfrom = mock.MagicMock(
+        return_value=(b'response', ('0.0.0.0', 12345))
+    )
+    mock_socket.close = mock.MagicMock()
+
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+
+    assert agent.check_port(packet_size=8)['port_open']
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
+    mock_socket.recvfrom.assert_called_once_with(8)
+    mock_socket.close.assert_called_once()
+
+
+@pytest.mark.filterwarnings('ignore')
+def test_is_port_open_udp_packet_size_mismatch(monkeypatch, mock_config):
+    """Test UDP port check with packet size mismatch."""
+    agent = MockAgent(config=mock_config)
+
+    agent.ip = '0.0.0.0'
+    agent.protocol = 'udp'
+
+    mock_socket = mock.MagicMock()
+    mock_socket.sendto = mock.MagicMock()
+    mock_socket.recvfrom = mock.MagicMock(
+        return_value=(b'short', ('0.0.0.0', 12345))
+    )
+    mock_socket.close = mock.MagicMock()
+
+    monkeypatch.setattr(socket, 'socket', lambda *args: mock_socket)
+
+    assert not agent.check_port(packet_size=8)['port_open']
+
+    mock_socket.sendto.assert_called_once_with(b'', ('0.0.0.0', 12345))
+    mock_socket.recvfrom.assert_called_once_with(8)
+    mock_socket.close.assert_called_once()
+
+
+def test_get_ip_from_interface_not_found(monkeypatch):
+    """Test that None is returned when interface is not found."""
+    def mock_net_if_addrs():
+        return {'mock_interface': []}
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+
+    from agents_infra.agents.base import get_ip_from_interface
+    assert get_ip_from_interface('nonexistent_interface') is None
+
+
+def test_get_ip_from_interface_loopback_only(monkeypatch):
+    """Test that None is returned when only loopback address is present."""
     def mock_net_if_addrs():
         return {
-            'eth0': [
+            'mock_interface': [
+                mock.MagicMock(
+                    address='127.0.0.1',
+                    family=socket.AF_INET
+                )
+            ]
+        }
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+
+    from agents_infra.agents.base import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') is None
+
+
+def test_get_ip_from_interface_valid_ipv4(monkeypatch):
+    """Test that valid IPv4 address is returned."""
+    def mock_net_if_addrs():
+        return {
+            'mock_interface': [
                 mock.MagicMock(
                     address='192.168.1.1',
                     family=socket.AF_INET
@@ -749,14 +780,60 @@ def test_collect_server_metadata_interface_ip_success(
 
     monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-    agent = MockAgent.from_config_file(mock_config_file)
-    agent.collect_server_metadata()
+    from agents_infra.agents.base import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') == '192.168.1.1'
+
+
+def test_get_ip_from_interface_multiple_addresses(monkeypatch):
+    """Test that first non-loopback IPv4 address is returned."""
+    def mock_net_if_addrs():
+        return {
+            'mock_interface': [
+                mock.MagicMock(
+                    address='127.0.0.1',
+                    family=socket.AF_INET
+                ),
+                mock.MagicMock(
+                    address='192.168.1.1',
+                    family=socket.AF_INET
+                ),
+                mock.MagicMock(
+                    address='fe80::1',
+                    family=socket.AF_INET6
+                )
+            ]
+        }
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+
+    from agents_infra.agents.base import get_ip_from_interface
+    assert get_ip_from_interface('mock_interface') == '192.168.1.1'
+
+
+def test_evaluate_identity_interface_ip_success(monkeypatch, mock_config):
+    """Test successful IP address retrieval from interface."""
+    def mock_net_if_addrs():
+        return {
+            'iface0': [
+                mock.MagicMock(
+                    address='192.168.1.1',
+                    family=socket.AF_INET
+                )
+            ]
+        }
+
+    monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
+
+    agent = MockAgent(config=mock_config)
 
     assert agent.ip == '192.168.1.1'
 
 
-def test_collect_server_metadata_interface_errors(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+def test_evaluate_identity_interface_errors(
+    monkeypatch,
+    setup_temp_file_logging_with_fallback,
+    mock_config,
+    assert_msg_in_logfile
 ):
     """
     Test handling of KeyError and AttributeError when getting IP from
@@ -780,9 +857,7 @@ def test_collect_server_metadata_interface_errors(
     ]:
         monkeypatch.setattr(psutil, 'net_if_addrs', mock_net_if_addrs)
 
-        agent = MockAgent.from_config_file(mock_config_file)
-        agent.config.interface = 'nonexistent'
-        agent.collect_server_metadata()
+        agent = MockAgent(config=mock_config)
 
         assert agent.ip is None
 
@@ -792,8 +867,11 @@ def test_collect_server_metadata_interface_errors(
         )
 
 
-def test_collect_server_metadata_hostname_error(
-    monkeypatch, mock_config_file, assert_msg_in_logfile
+def test_evaluate_identity_hostname_error(
+    monkeypatch,
+    setup_temp_file_logging_with_fallback,
+    mock_config,
+    assert_msg_in_logfile
 ):
     """Test handling of socket error when getting hostname."""
     def mock_gethostname():
@@ -801,8 +879,7 @@ def test_collect_server_metadata_hostname_error(
 
     monkeypatch.setattr(socket, 'gethostname', mock_gethostname)
 
-    agent = MockAgent.from_config_file(mock_config_file)
-    agent.collect_server_metadata()
+    agent = MockAgent(config=mock_config)
 
     assert agent.hostname == 'unknown'
 
@@ -832,21 +909,12 @@ def test_default_whitelist_commands_is_empty_list():
 
 def test_explicit_whitelist_commands_extends_default_list():
     """Test that provided commands are added to whitelist."""
-    commands = ['cmd1', 'cmd1']
-    config = {
-        'name': 'server_name',
-        'api_prefix': 'api/v1/',
-        'url': 'http://localhost',
-        'port': 9999,
-        'critical_processes': [],
-        'whitelist_commands': commands,
-        'auth_token_type': None,
-        'interface': None,
-    }
+    agent = MockAgent(config=Config(whitelist_commands=['cmd11', 'cmd12']))
 
-    agent = MockAgent(config=config)
-
-    assert all(cmd in agent.config.whitelist_commands for cmd in commands)
+    assert (
+        'cmd11' in agent.config.whitelist_commands
+        and 'cmd12' in agent.config.whitelist_commands
+    )
 
 
 def test_explicit_whitelist_commands_none_uses_default_list():
@@ -925,13 +993,17 @@ port = 12345
 
         assert agent.config.name == 'test_server'
         assert agent.config.port == 12345
-        assert agent.config.critical_processes == ['ssh', 'sshd']
+        assert (
+            agent.config.critical_processes
+            == ServerAgent.config.critical_processes
+        )
         assert agent.config.interface == 'enp0s3'
 
         # Since whitelist_commands not specified, defoults from global.ini
-        assert agent.config.whitelist_commands == [
-            'uptime', 'df -h', 'ls', 'whoami', 'collect_server_metadata'
-        ]
+        assert (
+            agent.config.whitelist_commands
+            == ServerAgent.config.whitelist_commands
+        )
 
 
 def test_config_file_empty_processes():
@@ -1004,29 +1076,6 @@ whitelist_commands =
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-
-def test_config_file_parsing_full_mock_config(mock_config_file):
-    """
-    Test that a fully populated config.ini file is correctly parsed.
-    """
-    agent = MockAgent.from_config_file(mock_config_file)
-
-    assert agent.config.name == 'mock'
-    assert agent.config.port == 123
-    assert agent.config.interface == 'eth0'
-    assert agent.tags['env'] == 'dev'
-    assert agent.tags['role'] == 'backend'
-    assert agent.tags['region'] == 'eu'
-    assert agent.config.api_prefix == 'api/v1/'
-    assert agent.config.url == 'http://localhost'
-
-    assert agent.config.critical_processes == [
-        'ssh', 'sshd', 'nginx', 'postgres'
-    ]
-    assert agent.config.whitelist_commands == [
-        'uptime', 'df -h', 'ls', 'whoami', 'collect_server_metadata', 'cmd'
-    ]
 
 
 def test_get_data_headers_default(mock_config_file):
@@ -1338,103 +1387,85 @@ def test_are_all_critical_processes_active_raises_generic_exception(
             assert kwargs.get('exc_info') is True
 
 
-def test_status_to_dict_format(mock_config_file):
-    agent = MockAgent.from_config_file(mock_config_file)
-
-    agent.collect_server_metadata()
-
-    with mock.patch.object(agent, 'is_service_healthy', return_value=True):
-        result = agent.status_to_dict()
-
-    expected_keys = set([
-        'os', 'hostname', 'ip', 'server_name',
-        'uptime', 'timestamp', 'healthy',
-    ])
-
-    if agent.tags:
-        expected_keys.add('tags')
-
-    assert set(result.keys()) == expected_keys
-
-    assert isinstance(result['os'], str)
-    assert isinstance(result['hostname'], str)
-    assert isinstance(result['ip'], (str, type(None)))
-    assert isinstance(result['server_name'], str)
-    assert result['server_name'] == agent.config.name
-    assert isinstance(result['uptime'], (int, float))
-    assert isinstance(result['timestamp'], str)
-    assert isinstance(result['healthy'], bool)
-
-    if 'tags' in result:
-        assert isinstance(result['tags'], dict)
-        for key in ['env', 'role', 'region']:
-            if getattr(agent.config, key, None):
-                assert key in result['tags']
-
-
-def test_status_to_dict_timestamp_format(mock_config_file):
-    agent = MockAgent.from_config_file(mock_config_file)
-    agent.collect_server_metadata()
-    result = agent.status_to_dict()
-    timestamp = result['timestamp']
-
-    match = re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', timestamp)
-    assert match is not None and match.group(0) == timestamp, (
-        "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
-        % timestamp
-    )
-
-
-def load_agent_from_config(config_content):
-    """Utility to load agent from string-based config content."""
-    tmp = tempfile.NamedTemporaryFile(mode='w+', delete=False)
-    try:
-        tmp.write(config_content)
-        tmp.flush()
-        tmp_path = tmp.name
-        tmp.close()
-        return MockAgent.from_config_file(tmp_path)
-    finally:
-        if os.path.exists(tmp.name):
-            os.remove(tmp.name)
-
-
-def test_status_dict_includes_tags_when_present():
+def test_tag_parsing_full_config():
     """
-    Test that status_to_dict() includes the 'tags' key
-    when config contains env and role.
+    Test that all tags (env, role, region) are correctly parsed
+    from the config file.
     """
     config_content = """
 [server]
 name = test_server
 env = production
 role = web
-region = eu
+region = eu-central
 """
     agent = load_agent_from_config(config_content)
 
-    # Ensure tags are generated from config
-    assert agent.tags == {'env': 'production', 'role': 'web', 'region': 'eu'}
-
-    status = agent.status_to_dict()
-    assert 'tags' in status
-    assert status['tags'] == {
-        'env': 'production', 'role': 'web', 'region': 'eu'
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+        'region': 'eu-central',
     }
+    assert agent.tags == expected_tags
 
 
-def test_status_dict_omits_tags_for_backward_compatibility():
+def test_tag_parsing_partial_config():
     """
-    Test that status_to_dict() omits 'tags' when no env/role/region is set.
+    Test that only provided tags are parsed, and missing ones are ignored.
     """
     config_content = """
 [server]
-name = old_agent_server
-port = 12345
+name = test_server
+env = staging
+role = db
 """
     agent = load_agent_from_config(config_content)
 
-    assert agent.tags == {}  # Should be empty
+    expected_tags = {
+        'env': 'staging',
+        'role': 'db',
+    }
+    assert agent.tags == expected_tags
+    assert 'region' not in agent.tags
 
-    status = agent.status_to_dict()
-    assert 'tags' not in status
+
+def test_tag_parsing_ignores_empty_values():
+    """
+    Test that tags with empty values in the config are not included.
+    """
+    config_content = """
+[server]
+name = test_server
+env = dev
+role =
+region = us-east
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'dev',
+        'region': 'us-east',
+    }
+    assert agent.tags == expected_tags
+    assert 'role' not in agent.tags
+
+
+def test_tag_parsing_normalizes_values():
+    """
+    Tests that tag values are correctly normalized:
+    - Whitespace is stripped from both ends.
+    - Value is converted to lowercase.
+    """
+    config_content = """
+[server]
+name = test_server
+env =   Production
+role =   WEB
+"""
+    agent = load_agent_from_config(config_content)
+
+    expected_tags = {
+        'env': 'production',
+        'role': 'web',
+    }
+    assert agent.tags == expected_tags

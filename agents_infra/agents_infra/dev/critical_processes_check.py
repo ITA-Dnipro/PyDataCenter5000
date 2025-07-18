@@ -115,7 +115,7 @@ def main():
     # Dynamically load and instantiate the agent
     AgentClass = import_agent_class(args.agent_type)
     agent = AgentClass.from_config_file()
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     # Configure logging via the agent's built-in method
     agent.setup_logging()

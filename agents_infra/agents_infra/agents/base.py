@@ -7,6 +7,8 @@ import logging.config
 import platform
 import socket
 import time
+import warnings
+from collections import Sequence
 
 import pkg_resources
 import Queue
@@ -30,6 +32,8 @@ class ServerAgent(object):
     """
 
     __metaclass__ = abc.ABCMeta
+
+    _plugins = None
 
     # Global config parsed once at import-level (__init__.py)
     config = None  # Will hold default/global config
@@ -60,11 +64,14 @@ class ServerAgent(object):
         if protocol is not None:
             self.protocol = protocol
 
-        # Init server metadata to prevent AttributeError
-        self.os_type = self.hostname = self.ip = None
-        self.uptime = self.timestamp = None
+        self.hostname = self.ip = None
 
-        # Thread-safe queue to store pending commands
+        # Server identity refers to data necessary for connectivity to
+        # controller, i.e., hostname and IP address.
+        self.evaluate_identity()
+
+        # Thread-safe queue to store pending commands. If maxsize <= 0,
+        # the queue is treated as 'infinite'.
         self.command_queue = Queue.Queue(maxsize=max(command_queue_size, 0))
 
         # Initialize tags
@@ -115,6 +122,37 @@ class ServerAgent(object):
             },
         )
 
+    def aggregate_reports(self, category=None):
+        """
+        Aggregate reports for a given category.
+
+        Parameters:
+            category (str, optional): Report category.
+        """
+        report_data = {'server_name': self.config.name}
+
+        # Update report with server's identity data.
+        if category == 'status':
+            report_data.update({'hostname': self.hostname, 'ip': self.ip})
+
+        if self._plugins:
+            for name, plugin in self._plugins.items():
+                if plugin.enabled and (
+                    category is None or plugin.category == category
+                ):
+                    try:
+                        report_data[name] = plugin(self)
+                    except Exception as e:
+                        maybe_log_message(
+                            'Plugin %s failed due to error: %s' % (
+                                name, str(e)
+                            ),
+                            logger=self.logger,
+                            exc_info=True,
+                        )
+
+        return report_data
+
     @property
     def logger(self):
         if not self.config.name:
@@ -138,17 +176,11 @@ class ServerAgent(object):
 
         self._protocol = value
 
-    def collect_server_metadata(self):
+    def evaluate_identity(self):
         """
-        Attempt setting server metadata such as the hostname, IP address,
-        uptime, and timestamp.
+        Attempt setting server identity which includes the hostname and
+        IP address.
         """
-        system = platform.system()
-        if not system:
-            maybe_log_message('Could not deduce OS type', logger=self.logger)
-
-        self.os_type = system.lower() or 'unknown'
-
         try:
             self.hostname = socket.gethostname()
         except socket.error as e:
@@ -180,23 +212,6 @@ class ServerAgent(object):
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
                 )
-
-        self.uptime = -1
-
-        if 'linux' in self.os_type:
-            self.uptime = get_linux_uptime()
-
-        if self.uptime < 0:
-            maybe_log_message(
-                "Could not get system's uptime", logger=self.logger
-            )
-
-        self.timestamp = datetime.datetime.utcnow().strftime(
-            '%Y-%m-%d %H:%M:%S'
-        )
-        data = self.status_to_dict()
-        for k, v in data.items():
-            self.logger.info(u'%s: %s' % (k, v))
 
     def _are_all_critical_processes_active(self, restart=False):
         inactive_processes = 0
@@ -234,27 +249,42 @@ class ServerAgent(object):
             return False
 
     @abc.abstractmethod
-    def is_service_healthy(self):
+    def is_service_healthy(self, timeout=2, payload=None, packet_size=0):
         """
         Check if the specific service (SMTP, DNS, etc.) is running and
         healthy.
         """
-        return self._are_all_critical_processes_active()
+        if self.config.port < 0 or self.ip is None or self.protocol is None:
+            return False
 
-    def status_to_dict(self):
-        status_data = {
-            'os': self.os_type,
-            'hostname': self.hostname,
-            'ip': self.ip,
-            'server_name': self.config.name,
-            'uptime': self.uptime,
-            'timestamp': self.timestamp,
-            'healthy': self.is_service_healthy(),
-        }
-        if self.tags:
-            status_data['tags'] = self.tags
+        port_status = False
 
-        return status_data
+        try:
+            with warnings.catch_warnings(record=True) as records:
+                # Check port status via plugin.
+                port_status = self.check_port(
+                    timeout=timeout, payload=payload, packet_size=packet_size
+                )['port_open']
+
+                for record in records:
+                    maybe_log_message(
+                        (
+                            'Warning while checking port status: %s'
+                            % record.message
+                        ),
+                        logger=self.logger,
+                        level=logging.WARNING,
+                    )
+        except (socket.error, socket.timeout) as e:
+            maybe_log_message(
+                'Port check failed due to error: %s' % str(e),
+                logger=self.logger,
+            )
+
+        return (
+            port_status
+            and self._are_all_critical_processes_active()
+        )
 
     def post_data(
         self,
@@ -528,7 +558,6 @@ class ServerAgent(object):
             maybe_log_message(
                 'Command %s not permitted' % command_history.command.tag,
                 logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.WARNING,
             )
 

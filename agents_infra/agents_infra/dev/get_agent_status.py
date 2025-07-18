@@ -67,7 +67,7 @@ def main():
             pass
 
         print('Collecting server metadata...')
-        agent.collect_server_metadata()
+        agent.evaluate_identity()
         print('Server metadata collected successfully.')
 
         print('Converting status to dict...')

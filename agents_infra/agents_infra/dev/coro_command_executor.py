@@ -6,6 +6,7 @@ import os
 import subprocess
 
 import dotenv
+
 from agents_infra.agents import SMTPAgent
 from agents_infra.agents.exceptions import BadSubprocessReturnCode
 from agents_infra.agents.supervisor import AgentSupervisor
@@ -24,7 +25,7 @@ def main():
     credentials = base64.b64encode(credentials).decode('utf-8')
 
     agent = SMTPAgent.from_config_file()
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     supervisor = AgentSupervisor(agent)
 

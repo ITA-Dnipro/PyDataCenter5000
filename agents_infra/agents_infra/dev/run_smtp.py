@@ -52,7 +52,7 @@ def main():
     )
     agent.setup_logging()
 
-    agent.collect_server_metadata()
+    agent.evaluate_identity()
 
     data = agent.status_to_json()
     if args.pretty:

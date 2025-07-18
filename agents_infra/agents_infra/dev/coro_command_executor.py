@@ -5,25 +5,18 @@ import logging
 import os
 import subprocess
 
-import dotenv
-from agents_infra.agents import SMTPAgent
-from agents_infra.agents.exceptions import BadSubprocessReturnCode
-from agents_infra.agents.supervisor import AgentSupervisor
-from agents_infra.agents.utils import make_callback
+from agents_infra.agents.dns.dns import DNSAgent
+from agents_infra.exceptions import BadProcessReturnCode
+from agents_infra.supervisor import AgentSupervisor
+from agents_infra.utils import make_callback
 
 
 def main():
-    path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), '../.env'
-    )
-    dotenv.load_dotenv(path)
-
-    credentials = (
-        '%s:%s' % (os.getenv('DJANGO_USER'), os.getenv('DJANGO_PASSWORD'))
-    ).encode('utf-8')
+    credentials = ('admin:1234').encode('utf-8')
     credentials = base64.b64encode(credentials).decode('utf-8')
 
-    agent = SMTPAgent.from_config_file()
+    agent = DNSAgent.from_config_file(filename='agents_infra/agents/dns/config.ini')
+    agent.config.name = 'dns_agent'
     agent.collect_server_metadata()
 
     supervisor = AgentSupervisor(agent)
@@ -66,7 +59,7 @@ def main():
             output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
             if proc.returncode != 0:
-                raise BadSubprocessReturnCode(
+                raise BadProcessReturnCode(
                     'Command failed with return code %d' % proc.returncode
                 )
 

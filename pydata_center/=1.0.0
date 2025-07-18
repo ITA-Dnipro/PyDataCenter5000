@@ -1,0 +1,47 @@
+Collecting pytest-celery
+  Using cached pytest_celery-1.2.0-py3-none-any.whl (49 kB)
+Collecting pytest-docker-tools>=3.1.3
+  Using cached pytest_docker_tools-3.1.3-py3-none-any.whl (24 kB)
+Collecting debugpy<2.0.0,>=1.8.12
+  Using cached debugpy-1.8.14-py2.py3-none-any.whl (5.3 MB)
+Requirement already satisfied: kombu in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest-celery) (5.5.4)
+Collecting psutil>=7.0.0
+  Using cached psutil-7.0.0-cp36-abi3-macosx_11_0_arm64.whl (239 kB)
+Collecting tenacity>=9.0.0
+  Using cached tenacity-9.0.0-py3-none-any.whl (28 kB)
+Collecting docker<8.0.0,>=7.1.0
+  Using cached docker-7.1.0-py3-none-any.whl (147 kB)
+Collecting setuptools<75.0.0,>=60.0.0
+  Using cached setuptools-74.1.3-py3-none-any.whl (1.3 MB)
+Requirement already satisfied: celery in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest-celery) (5.5.3)
+Requirement already satisfied: requests>=2.26.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from docker<8.0.0,>=7.1.0->pytest-celery) (2.32.3)
+Requirement already satisfied: urllib3>=1.26.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from docker<8.0.0,>=7.1.0->pytest-celery) (2.2.3)
+Requirement already satisfied: pytest>=6.0.1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest-docker-tools>=3.1.3->pytest-celery) (8.3.5)
+Requirement already satisfied: iniconfig in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (2.1.0)
+Requirement already satisfied: packaging in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (25.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (1.3.0)
+Requirement already satisfied: tomli>=1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (2.2.1)
+Requirement already satisfied: typing-extensions>=4.6.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from exceptiongroup>=1.0.0rc8->pytest>=6.0.1->pytest-docker-tools>=3.1.3->pytest-celery) (4.13.2)
+Requirement already satisfied: charset-normalizer<4,>=2 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from requests>=2.26.0->docker<8.0.0,>=7.1.0->pytest-celery) (3.4.2)
+Requirement already satisfied: certifi>=2017.4.17 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from requests>=2.26.0->docker<8.0.0,>=7.1.0->pytest-celery) (2025.4.26)
+Requirement already satisfied: idna<4,>=2.5 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from requests>=2.26.0->docker<8.0.0,>=7.1.0->pytest-celery) (3.10)
+Requirement already satisfied: click-didyoumean>=0.3.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (0.3.1)
+Requirement already satisfied: click-plugins>=1.1.1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (1.1.1)
+Requirement already satisfied: python-dateutil>=2.8.2 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (2.9.0.post0)
+Requirement already satisfied: vine<6.0,>=5.1.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (5.1.0)
+Requirement already satisfied: click<9.0,>=8.1.2 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (8.1.8)
+Requirement already satisfied: billiard<5.0,>=4.2.1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (4.2.1)
+Requirement already satisfied: click-repl>=0.2.0 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (0.3.0)
+Requirement already satisfied: backports.zoneinfo[tzdata]>=0.2.1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from celery->pytest-celery) (0.2.1)
+Requirement already satisfied: tzdata in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from backports.zoneinfo[tzdata]>=0.2.1->celery->pytest-celery) (2025.2)
+Requirement already satisfied: prompt-toolkit>=3.0.36 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from click-repl>=0.2.0->celery->pytest-celery) (3.0.51)
+Requirement already satisfied: amqp<6.0.0,>=5.1.1 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from kombu->pytest-celery) (5.3.1)
+Requirement already satisfied: wcwidth in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from prompt-toolkit>=3.0.36->click-repl>=0.2.0->celery->pytest-celery) (0.2.13)
+Requirement already satisfied: six>=1.5 in /Users/maria/developer/softserve/PyDataCenter5000/env/lib/python3.8/site-packages (from python-dateutil>=2.8.2->celery->pytest-celery) (1.17.0)
+Installing collected packages: docker, tenacity, setuptools, pytest-docker-tools, psutil, debugpy, pytest-celery
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 56.0.0
+    Uninstalling setuptools-56.0.0:
+      Successfully uninstalled setuptools-56.0.0
+Successfully installed debugpy-1.8.14 docker-7.1.0 psutil-7.0.0 pytest-celery-1.2.0 pytest-docker-tools-3.1.3 setuptools-74.1.3 tenacity-9.0.0

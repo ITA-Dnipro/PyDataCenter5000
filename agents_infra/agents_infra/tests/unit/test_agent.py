@@ -240,7 +240,7 @@ def test_post_data_success_logged(
 ):
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.current_url = 'http://mock-controller'
+    agent.config.current_controller = 'http://mock-controller'
 
     class MockResponse(object):
 
@@ -269,7 +269,7 @@ def test_post_data_retry(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.current_url = 'http://mock-controller'
+    agent.config.current_controller = 'http://mock-controller'
     call_count = {'count': 0}
 
     def mock_urlopen(req, timeout=None):
@@ -307,7 +307,7 @@ def test_post_data_max_retries_fail(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.current_url = 'http://mock-controller'
+    agent.config.current_controller = 'http://mock-controller'
 
     monkeypatch.setattr(
         urllib2,
@@ -334,7 +334,7 @@ def test_post_data_error_logged(
     mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(filename=mock_config_file)
-    agent.config.current_url = 'http://mock-controller'
+    agent.config.current_controller = 'http://mock-controller'
 
     errors = [
         (urllib2.HTTPError(

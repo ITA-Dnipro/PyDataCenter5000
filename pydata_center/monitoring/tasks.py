@@ -74,16 +74,18 @@ def evaluate_agent_alerts(
 
     Parameters:
         destinations (list, optional): List of alert destinations, e.g.,
-            ['email', 'discord]. If not provided, DEFAULT_ALERT_DESTINATIONS
+            ['email', 'discord']. If not provided, DEFAULT_ALERT_DESTINATIONS
             is used.
         batch (bool, optional): Whether to send all alerts triggered
-            withing a time window in a batch. True by default.
+            within a time window in a batch. True by default.
     """
     if destinations is None:
         destinations = settings.DEFAULT_ALERT_DESTINATIONS
 
-    triggered_alerts = []
+    # track if any alerts were actually sent
+    message_sent = False
 
+    triggered_alerts = []
     rules = AlertRule.objects.filter(is_active=True)
 
     for rule in rules:
@@ -91,29 +93,23 @@ def evaluate_agent_alerts(
         if cache.get(cache_key):
             continue  # Still in cooldown
 
-        time_window_start = (
-            timezone.now() - timedelta(minutes=rule.time_window_minutes)
-        )
-
+        now = timezone.now()
+        window = timedelta(minutes=rule.time_window_minutes)
+        time_window_start = now - window
         filters = {'timestamp__gte': time_window_start}
         if rule.hostname:
             filters['server_status__hostname'] = rule.hostname
 
         data = AgentMetric.objects.filter(**filters)
-
-        # Extract metric values from data
-        values = [
-            value for entry in data
-            if (value := getattr(entry, rule.metric, None)) is not None
-        ]
+        values = [getattr(
+            entry, rule.metric, None
+        ) for entry in data if getattr(entry, rule.metric, None) is not None]
 
         if not values:
             logger.info(f'No data for rule: {rule}')
-
             continue
 
         avg = sum(values) / len(values)
-
         triggered = OPERATOR_MAP[rule.operator](avg, rule.threshold)
 
         if triggered:
@@ -131,21 +127,17 @@ def evaluate_agent_alerts(
                         )
                         continue
 
-                    # In ALERT_DESTINATION_MAP, we use the combination of
-                    # parameters with default values and kwargs to pass
-                    # optional arguments to different factories.
                     msg = factory(
                         subject=f'[{rule.metric.upper()} ALERT]',
                         body=rule.notify_message,
                         fail_silently=settings.ALERT_FAIL_SILENTLY,
                     )
                     dispatcher.send(msg)
+                    message_sent = True
 
                 cache.set(
                     cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
                 )
-        else:
-            logger.info(f'No alerts triggered since {time_window_start}')
 
     # Send all alerts triggered within a time window in a batch.
     if triggered_alerts:
@@ -154,18 +146,14 @@ def evaluate_agent_alerts(
             f'{time_window_start}\n\n'
         )
         summary = '\n'.join(
-            [
-                f'[{rule.metric.upper()} ALERT] {rule.notify_message}'
-                for rule in triggered_alerts
-            ]
+            f'[{rule.metric.upper()} ALERT] {rule.notify_message}'
+            for rule in triggered_alerts
         )
 
         for destination in destinations:
             factory = ALERT_DESTINATION_MAP.get(destination)
             if not factory:
-                logger.error(
-                    f'Unknown alert destination {destination}'
-                )
+                logger.error(f'Unknown alert destination {destination}')
                 continue
 
             msg = factory(
@@ -174,13 +162,18 @@ def evaluate_agent_alerts(
                 fail_silently=settings.ALERT_FAIL_SILENTLY,
             )
             dispatcher.send(msg)
+            message_sent = True
 
         for rule in triggered_alerts:
-            # Make sure batch respects the cooldown.
-            cache_key = f'alert_sent_{rule.id}'
             cache.set(
-                cache_key, True, timeout=settings.ALERT_RATE_LIMIT_SECONDS
+                f'alert_sent_{rule.id}',
+                True,
+                timeout=settings.ALERT_RATE_LIMIT_SECONDS
             )
+
+    # return a truthy value if any alerts were dispatched
+    if message_sent:
+        return True
 
 
 def save_agent_ping_status(agent_ip, status_data):

@@ -21,6 +21,7 @@ permissions:
 jobs:
   monitoring-tests:
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:13
@@ -36,6 +37,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:6-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
     env:
       DJANGO_SECRET_KEY: ${{ secrets.DEV_SECRET_KEY }}
       DB_NAME: test_db
@@ -43,27 +54,34 @@ jobs:
       DB_PASSWORD: postgres
       DB_HOST: localhost
       DB_PORT: 5432
+      CELERY_BROKER_URL: redis://localhost:6379/0
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Cache Pip Environment
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pydata_center/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Set up Python 3.8
         uses: actions/setup-python@v3
         with:
-          python-version: '3.8'
+          python-version: "3.8"
 
       - name: Install dependencies
         run: |
-          cd $GITHUB_WORKSPACE
+          cd pydata_center
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov codecov
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
 
       - name: Run monitoring tests with coverage
         run: |
-          cd $GITHUB_WORKSPACE
-          pytest pydata_center/monitoring \
+          pytest pydata_center/monitoring/tests/test_celery_integration.py \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

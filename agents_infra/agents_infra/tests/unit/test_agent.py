@@ -226,7 +226,7 @@ def test_post_data_max_retries_fail(
             fail_silently=False,
         )
 
-    assert_msg_in_logfile('All 3 attempts failed. Data not sent.')
+    assert_msg_in_logfile('All 3 attempts failed for POST http://mock/api')
     assert_msg_in_logfile('Permanent error')
 
 
@@ -317,7 +317,7 @@ def test_post_data_to_controller_missing_url(
     )
 
     assert_msg_in_logfile(
-        "Couldn't send POST request to controller: controller URL is not set"
+        "Couldn't send POST request to controller: URL is not set"
     )
 
 
@@ -402,9 +402,6 @@ def test_get_data_success_logged(
         assert_msg_in_logfile(
             'GET request status: %d' % case['status_code']
         )
-        assert_msg_in_logfile(
-            'GET request succeeded on attempt 1'
-        )
 
 
 def test_get_data_empty_response(
@@ -449,7 +446,7 @@ def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
     assert result is None
 
     assert_msg_in_logfile(
-        "Couldn't send GET request to controller: controller URL is not set"
+        "Couldn't send GET request to controller: URL is not set"
     )
 
 

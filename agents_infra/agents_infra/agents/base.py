@@ -267,16 +267,17 @@ class ServerAgent(object):
         delay=5,
         timeout=5,
         fail_silently=True,
-        headers=None
+        headers=None,
+        **kwargs
     ):
         """
-        Universal HTTP request sender for Python 2.6.
+        Universal HTTP request sender.
         Supports GET, POST, PATCH via method override.
         """
         if to_controller:
             if not self.config.url:
                 maybe_log_message(
-                    "Couldn't send request to controller: URL not set",
+                    "Couldn't send %s request to controller: URL is not set" % method,
                     logger=self.logger,
                 )
                 return
@@ -299,6 +300,8 @@ class ServerAgent(object):
             headers['Authorization'] = '%s %s' % (
                 self.config.auth_token_type, api_key
             )
+        if kwargs:
+            headers.update(kwargs)
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -315,12 +318,20 @@ class ServerAgent(object):
                 response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
-                response.close()
-
                 maybe_log_message(
                     '%s request status: %d' % (method, status_code),
                     logger=self.logger,
                     level=logging.INFO
+                )
+
+                response.close()
+
+                maybe_log_message(
+                    '%s request succeeded on attempt %d: %s' % (
+                        method, attempt, result
+                    ),
+                    logger=self.logger,
+                    level=logging.INFO,
                 )
 
                 return result
@@ -340,18 +351,17 @@ class ServerAgent(object):
                     )
                     time.sleep(delay * attempt)
                 elif not fail_silently:
+                    maybe_log_message(
+                        'All %d attempts failed for %s %s' % (max_retries, method, url),
+                        logger=self.logger,
+                        level=logging.CRITICAL,
+                    )
                     raise RuntimeError(
                         '%s request failed after %d attempts' % (
                             method, max_retries
                         )
                     )
-
-        maybe_log_message(
-            'All %d attempts failed for %s %s' % (max_retries, method, url),
-            logger=self.logger,
-            level=logging.CRITICAL,
-        )
-
+    
     def get_data(self, url, **kwargs):
         return self.send_request('GET', url, **kwargs)
 

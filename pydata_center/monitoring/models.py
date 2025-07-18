@@ -9,6 +9,8 @@ class ServerStatus(models.Model):
         indexes = [
             models.Index(fields=['hostname', 'timestamp'])
         ]
+        verbose_name = 'server status'
+        verbose_name_plural = 'server statuses'
 
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
@@ -93,6 +95,10 @@ class CommandHistory(models.Model):
         default=False,
         help_text='If true, send a Discord alert upon successful completion.'
     )
+
+    class Meta:
+        verbose_name = 'command history'
+        verbose_name_plural = 'command histories'
 
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'
@@ -205,6 +211,8 @@ class AgentPingStatus(models.Model):
             models.Index(fields=['agent_name', 'timestamp']),
         ]
         ordering = ['-timestamp']
+        verbose_name = 'agent ping status'
+        verbose_name_plural = 'agent ping statuses'
 
     STATUS_CHOICES = [
         ('ok', 'OK'),
@@ -244,6 +252,8 @@ class AgentLogEntry(models.Model):
             models.Index(fields=['agent_name', 'timestamp']),
         ]
         ordering = ['-timestamp']
+        verbose_name = 'agent log entry'
+        verbose_name_plural = 'agent log entries'
 
     def __str__(self):
         return (

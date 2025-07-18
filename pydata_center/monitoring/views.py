@@ -23,7 +23,7 @@ from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
 from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
-                          TriggeredAlertSerializer)
+                          SetTagsSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
@@ -497,4 +497,56 @@ def receive_log(request):
             log_entry.context
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    tags=['Agents'],
+    request=SetTagsSerializer,
+    responses={
+        status.HTTP_202_ACCEPTED: OpenApiResponse(
+            description='Command to set tags has been queued.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Invalid or missing tags.'
+        ),
+        status.HTTP_404_NOT_FOUND: OpenApiResponse(
+            description='Agent not found.'
+        ),
+    },
+    description='Queues a "set_tags" command for a specific agent.'
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminOrOperatorForWrite])
+def set_agent_tags(request, hostname):
+    """
+    Creates a 'set_tags' command for a given agent.
+    The agent will pick up this command on its next check-in.
+    """
+    if not ServerStatus.objects.filter(hostname=hostname).exists():
+        return Response(
+            {'error': f'Agent with hostname "{hostname}" not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    serializer = SetTagsSerializer(data=request.data)
+    if serializer.is_valid():
+        CommandHistory.objects.create(
+            hostname=hostname,
+            type='agent',
+            status='pending',
+            params={
+                'method': 'set_tags',
+                'kwargs': serializer.validated_data
+            }
+        )
+        return Response(
+            {
+                'message': (
+                    f"Command to set tags for agent '{hostname}' "
+                    f'has been queued.'
+                )
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

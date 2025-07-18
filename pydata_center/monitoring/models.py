@@ -5,13 +5,6 @@ from django.db import models
 
 class ServerStatus(models.Model):
 
-    class Meta:
-        indexes = [
-            models.Index(fields=['hostname', 'timestamp'])
-        ]
-        verbose_name = 'server status'
-        verbose_name_plural = 'server statuses'
-
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
     uptime = models.FloatField()
@@ -22,17 +15,19 @@ class ServerStatus(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.JSONField(null=True, blank=True, default=dict)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['hostname', 'timestamp'])
+        ]
+        verbose_name = 'server status'
+        verbose_name_plural = 'server statuses'
+
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
 
 
 class AgentMetric(models.Model):
     """Server metric collected by the agent."""
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['server_status', 'timestamp']),
-        ]
 
     cpu = models.FloatField(
         null=True,
@@ -60,6 +55,11 @@ class AgentMetric(models.Model):
     server_status = models.ForeignKey(
         ServerStatus, on_delete=models.CASCADE, related_name='server_status'
     )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['server_status', 'timestamp']),
+        ]
 
     def __str__(self):
         return f'Metrics for {self.server_status.hostname} at {self.timestamp}'
@@ -123,11 +123,6 @@ class AlertRule(models.Model):
     specified time window.
     """
 
-    class Meta:
-        verbose_name = 'alert rule'
-        verbose_name_plural = 'alert rules'
-        indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
-
     METRIC_CHOICES = [
         ('cpu', 'CPU Usage'),
         ('ram', 'RAM Usage'),
@@ -164,6 +159,11 @@ class AlertRule(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = 'alert rule'
+        verbose_name_plural = 'alert rules'
+        indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
+
     def __str__(self):
         return (
             f'{self.metric} {self.operator} {self.threshold} '
@@ -174,18 +174,18 @@ class AlertRule(models.Model):
 class TriggeredAlert(models.Model):
     """Alert triggered based on specific alert rule."""
 
+    rule = models.ForeignKey(
+        AlertRule, on_delete=models.CASCADE, related_name='alert_rule'
+    )
+    message = models.CharField(max_length=255)
+    triggered_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         verbose_name = 'triggered alert'
         verbose_name_plural = 'triggered alerts'
         indexes = [
             models.Index(fields=['rule', 'triggered_at']),
         ]
-
-    rule = models.ForeignKey(
-        AlertRule, on_delete=models.CASCADE, related_name='alert_rule'
-    )
-    message = models.CharField(max_length=255)
-    triggered_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return (
@@ -206,13 +206,6 @@ class Webhook(models.Model):
 
 class AgentPingStatus(models.Model):
     """Agent ping status result from http request."""
-    class Meta:
-        indexes = [
-            models.Index(fields=['agent_name', 'timestamp']),
-        ]
-        ordering = ['-timestamp']
-        verbose_name = 'agent ping status'
-        verbose_name_plural = 'agent ping statuses'
 
     STATUS_CHOICES = [
         ('ok', 'OK'),
@@ -226,6 +219,14 @@ class AgentPingStatus(models.Model):
         null=True, blank=True, validators=[MinValueValidator(0)]
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+        verbose_name = 'agent ping status'
+        verbose_name_plural = 'agent ping statuses'
 
     def __str__(self):
         return f'{self.agent_name} - {self.timestamp} - {self.status}'

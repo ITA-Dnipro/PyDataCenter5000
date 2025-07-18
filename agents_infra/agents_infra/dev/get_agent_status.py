@@ -49,9 +49,12 @@ def main():
         # If there's a config.ini under agents/<agent_name>/config.ini
         config_path = os.path.join(
             os.path.dirname(__file__),
+            '..',
+            'agents',
             agent_name,
             'config.ini'
         )
+        config_path = os.path.abspath(config_path)
 
         if os.path.exists(config_path):
             print('Loading agent from config file: %s' % config_path)

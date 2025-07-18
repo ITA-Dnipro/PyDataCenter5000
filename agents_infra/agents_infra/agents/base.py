@@ -256,29 +256,27 @@ class ServerAgent(object):
 
         return status_data
 
-    def _send_json_data(
+    def send_request(
         self,
         method,
         url,
-        payload,
+        payload=None,
         to_controller=True,
         api_key=None,
         max_retries=3,
         delay=5,
         timeout=5,
         fail_silently=True,
-        **kwargs
+        headers=None
     ):
         """
-        Sends a request with JSON data using the specified HTTP method.
+        Universal HTTP request sender for Python 2.6.
+        Supports GET, POST, PATCH via method override.
         """
         if to_controller:
             if not self.config.url:
                 maybe_log_message(
-                    (
-                        "Couldn't send POST request to controller: "
-                        'controller URL is not set'
-                    ),
+                    "Couldn't send request to controller: URL not set",
                     logger=self.logger,
                 )
                 return
@@ -286,33 +284,38 @@ class ServerAgent(object):
             base_api_url = urljoin(self.config.url, self.config.api_prefix)
             url = urljoin(base_api_url, url)
 
-        headers = {'Content-Type': 'application/json'}
-        if api_key:
-            headers.update(
-                {'Authorization': '%s %s' % (
-                    self.config.auth_token_type, api_key
-                )}
-            )
-        if kwargs:
-            headers.update(kwargs)
+        headers = headers or {}
 
-        if not isinstance(payload, str):
-            payload = json.dumps(payload)
+        if method.upper() == 'GET':
+            headers.setdefault('Accept', 'application/json')
+            data = None
+        else:
+            headers.setdefault('Content-Type', 'application/json')
+            if not isinstance(payload, basestring):
+                payload = json.dumps(payload)
+            data = payload
+
+        if api_key:
+            headers['Authorization'] = '%s %s' % (
+                self.config.auth_token_type, api_key
+            )
 
         for attempt in range(1, max_retries + 1):
             try:
                 maybe_log_message(
-                    '[Attempt %d] Sending data to %s' % (attempt, url),
+                    '[Attempt %d] Sending %s to %s' % (attempt, method, url),
                     logger=self.logger,
                     level=logging.INFO
                 )
 
-                request = urllib2.Request(url, data=payload, headers=headers)
-                request.get_method = lambda: method
+                request = urllib2.Request(url, data=data, headers=headers)
+                # Override HTTP method
+                request.get_method = lambda: method.upper()
 
                 response = urllib2.urlopen(request, timeout=timeout)
                 result = response.read()
                 status_code = response.getcode()
+                response.close()
 
                 maybe_log_message(
                     '%s request status: %d' % (method, status_code),
@@ -320,184 +323,6 @@ class ServerAgent(object):
                     level=logging.INFO
                 )
 
-                response.close()
-
-                maybe_log_message(
-                    '%s request succeeded on attempt %d: %s' % (
-                        method, attempt, result
-                    ),
-                    logger=self.logger,
-                    level=logging.INFO,
-                )
-
-                return result
-            except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
-                maybe_log_message(
-                    'Attempt %d failed: %s' % (attempt, e),
-                    logger=self.logger,
-                    level=logging.ERROR,
-                )
-
-                if attempt < max_retries:
-                    maybe_log_message(
-                        'Retrying in %d seconds...' % delay,
-                        logger=self.logger,
-                        level=logging.WARNING,
-                    )
-                    time.sleep(delay * attempt)
-                else:
-                    maybe_log_message(
-                        'All %d attempts failed. Data not sent. '
-                        'Last error: %s' % (max_retries, e),
-                        logger=self.logger,
-                        level=logging.CRITICAL,
-                    )
-
-                    if not fail_silently:
-                        raise RuntimeError(
-                            '%s request failed after %d attempts' % (
-                                method, max_retries
-                            )
-                        )
-
-    def post_data(self, *args, **kwargs):
-        """
-        Sends a POST request with JSON data to the specified URL with
-        retry logic. Retries up to `max_retries` times with `delay`
-        seconds between attempts. Logs all attempts and failures.
-
-        Parameters:
-            url (str): Endpoint URL or, for `to_controller=True`,
-                suffix of controller's endpoint, i.e.,
-                <controller_url>/<api_prefix>/url.
-            payload (Any): Data to send via POST request. If not a string,
-                JSON serialization will be attempted.
-            api_key (str, optional): API key for authorization. Default
-                is None.
-            max_retries (int, optional): Maximum number of retry attempts.
-                Default is 3.
-            delay (int, optional): Delay (in seconds) between retries.
-                Default is 5.
-            timeout (int, optional): POST request timeout (in seconds).
-                Default is 5.
-            to_controller (bool, optional): Whether data is to be sent
-                to controller. Default is False.
-            **kwargs: Key-value pairs to be appended to the header.
-        """
-        return self._send_json_data('POST', *args, **kwargs)
-
-    def patch_data(self, *args, **kwargs):
-        """
-        Sends a PATCH request with JSON data to the specified URL with
-        retry logic. Retries up to `max_retries` times with `delay`
-        seconds between attempts. Logs all attempts and failures.
-
-        Parameters:
-            url (str): Endpoint URL or, for `to_controller=True`,
-                suffix of controller's endpoint, i.e.,
-                <controller_url>/<api_prefix>/url.
-            payload (Any): Data to send via PATCH request. If not a string,
-                JSON serialization will be attempted.
-            api_key (str, optional): API key for authorization. Default
-                is None.
-            max_retries (int, optional): Maximum number of retry attempts.
-                Default is 3.
-            delay (int, optional): Delay (in seconds) between retries.
-                Default is 5.
-            timeout (int, optional): PATCH request timeout (in seconds).
-                Default is 5.
-            to_controller (bool, optional): Whether data is to be sent
-                to controller. Default is False.
-            **kwargs: Key-value pairs to be appended to the header.
-        """
-        return self._send_json_data('PATCH', *args, **kwargs)
-
-    def get_data(
-        self,
-        url,
-        from_controller=True,
-        api_key=None,
-        max_retries=3,
-        delay=5,
-        timeout=5,
-        fail_silently=True,
-        **kwargs
-    ):
-        """
-        Sends a GET request to the specified URL with retry logic.
-        Retries up to `max_retries` times with `delay` seconds between
-        attempts. Logs all attempts and failures.
-
-        Parameters:
-            url (str): Endpoint URL or, if `to_controller=True`, suffix
-                of controller's endpoint, i.e.,
-                <controller_url>/<api_prefix>/url.
-            to_controller (bool, optional): Whether URL is relative to
-                controller. Default is True.
-            api_key (str, optional): API key for authorization. Default None.
-            max_retries (int, optional): Maximum number of retry attempts.
-            delay (int, optional): Delay between retries in seconds.
-            timeout (int, optional): Timeout for GET request.
-            fail_silently (bool, optional): Whether to suppress exceptions
-                after final failure.
-            **kwargs: Optional headers to include in the request.
-
-        Returns:
-            str: The response content on success.
-
-        Raises:
-            RuntimeError: If all attempts fail and `fail_silently` is False.
-        """
-        if from_controller:
-            if not self.config.url:
-                maybe_log_message(
-                    (
-                        "Couldn't send GET request to controller: "
-                        'controller URL is not set'
-                    ),
-                    logger=self.logger,
-                )
-                return
-
-            base_api_url = urljoin(self.config.url, self.config.api_prefix)
-            url = urljoin(base_api_url, url)
-
-        headers = {'Accept': 'application/json'}
-        if api_key:
-            headers['Authorization'] = '%s %s' % (
-                self.config.auth_token_type, api_key
-            )
-        if kwargs:
-            headers.update(kwargs)
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                maybe_log_message(
-                    '[Attempt %d] Sending GET request to %s' % (attempt, url),
-                    logger=self.logger,
-                    level=logging.INFO
-                )
-
-                request = urllib2.Request(url, headers=headers)
-                response = urllib2.urlopen(request, timeout=timeout)
-                result = response.read()
-                status_code = response.getcode()
-                response.close()
-
-                maybe_log_message(
-                    'GET request status: %d' % status_code,
-                    logger=self.logger,
-                    level=logging.INFO
-                )
-
-                maybe_log_message(
-                    'GET request succeeded on attempt %d: %s' % (
-                        attempt, result
-                    ),
-                    logger=self.logger,
-                    level=logging.INFO,
-                )
-
                 return result
 
             except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
@@ -509,23 +334,32 @@ class ServerAgent(object):
 
                 if attempt < max_retries:
                     maybe_log_message(
-                        'Retrying in %d seconds...' % delay,
+                        'Retrying in %d seconds...' % (delay * attempt),
                         logger=self.logger,
                         level=logging.WARNING,
                     )
                     time.sleep(delay * attempt)
-                else:
-                    maybe_log_message(
-                        'All %d attempts failed. Data not received. '
-                        'Last error: %s' % (max_retries, e),
-                        logger=self.logger,
-                        level=logging.CRITICAL,
+                elif not fail_silently:
+                    raise RuntimeError(
+                        '%s request failed after %d attempts' % (
+                            method, max_retries
+                        )
                     )
 
-                    if not fail_silently:
-                        raise RuntimeError(
-                            'GET failed after %d attempts' % max_retries
-                        )
+        maybe_log_message(
+            'All %d attempts failed for %s %s' % (max_retries, method, url),
+            logger=self.logger,
+            level=logging.CRITICAL,
+        )
+
+    def get_data(self, url, **kwargs):
+        return self.send_request('GET', url, **kwargs)
+
+    def post_data(self, url, payload, **kwargs):
+        return self.send_request('POST', url, payload=payload, **kwargs)
+
+    def patch_data(self, url, payload, **kwargs):
+        return self.send_request('PATCH', url, payload=payload, **kwargs)
 
     def maybe_add_command_to_queue(self, data, block=False, timeout=None):
         """

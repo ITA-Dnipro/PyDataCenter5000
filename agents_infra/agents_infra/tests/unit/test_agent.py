@@ -6,7 +6,6 @@ import re
 import socket
 import tempfile
 import types
-
 import mock
 import psutil
 import pytest

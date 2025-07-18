@@ -193,7 +193,7 @@ def test_is_service_healthy_logs_exception(web_agent):
     Should log an error and return False if an exception is raised in
     is_service_healthy.
     """
-    with patch('agents_infra.agents.web.web.maybe_log_message') as mock_log:
+    with patch.object(web_agent, 'log_with_controller') as mock_log:
         # Force _check_http_health to raise an exception
         web_agent._check_http_health = MagicMock(
             side_effect=Exception('test error')

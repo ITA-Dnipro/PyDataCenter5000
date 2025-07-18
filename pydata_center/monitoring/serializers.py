@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
+from .models import (AgentLogEntry, AgentMetric, CommandHistory, ServerStatus,
+                     TriggeredAlert)
 
 
 class AgentMetricSerializer(serializers.ModelSerializer):
@@ -83,6 +84,13 @@ class TriggeredAlertSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TriggeredAlert
+        fields = '__all__'
+
+
+class AgentLogEntrySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AgentLogEntry
         fields = '__all__'
 
 

@@ -139,6 +139,155 @@ class ServerAgent(object):
 
         self._protocol = value
 
+    def _parse_config_file(self, filename=None):
+        """Parse server's config file using ConfigParser."""
+        filename = filename or pkg_resources.resource_filename(
+            self.__class__.__module__, 'config.ini'
+        )
+
+        config = ConfigParser.ConfigParser()
+        config.read(filename)
+
+        if config.sections():
+            self.server_name = get_config_option(
+                config,
+                'server',
+                'name',
+                default=self.server_name,
+                logger=self.logger,
+            )
+
+            self.port = get_config_option(
+                config,
+                'server',
+                'port',
+                default=self.port,
+                logger=self.logger,
+                cast=int,
+            )
+
+            self.processes = get_config_option(
+                config,
+                'server',
+                'processes',
+                default=self.processes,
+                logger=self.logger,
+                cast=parse_csv_list,
+            )
+
+            # Append server-specific critical_processes
+            critical_processes = get_config_option(
+                config,
+                'server',
+                'critical_processes',
+                logger=self.logger,
+                cast=parse_csv_list,
+            )
+
+            # Extend avoiding duplicates
+            if critical_processes:
+                self.critical_processes.extend(
+                    proc for proc in critical_processes
+                    if proc not in self.critical_processes
+                )
+
+            self.interface = get_config_option(
+                config, 'server', 'interface', logger=self.logger
+            )
+
+            whitelist_commands = get_config_option(
+                config,
+                'controller',
+                'whitelist_commands',
+                logger=self.logger,
+                cast=parse_csv_list,
+            )
+            # Add commands to the list of globally allowed commands.
+            if whitelist_commands:
+                self.whitelist_commands.extend(
+                    cmd for cmd in whitelist_commands
+                    if cmd not in self.whitelist_commands
+                )
+
+            # Read tags from the [server] section
+            tags = {}
+            for tag_key in ['env', 'role', 'region']:
+                tag_value = get_config_option(
+                    config,
+                    'server',
+                    tag_key,
+                    logger=self.logger,
+                )
+                if tag_value and tag_value.strip():
+                    tags[tag_key] = tag_value.strip().lower()
+            if tags:
+                self.tags = tags
+
+    def send_log_to_controller(self, level, message, context=None):
+        """
+        Sends a log message to the controller's /logs/ endpoint.
+        Parameters:
+            level (str): Log level (e.g. "INFO", "ERROR", etc.).
+            message (str): Log message.
+            context (dict, optional): Additional log context.
+        """
+        if not self.config.post_agent_log_url:
+            raise ValueError('Post agent log controller URL is not set')
+
+        log_data = {
+            'agent_name': self.server_name,
+            'level': level,
+            'message': message,
+            'timestamp': self.timestamp,
+            'context': context or {},
+        }
+
+        self.post_data(
+            self.config.post_agent_log_url,
+            payload=log_data,
+            to_controller=True
+        )
+
+    def log_with_controller(
+             self,
+             message,
+             level=logging.INFO,
+             context=None,
+             fallback_logger=None,
+             exc_info=None,
+             **kwargs
+    ):
+        """
+        Logs a message locally and optionally sends it to the controller.
+        Parameters:
+            message (str): The log message.
+            level (int): Logging level.
+            context (dict): Optional log context.
+            exc_info (bool or Exception): Exception info for traceback logging.
+        """
+        maybe_log_message(
+            message,
+            logger=self.logger,
+            fallback_logger=fallback_logger,
+            level=level,
+            exc_info=exc_info,
+            **kwargs
+        )
+
+        if getattr(self, 'send_logs_to_controller', False):
+            try:
+                self.send_log_to_controller(
+                    level=logging.getLevelName(level),
+                    message=message,
+                    context=context
+                )
+            except Exception as e:
+                maybe_log_message(
+                    'Failed to send log to controller: %s' % str(e),
+                    logger=self.logger,
+                    level=logging.ERROR,
+                )
+
     def collect_server_metadata(self):
         """
         Attempt setting server metadata such as the hostname, IP address,
@@ -146,7 +295,9 @@ class ServerAgent(object):
         """
         system = platform.system()
         if not system:
-            maybe_log_message('Could not deduce OS type', logger=self.logger)
+            self.log_with_controller(
+                'Could not deduce OS type', level=logging.WARNING
+            )
 
         self.os_type = system.lower() or 'unknown'
 
@@ -154,9 +305,8 @@ class ServerAgent(object):
             self.hostname = socket.gethostname()
         except socket.error as e:
             self.hostname = 'unknown'
-
-            maybe_log_message(
-                'Could not get hostname: %s' % str(e), logger=self.logger
+            self.log_with_controller(
+                'Could not get hostname: %s' % str(e), level=logging.WARNING
             )
 
         self.ip = None
@@ -165,21 +315,21 @@ class ServerAgent(object):
             try:
                 self.ip = get_ip_from_interface(self.config.interface)
             except (KeyError, AttributeError) as e:
-                maybe_log_message(
+                self.log_with_controller(
                     (
                         'Could not deduce IP address from interface '
                         '%s: %s' % (self.config.interface, str(e))
                     ),
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
 
         if not self.ip and self.hostname != 'UNKNOWN':
             try:
                 self.ip = socket.gethostbyname(self.hostname)
             except (socket.gaierror, socket.error) as e:
-                maybe_log_message(
+                self.log_with_controller(
                     'Could not deduce IP address from hostname: %s' % str(e),
-                    self.logger,
+                    level=logging.WARNING,
                 )
 
         self.uptime = -1
@@ -188,8 +338,8 @@ class ServerAgent(object):
             self.uptime = get_linux_uptime()
 
         if self.uptime < 0:
-            maybe_log_message(
-                "Could not get system's uptime", logger=self.logger
+            self.log_with_controller(
+                "Could not get system's uptime", level=logging.WARNING
             )
 
         self.timestamp = datetime.datetime.utcnow().strftime(
@@ -219,17 +369,18 @@ class ServerAgent(object):
             return inactive_processes == 0
 
         except OSError as e:
-            maybe_log_message(
-                'Critical processes check failed: %s' % e,
-                logger=self.logger,
-                exc_info=True
-                )
+            self.log_with_controller(
+                'Critical process check failed: %s' % e,
+                level=logging.ERROR,
+                exc_info=True,
+            )
+
             return False
 
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Critical processes check failed: %s' % e,
-                self.logger,
+                level=logging.ERROR,
                 exc_info=True
             )
             return False
@@ -449,9 +600,8 @@ class ServerAgent(object):
                 status_code = response.getcode()
                 response.close()
 
-                maybe_log_message(
+                self.log_with_controller(
                     'GET request status: %d' % status_code,
-                    logger=self.logger,
                     level=logging.INFO
                 )
 
@@ -498,19 +648,18 @@ class ServerAgent(object):
         whitelisted by the server.
         """
         if not isinstance(data, dict):
-            maybe_log_message(
+            self.log_with_controller(
                 'Expected data as a dict, got %s' % type(data),
-                logger=self.logger,
+                level=logging.WARNING,
             )
-
             return
 
         try:
             command_history = CommandHistory.from_dict(data)
         except (TypeError, ValueError) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Command validation failed due to error: %s' % str(e),
-                logger=self.logger,
+                level=logging.WARNING,
             )
 
             return
@@ -521,15 +670,13 @@ class ServerAgent(object):
                     command_history, block=block, timeout=timeout
                 )
             except Queue.Full:
-                maybe_log_message(
+                self.log_with_controller(
                     'Queue is full - could not append command',
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
         else:
-            maybe_log_message(
+            self.log_with_controller(
                 'Command %s not permitted' % command_history.command.tag,
-                logger=self.logger,
-                fallback_logger=self.fallback_logger,
                 level=logging.WARNING,
             )
 
@@ -537,9 +684,9 @@ class ServerAgent(object):
         try:
             return self.command_queue.get(block=block, timeout=timeout)
         except Queue.Empty:
-            maybe_log_message(
+            self.log_with_controller(
                 'Queue is empty - could not retrieve command',
-                logger=self.logger,
+                level=logging.INFO,
             )
 
     def execute_command(self, **kwargs):
@@ -555,11 +702,11 @@ class ServerAgent(object):
 
                 command_history.status = CommandStatus.DONE
             except BadProcessReturnCode as e:
-                maybe_log_message(
+                self.log_with_controller(
                     'Command failed due to error: %s.\nstderr: %s' % (
                         str(e), result
                     ),
-                    logger=self.logger,
+                    level=logging.ERROR,
                 )
 
                 command_history.status = CommandStatus.FAILED

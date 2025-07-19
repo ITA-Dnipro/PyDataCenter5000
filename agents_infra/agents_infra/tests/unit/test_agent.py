@@ -402,7 +402,7 @@ def test_post_data_to_controller_missing_url(
     agent = MockAgentCommunication()
 
     agent.controller_urls = []
-    agent.config.current_controller = ''
+    agent.current_controller = ''
 
     agent.post_data(
         url='',
@@ -559,7 +559,7 @@ def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
     """
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.url = ''
+    agent.config.current_controller = ''
 
     result = agent.get_data('server/status/', to_controller=True)
 
@@ -1529,7 +1529,10 @@ def test_ping_controller_success():
 
     with mock.patch('socket.create_connection', return_value=mock_socket):
         with mock.patch('urllib2.urlopen', return_value=MockResponse()):
-            result = agent._ping_controller('http://mock', api_key=None)
+            result = agent._ping_controller(
+                'http://mock-controller1',
+                api_key=None
+            )
 
     assert result is True
 
@@ -1549,7 +1552,7 @@ def test_ping_controller_tcp_fail():
             side_effect=Exception('Should not be called')
         ):
             result = agent._ping_controller(
-                'http://mock-controller1',
+                'http://mock',
                 api_key=None
             )
     assert result is False
@@ -1583,7 +1586,7 @@ def test_ping_controller_health_check_fail():
                 side_effect=mock_urlopen
         ):
             result = agent._ping_controller(
-                'http://mock-controller1',
+                'http://mock',
                 api_key=None
             )
 
@@ -1653,7 +1656,7 @@ def test_try_revert_primary_controller_fail_due_to_time():
     """
     agent = MockAgentCommunication()
     agent.controller_urls = [
-        'http://mock-controller1',
+        'http://mock',
         'http://mock-controller2'
     ]
     agent.current_controller = 'http://mock-controller2'

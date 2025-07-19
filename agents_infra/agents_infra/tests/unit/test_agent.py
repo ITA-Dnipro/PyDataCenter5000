@@ -399,10 +399,10 @@ def test_post_data_to_controller_missing_url(
 
     # Set controller's URL explicitly to be independent of changes
     # of default values in agent.py/
-    agent = MockAgentCommunication()
+    agent = MockAgent()
 
     agent.controller_urls = []
-    agent.current_controller = ''
+    agent.config.current_controller = ''
 
     agent.post_data(
         url='',

@@ -444,7 +444,7 @@ class ServerAgent(object):
             **kwargs: Key-value pairs to be appended to the header.
         """
         if to_controller:
-            if not self.config.current_controller:
+            if not self.config.current_controller or not url:
                 maybe_log_message(
                     (
                         "Couldn't send POST request to controller: "
@@ -568,7 +568,7 @@ class ServerAgent(object):
             RuntimeError: If all attempts fail and `fail_silently` is False.
         """
         if from_controller:
-            if not self.config.current_controller:
+            if not self.config.current_controller or not url:
                 maybe_log_message(
                     (
                         "Couldn't send GET request to controller: "

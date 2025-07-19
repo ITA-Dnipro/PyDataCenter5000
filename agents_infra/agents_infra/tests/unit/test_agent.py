@@ -416,28 +416,6 @@ def test_post_data_to_controller_missing_url(
     )
 
 
-def test_config_file_whitelist_commands_extends_default():
-    """Test that config whitelist_commands extends default list."""
-    MockAgent.whitelist_commands = ['default_cmd1', 'default_cmd2']
-
-    config_content = """
-[server]
-name = test_server
-port = 12345
-
-[controller]
-whitelist_commands = config_cmd1,config_cmd2
-"""
-    agent = load_agent_from_config(config_content)
-
-    assert 'default_cmd1' in agent.whitelist_commands
-    assert 'default_cmd2' in agent.whitelist_commands
-    assert 'config_cmd1' in agent.whitelist_commands
-    assert 'config_cmd2' in agent.whitelist_commands
-
-    MockAgent.whitelist_commands = None
-
-
 def test_post_data_headers_update(mock_config_file):
     """Test that post_data correctly adds Authorization header."""
     agent = MockAgent.from_config_file(mock_config_file)

@@ -7,12 +7,12 @@ revert_interval = 900
 
 
 class AgentCommunication(object):
-    def __init__(self, auth_token, post_data_fn, logger, controller_urls):
+    def __init__(self, auth_token_type, post_data_fn, logger, controller_urls):
         """
         Initialize with a unique server name and a callable for posting data.
         """
-        self.post_data = post_data_fn
-        self.auth_token_type = 'Bearer'
+        self.post_data_fn = post_data_fn
+        self.auth_token_type = auth_token_type
         self.logger = logger
         self.controller_urls = controller_urls
         self.current_controller = controller_urls[0]
@@ -143,7 +143,13 @@ class AgentCommunication(object):
             self.logger.error('No healthy controller available.')
             return None
 
-        return self.post_data(
+        if hasattr(self.post_data_fn.__self__, 'config'):
+            (self.post_data_fn.
+             __self__.config).current_controller = controller_url
+            (self.post_data_fn.
+             __self__.config).auth_token_type = self.auth_token_type
+
+        return self.post_data_fn(
             endpoint,
             payload,
             to_controller=True,

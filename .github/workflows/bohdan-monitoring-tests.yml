@@ -79,8 +79,11 @@ jobs:
           pip install -r pydata_center/requirements.txt
 
       - name: Run monitoring tests with coverage
+        working-directory: pydata_center
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
-          PYTHONPATH=$(pwd)/.. pytest pydata_center/monitoring/tests/test_celery_integration.py \
+          pytest monitoring/tests/test_celery_integration.py \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

@@ -1,11 +1,11 @@
 import abc
 import json
+import logging
 
 import urllib2
 
 from ...utils.configtools import Config
 from ...utils.helpers import get_env_or_param
-from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
@@ -70,9 +70,9 @@ class WebAgent(ServerAgent):
                 packet_size=packet_size
             )
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Health check failed with error: %s' % str(e),
-                logger=self.logger,
+                level=logging.ERROR,
             )
             return False
 
@@ -88,37 +88,37 @@ class WebAgent(ServerAgent):
             response = urllib2.urlopen(request, timeout=timeout)
 
             if not (200 <= response.getcode() < 300):
-                maybe_log_message(
+                self.log_with_controller(
                     'Server responded with status code %d' % (
                         response.getcode()
                     ),
-                    logger=self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             response_data = json.loads(response.read())
             if 'status' not in response_data:
-                maybe_log_message(
+                self.log_with_controller(
                     'Health check failed: Response missing status key',
-                    self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             server_health_status = response_data['status']
             if server_health_status != 'ok':
-                maybe_log_message(
+                self.log_with_controller(
                     'Health check failed: Server status is %s' % (
                         server_health_status
                     ),
-                    self.logger,
+                    level=logging.WARNING,
                 )
                 return False
 
             return True
         except Exception as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'HTTP health check failed with error: %s' % str(e),
-                self.logger,
+                level=logging.ERROR,
             )
             return False
 

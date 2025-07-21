@@ -175,4 +175,9 @@ def _(command, agent, **kwargs):
     if not method:
         raise AttributeError('Agent does not have method %s' % command.method)
 
-    return method(*command.args, **command.kwargs)
+    args = command.args or []
+    kwargs = command.kwargs or {}
+
+    if command.method == 'set_tags':
+        return method(kwargs)
+    return method(*args, **kwargs)

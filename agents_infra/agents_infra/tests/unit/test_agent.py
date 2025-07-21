@@ -11,7 +11,7 @@ import mock
 import psutil
 import pytest
 import urllib2
-from agents_infra.agents.base import Config, ServerAgent
+from agents_infra.agents.base import ServerAgent
 from agents_infra.command import CommandHistory
 from agents_infra.utils.configtools import Config
 

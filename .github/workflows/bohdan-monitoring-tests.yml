@@ -1,0 +1,95 @@
+name: Monitoring Tests
+
+on:
+  pull_request:
+    paths:
+      - 'pydata_center/monitoring/**'
+    branches:
+      - 'main'
+      - 'develop'
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - 'pydata_center/monitoring/**'
+    branches:
+      - 'main'
+      - 'develop'
+
+permissions:
+  contents: read
+
+jobs:
+  monitoring-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:6-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
+    env:
+      DJANGO_SECRET_KEY: ${{ secrets.DEV_SECRET_KEY }}
+      DB_NAME: test_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      CELERY_BROKER_URL: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Cache Pip Environment
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pydata_center/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.8"
+
+      - name: Install dependencies
+        run: |
+          cd pydata_center
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run monitoring tests with coverage
+        run: |
+          PYTHONPATH=. pytest pydata_center/monitoring/tests/test_celery_integration.py \
+            --cov=pydata_center/monitoring \
+            --cov-report=xml:coverage-monitoring.xml \
+            --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-monitoring.xml
+          flags: monitoring
+          verbose: true

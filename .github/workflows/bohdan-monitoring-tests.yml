@@ -80,7 +80,7 @@ jobs:
 
       - name: Run monitoring tests with coverage
         run: |
-          PYTHONPATH=$(pwd) pytest pydata_center/monitoring/tests/test_celery_integration.py \
+          PYTHONPATH=$(pwd)/.. pytest pydata_center/monitoring/tests/test_celery_integration.py \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

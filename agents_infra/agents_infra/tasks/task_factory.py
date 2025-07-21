@@ -1,3 +1,4 @@
+from .command_tasks import ExecuteCommandTask, FetchCommandTask
 from .gathering_tasks import (CollectAndSendMetricsTask,
                               CollectAndSendStatusTask)
 
@@ -25,9 +26,9 @@ def task_factory(task_config, agent, supervisor=None):
         return CollectAndSendStatusTask(agent, endpoint, interval, supervisor)
     elif name == 'collect_and_send_metrics':
         return CollectAndSendMetricsTask(agent, endpoint, interval, supervisor)
-    # elif name == "fetch_command":
-    #     return FetchCommandTask(agent, endpoint, interval, supervisor)
-    # elif name == "execute_command":
-    #     return ExecuteCommandTask(agent, endpoint, interval, supervisor)
+    elif name == 'fetch_command':
+        return FetchCommandTask(agent, endpoint, interval, supervisor)
+    elif name == 'execute_command':
+        return ExecuteCommandTask(agent, endpoint, interval, supervisor)
     else:
         raise ValueError('Unknown task name: %s' % name)

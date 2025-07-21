@@ -75,13 +75,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd pydata_center
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -e .
+          pip install -r pydata_center/requirements.txt
 
       - name: Run monitoring tests with coverage
         run: |
-          PYTHONPATH=. pytest pydata_center/monitoring/tests/test_celery_integration.py \
+          pytest pydata_center/monitoring/tests/test_celery_integration.py \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

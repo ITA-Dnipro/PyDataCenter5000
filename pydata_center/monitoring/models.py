@@ -19,6 +19,8 @@ class ServerStatus(models.Model):
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.JSONField(null=True, blank=True, default=dict)
+    version = models.CharField(max_length=20, blank=True, null=True,
+                               help_text='Current agent software version')
 
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
@@ -221,3 +223,34 @@ class AgentPingStatus(models.Model):
 
     def __str__(self):
         return f'{self.agent_name} - {self.timestamp} - {self.status}'
+
+
+class AgentUpgradeHistory(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+
+    hostname = models.CharField(max_length=100, db_index=True)
+    from_version = models.CharField(max_length=20)
+    to_version = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                              default='pending')
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    message = models.TextField(blank=True,
+                               help_text='Optional error or success message')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['hostname', '-started_at']),
+        ]
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return (
+            f'{self.hostname}: {self.from_version} → '
+            f'{self.to_version} ({self.status})'
+        )

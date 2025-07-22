@@ -3,6 +3,26 @@
 from django.db import migrations, models
 
 
+def set_latest_records_active(apps, schema_editor):
+    """
+    Sets is_active=True only for the latest ServerStatus per hostname.
+    Deactivates all others.
+    """
+    ServerStatus = apps.get_model('monitoring', 'ServerStatus')
+
+    hostnames = ServerStatus.objects.values_list('hostname', flat=True).distinct()
+
+    latest_status_ids = []
+    for hostname in hostnames:
+        latest_status = ServerStatus.objects.filter(hostname=hostname).order_by('-timestamp').first()
+
+        if latest_status:
+            latest_status_ids.append(latest_status.id)
+
+    ServerStatus.objects.update(is_active=False)
+
+    ServerStatus.objects.filter(pk__in=latest_status_ids).update(is_active=True)
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -14,6 +34,10 @@ class Migration(migrations.Migration):
             model_name='serverstatus',
             name='is_active',
             field=models.BooleanField(db_index=True, default=True),
+        ),
+        migrations.RunPython(
+            set_latest_records_active,
+            reverse_code=migrations.RunPython.noop
         ),
         migrations.AddConstraint(
             model_name='serverstatus',

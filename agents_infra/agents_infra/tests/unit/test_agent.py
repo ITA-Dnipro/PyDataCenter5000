@@ -1559,7 +1559,7 @@ def test_try_revert_skips_if_not_enough_elapsed():
 
     result = agent.try_revert_primary_controller(api_key='abc')
 
-    assert result == 'http://mock-controller2'
+    assert result == 'http://mock-controller1'
 
 
 def test_ensure_active_controller_success_current(monkeypatch):

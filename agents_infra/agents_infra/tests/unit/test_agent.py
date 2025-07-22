@@ -125,13 +125,22 @@ class MockAgent(ServerAgent):
         return super(MockAgent, self).is_service_healthy()
 
 
-class MockAgentCommunication(AgentCommunication):
-    """
-    A mock implementation of AgentCommunication for unit testing.
-    """
+class DummyConfig:
+    name = 'mock-agent'
+    current_controller = None
+    auth_token_type = None
 
+
+class DummyPostDataFn:
+    def __init__(self):
+        self.__self__ = type('Self', (), {'config': DummyConfig()})()
+
+    def __call__(self, *args, **kwargs):
+        return True  # or mock desired behavior
+
+
+class MockAgentCommunication(AgentCommunication):
     def __init__(self, controller_urls=None, healthy_urls=None):
-        # Default values for testing
         if controller_urls is None:
             controller_urls = [
                 'http://mock-controller1',
@@ -139,27 +148,22 @@ class MockAgentCommunication(AgentCommunication):
                 'http://mock-controller3'
             ]
 
-        # Define which URLs are considered healthy
         self.mock_healthy_urls = set(healthy_urls or controller_urls)
+
+        dummy_post_data_fn = DummyPostDataFn()
 
         super(MockAgentCommunication, self).__init__(
             auth_token_type='mock-token',
-            post_data_fn=None,
+            post_data_fn=dummy_post_data_fn,
             controller_urls=controller_urls
         )
 
         self.last_success_time = 0
 
     def _ping_controller(self, url, api_key, timeout=3):
-        """
-        Simulate a health check.
-        """
         return url in self.mock_healthy_urls
 
     def ensure_active_controller(self, api_key):
-        """
-        Override to disable revert and simplify testing logic.
-        """
         if self._ping_controller(self.current_controller, api_key):
             return self.current_controller
 
@@ -172,9 +176,6 @@ class MockAgentCommunication(AgentCommunication):
         return None
 
     def try_revert_primary_controller(self, api_key):
-        """
-        Override to simulate immediate revert logic.
-        """
         primary = self.controller_urls[0]
         if primary in self.mock_healthy_urls:
             self._switch_controller(primary)

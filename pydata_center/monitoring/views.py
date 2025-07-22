@@ -2,6 +2,7 @@ import logging
 from datetime import timezone
 
 from django.contrib.auth.decorators import permission_required
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
@@ -54,8 +55,16 @@ def receive_status(request):
     serializer = ServerStatusSerializer(data=request.data)
 
     if serializer.is_valid():
+        hostname = serializer.validated_data.get('hostname')
+
         try:
-            serializer.save()
+            with transaction.atomic():
+                ServerStatus.objects.filter(
+                    hostname=hostname,
+                    is_active=True
+                ).update(is_active=False)
+                serializer.save()
+
             data = extract_status_data(serializer.validated_data, request)
             healthy = serializer.validated_data.get('healthy', False)
             alert_if_unhealthy(data['hostname'], healthy)

@@ -14,10 +14,18 @@ class ServerStatus(models.Model):
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.JSONField(null=True, blank=True, default=dict)
+    is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         indexes = [
             models.Index(fields=['hostname', 'timestamp'])
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['hostname'],
+                condition=models.Q(is_active=True),
+                name='unique_active_hostname'
+            )
         ]
         verbose_name = 'server status'
         verbose_name_plural = 'server statuses'

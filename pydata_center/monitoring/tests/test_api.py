@@ -250,6 +250,10 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
         status_obj = ServerStatus.objects.get(hostname='testserver')
+        self.assertTrue(
+            status_obj.is_active,
+            'A newly created status should be active by default.'
+        )
         self.assertEqual(
             status_obj.ip,
             valid_data['ip'],

@@ -354,7 +354,10 @@ def create_agent_metric(request):
         return Response({'error': 'Hostname is required'}, status=400)
 
     try:
-        server_status = ServerStatus.objects.get(hostname=hostname)
+        server_status = ServerStatus.objects.get(
+            hostname=hostname,
+            is_active=True
+        )
     except ServerStatus.DoesNotExist:
         return Response(
             {'error': f'Server with hostname {hostname} not found'},

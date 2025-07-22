@@ -145,7 +145,6 @@ class MockAgentCommunication(AgentCommunication):
         super(MockAgentCommunication, self).__init__(
             auth_token_type='mock-token',
             post_data_fn=None,
-            logger=logging.getLogger('mock-agent-comm'),
             controller_urls=controller_urls
         )
 

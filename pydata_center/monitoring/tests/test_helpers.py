@@ -19,14 +19,16 @@ class TestGetLatestAgents:
             ip='192.168.0.1',
             uptime=100,
             healthy=True,
-            timestamp=self.right_now - timedelta(minutes=1)
+            timestamp=self.right_now - timedelta(minutes=1),
+            is_active=False
         )
         self.newest_vm01 = ServerStatus.objects.create(
             hostname='vm-01',
             ip='192.168.0.1',
             uptime=200,
             healthy=False,
-            timestamp=self.right_now
+            timestamp=self.right_now,
+            is_active=True
         )
 
     def test_returns_only_single_latest_record_per_hostname(self):
@@ -48,19 +50,21 @@ class TestGetLatestAgents:
         Tests that the function correctly handles multiple different hostnames,
         returning the single latest record for each.
         """
-        newest_vm02 = ServerStatus.objects.create(
-            hostname='vm-02',
-            ip='192.168.0.2',
-            uptime=300,
-            healthy=True,
-            timestamp=self.right_now
-        )
         ServerStatus.objects.create(
             hostname='vm-02',
             ip='192.168.0.2',
             uptime=250,
             healthy=True,
-            timestamp=self.right_now - timedelta(minutes=5)
+            timestamp=self.right_now - timedelta(minutes=5),
+            is_active=False
+        )
+        newest_vm02 = ServerStatus.objects.create(
+            hostname='vm-02',
+            ip='192.168.0.2',
+            uptime=300,
+            healthy=True,
+            timestamp=self.right_now,
+            is_active=True
         )
         agents = get_latest_agents()
 

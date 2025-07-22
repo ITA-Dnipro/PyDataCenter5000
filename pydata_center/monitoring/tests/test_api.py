@@ -1016,6 +1016,66 @@ class TestCreateAgentMetrics(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('cpu', response.data)
 
+    def test_metric_links_to_active_server_status_even_if_inactive_exists(
+            self
+    ):
+        """
+        Tests that if both an active and an inactive ServerStatus exist for a
+        hostname, a new AgentMetric correctly links to the active one.
+        """
+        self.server.delete()
+
+        old_inactive_status = ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip=self.ip,
+            os=self.os_type,
+            uptime=1000,
+            timestamp=self.timestamp - timedelta(days=1),
+            server_name='Old Record',
+            is_active=False
+        )
+
+        new_active_status = ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip=self.ip,
+            os=self.os_type,
+            uptime=self.uptime,
+            timestamp=self.timestamp,
+            server_name='New Active Record',
+            is_active=True
+        )
+
+        payload = self.generate_report()
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            'The metric submission should be successful.'
+        )
+        self.assertEqual(
+            AgentMetric.objects.count(),
+            1,
+            'Exactly one AgentMetric object should be created.'
+        )
+
+        new_metric = AgentMetric.objects.first()
+        self.assertEqual(
+            new_metric.server_status.id,
+            new_active_status.id,
+            'Metric must be linked to the ID of the ACTIVE ServerStatus.'
+        )
+        self.assertNotEqual(
+            new_metric.server_status.id,
+            old_inactive_status.id,
+            'Metric must NOT be linked to the ID of the INACTIVE ServerStatus.'
+        )
+
 
 class MetricsHistoryViewTests(APITestCase):
     @classmethod

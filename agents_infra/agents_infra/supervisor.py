@@ -36,7 +36,7 @@ class AgentSupervisor(object):
     @property
     def logger(self):
         return logging.getLogger(
-            '-'.join([self.agent.server_name, 'supervisor'])
+            '-'.join([self.agent.config.name, 'supervisor'])
         )
 
     def start(self, timeout=30):

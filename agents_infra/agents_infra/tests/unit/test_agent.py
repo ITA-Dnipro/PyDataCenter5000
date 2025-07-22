@@ -160,8 +160,11 @@ class MockAgentCommunication(AgentCommunication):
 
         self.last_success_time = 0
 
-    def _ping_controller(self, url, api_key, timeout=3):
-        return url in self.mock_healthy_urls
+    def try_revert_primary_controller(self, api_key):
+        primary = self.controller_urls[0]
+        if primary in self.mock_healthy_urls:
+            self._switch_controller(primary)
+        return self.current_controller
 
     def ensure_active_controller(self, api_key):
         if self._ping_controller(self.current_controller, api_key):
@@ -174,12 +177,6 @@ class MockAgentCommunication(AgentCommunication):
 
         self.logger.error('No mock controller available.')
         return None
-
-    def try_revert_primary_controller(self, api_key):
-        primary = self.controller_urls[0]
-        if primary in self.mock_healthy_urls:
-            self._switch_controller(primary)
-        return self.current_controller
 
 
 @pytest.yield_fixture
@@ -1491,103 +1488,6 @@ def test_status_to_dict_timestamp_format(mock_config_file):
     )
 
 
-def test_ping_controller_success():
-    """
-    Test _ping_controller when the controller is healthy.
-    Simulates connection and response from the controller.
-    """
-    agent = MockAgentCommunication()
-
-    class MockResponse(object):
-        def read(self):
-            return json.dumps({'status': 'healthy'})
-
-    mock_socket = mock.MagicMock()
-    mock_socket.close = mock.MagicMock()
-
-    with mock.patch('socket.create_connection', return_value=mock_socket):
-        with mock.patch('urllib2.urlopen', return_value=MockResponse()):
-            result = agent._ping_controller(
-                'http://mock-controller1',
-                api_key=None
-            )
-
-    assert result is True
-
-
-def test_ping_controller_tcp_fail():
-    """
-    Test that _ping_controller returns False when
-    TCP connection to the controller fails.
-    """
-    agent = MockAgentCommunication()
-    with mock.patch(
-            'socket.create_connection',
-            side_effect=socket.error()
-    ):
-        with mock.patch(
-            'urllib2.urlopen',
-            side_effect=Exception('Should not be called')
-        ):
-            result = agent._ping_controller(
-                'http://mock',
-                api_key=None
-            )
-    assert result is False
-
-
-def test_ping_controller_health_check_fail():
-    """
-    Test that _ping_controller returns False
-    when the HTTP health check fails, even though
-    the TCP connection succeeds.
-    """
-    agent = MockAgentCommunication()
-
-    # TCP succeeds
-    with mock.patch(
-            'socket.create_connection',
-            return_value=mock.Mock()
-    ):
-        # Health check fails
-        def mock_urlopen(req, timeout=3):
-            raise urllib2.HTTPError(
-                req.get_full_url(),
-                500,
-                'Internal Server Error',
-                hdrs=None,
-                fp=None
-            )
-
-        with mock.patch(
-                'urllib2.urlopen',
-                side_effect=mock_urlopen
-        ):
-            result = agent._ping_controller(
-                'http://mock',
-                api_key=None
-            )
-
-    assert result is False
-
-
-def test_find_healthy_controller_returns_first_healthy():
-    agent = MockAgentCommunication()
-    urls = [
-        'http://mock-controller1',
-        'http://mock-controller2',
-        'http://mock-controller3'
-    ]
-
-    def mock_ping(url, api_key):
-        return url == 'http://mock-controller2'
-
-    agent._ping_controller = mock_ping
-
-    result = agent._find_healthy_controller(urls, api_key=None)
-    assert result == 'http://mock-controller2'
-
-
 def test_switch_controller_sets_state_and_logs():
     agent = MockAgentCommunication()
     agent.current_controller = 'http://mock-controller2'
@@ -1599,59 +1499,63 @@ def test_switch_controller_sets_state_and_logs():
     assert agent.last_success_time > 0
 
 
-def test_try_revert_primary_controller_success(monkeypatch):
-    """
-        Test that try_revert_primary_controller successfully
-        reverts to the higher-priority (primary) controller
-        if it becomes healthy.
-    """
+@mock.patch('agents_infra.utils.network.ping_url', return_value=True)
+def test_ensure_active_controller_uses_current_if_healthy(mock_ping):
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
 
-    fixed_time = 100000
+    result = agent.ensure_active_controller(api_key='abc')
+
+    assert result == 'http://mock-controller2'
+    assert mock_ping.called
+
+
+@mock.patch(
+    'agents_infra.utils.network.find_first_healthy_url',
+    return_value='http://mock-controller1'
+)
+@mock.patch(
+    'agents_infra.utils.timestamp.get_current_time',
+    return_value=1000
+)
+def test_try_revert_reverts_when_elapsed(mock_now, mock_find):
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
+    agent.last_success_time = 0
+
+    result = agent.try_revert_primary_controller(api_key='abc')
+
+    assert result == 'http://mock-controller1'
+    assert agent.current_controller == 'http://mock-controller1'
+
+
+@mock.patch('agents_infra.utils.network.ping_url', return_value=False)
+@mock.patch('agents_infra.utils.network.find_first_healthy_url')
+def test_ensure_active_controller_switches_to_healthy(mock_find, mock_ping):
+    mock_find.return_value = 'http://mock-controller3'
+
     agent = MockAgentCommunication()
     agent.controller_urls = [
         'http://mock-controller1',
         'http://mock-controller2',
+        'http://mock-controller3'
     ]
-    agent.current_controller = 'http://mock-controller2'
-    agent.last_success_time = fixed_time - 1000
-    agent.revert_interval = 1
+    agent.current_controller = 'http://mock-controller1'
 
-    def mock_ping(url, api_key):
-        return url == 'http://mock-controller1'
+    result = agent.ensure_active_controller(api_key='abc')
 
-    monkeypatch.setattr(agent, '_ping_controller', mock_ping)
-
-    reverted = agent.try_revert_primary_controller(api_key=None)
-
-    assert reverted == 'http://mock-controller1'
-    assert agent.current_controller == 'http://mock-controller1'
+    assert result == 'http://mock-controller3'
+    assert agent.current_controller == 'http://mock-controller3'
+    assert mock_ping.called
+    assert mock_find.called
 
 
-def test_try_revert_primary_controller_fail_due_to_time():
-    """
-    Test that try_revert_primary_controller does not attempt
-    to revert if the revert interval has not passed.
-    """
-    agent = MockAgentCommunication()
-    agent.controller_urls = [
-        'http://mock',
-        'http://mock-controller2'
-    ]
-    agent.current_controller = 'http://mock-controller2'
-    agent.last_success_time = time.time()
-    agent.revert_interval = 1000  # big number
-
-    reverted = agent.try_revert_primary_controller(api_key=None)
-
-    assert reverted == 'http://mock-controller2'
-
-
-def test_ensure_active_controller_switches_to_healthy():
-    """
-    Test that ensure_active_controller switches to
-    the next healthy controller when the current
-    controller is unresponsive.
-    """
+@mock.patch('agents_infra.utils.network.ping_url', return_value=False)
+@mock.patch(
+    'agents_infra.utils.network.find_first_healthy_url',
+    return_value=None
+)
+def test_ensure_active_controller_fails_all(mock_find, mock_ping):
     agent = MockAgentCommunication()
     agent.controller_urls = [
         'http://mock-controller1',
@@ -1659,40 +1563,22 @@ def test_ensure_active_controller_switches_to_healthy():
     ]
     agent.current_controller = 'http://mock-controller1'
 
-    with mock.patch.object(
-            agent,
-            'try_revert_primary_controller',
-            return_value='http://mock-controller1'
-    ):
-        with mock.patch.object(
-                agent,
-                '_ping_controller',
-                side_effect=lambda url,
-                api_key: url == 'http://mock-controller2'
-        ):
-            result = agent.ensure_active_controller(api_key=None)
+    result = agent.ensure_active_controller(api_key='abc')
 
-    assert result == 'http://mock-controller2'
+    assert result is None
+    assert mock_ping.called
+    assert mock_find.called
 
 
-def test_attempt_revert_to_primary_detects_change():
+@mock.patch('agents_infra.utils.timestamp.get_current_time', return_value=100)
+def test_try_revert_skips_if_not_enough_elapsed(mock_now):
     agent = MockAgentCommunication()
     agent.current_controller = 'http://mock-controller2'
+    agent.last_success_time = 50
 
-    def fake_try_revert(api_key):
-        agent.current_controller = 'http://mock-controller1'
-        return 'http://mock-controller1'
+    result = agent.try_revert_primary_controller(api_key='abc')
 
-    with mock.patch.object(
-            agent,
-            'try_revert_primary_controller',
-            fake_try_revert
-    ):
-        result = agent._attempt_revert_to_primary(
-            api_key=None
-        )
-
-    assert result is True
+    assert result == 'http://mock-controller2'
 
 
 def test_ensure_active_controller_success_current(monkeypatch):
@@ -1708,34 +1594,6 @@ def test_ensure_active_controller_success_current(monkeypatch):
 
     result = agent.ensure_active_controller(api_key=None)
     assert result == 'http://mock-controller1'
-
-
-def test_ensure_active_controller_fails_all():
-    """
-    Test that ensure_active_controller returns None when
-    all controllers are unresponsive.
-    """
-    agent = MockAgentCommunication()
-    agent.controller_urls = [
-        'http://mock-controller1',
-        'http://mock-controller2'
-    ]
-
-    agent.current_controller = 'http://mock-controller1'
-
-    with mock.patch.object(
-            agent,
-            'try_revert_primary_controller',
-            return_value='http://mock-controller1'
-    ):
-        with mock.patch.object(
-                agent,
-                '_ping_controller',
-                return_value=False
-        ):
-            result = agent.ensure_active_controller(api_key=None)
-
-    assert result is None
 
 
 def load_agent_from_config(config_content):

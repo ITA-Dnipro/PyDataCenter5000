@@ -113,7 +113,7 @@ class Config(object):
         self,
         name='',
         api_prefix=DEFAULT_API_PREFIX,
-        controller_urls=[],
+        controller_urls=None,
         critical_processes=None,
         whitelist_commands=None,
         port=-1,

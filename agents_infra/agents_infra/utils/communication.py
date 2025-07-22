@@ -1,82 +1,103 @@
+import logging
+
 from logtools import maybe_log_message
 
-from ..utils.network import check_http_health, is_tcp_reachable
+from ..utils.network import (check_http_health, find_first_healthy_url,
+                             is_tcp_reachable, ping_url)
 from ..utils.timestamp import get_current_time
 
 revert_interval = 900
 
 
 class AgentCommunication(object):
-    def __init__(self, auth_token_type, post_data_fn, logger, controller_urls):
+    """
+    Handles communication between an agent and its controller(s),
+    including health checks, failover logic, and posting data.
+    """
+
+    def __init__(self, auth_token_type, post_data_fn, controller_urls):
         """
-        Initialize with a unique server name and a callable for posting data.
+        Initialize AgentCommunication.
+
+        Args:
+            auth_token_type (str): Type of auth token to use in requests.
+            post_data_fn (callable): Function to send data to a controller.
+            controller_urls (list): List of controller URLs in priority order.
         """
         self.post_data_fn = post_data_fn
         self.auth_token_type = auth_token_type
-        self.logger = logger
         self.controller_urls = controller_urls
         self.current_controller = controller_urls[0]
 
-    def _ping_controller(self, url, api_key, timeout=3):
-        if not is_tcp_reachable(url, timeout):
-            maybe_log_message(
-                'Controller unreachable at TCP level: %s' % url,
-                logger=self.logger
-            )
-            return False
-
-        healthy = check_http_health(
-            url,
-            api_key,
-            self.auth_token_type,
-            timeout
-        )
-        if not healthy:
-            maybe_log_message(
-                'Health check failed for controller: %s' % url,
-                logger=self.logger
-            )
-        return healthy
-
-    def _find_healthy_controller(self, urls, api_key):
-        for url in urls:
-            if self._ping_controller(url, api_key=api_key):
-                return url
-        return None
+    @property
+    def logger(self):
+        """
+        Returns a logger named after the agent config or falls back
+        to 'agent-communication'.
+        """
+        name = 'agent-communication'
+        if hasattr(self.post_data_fn.__self__.config, 'name'):
+            name = self.post_data_fn.__self__.config.name
+        return logging.getLogger(name)
 
     def _switch_controller(self, new_url):
+        """
+        Switch the current controller to a new one.
+        """
+        self.current_controller = new_url
+        self.last_success_time = get_current_time()
         maybe_log_message(
             'Controller switched: %s -> %s' % (
                 self.current_controller,
                 new_url
             ),
-            logger=self.logger
+            logger=self.logger,
+            level=logging.INFO
         )
-        self.current_controller = new_url
-        self.last_success_time = get_current_time()
 
     def ensure_active_controller(self, api_key):
         """
-        Ensure there is a healthy active controller.
-        """
-        if self._attempt_revert_to_primary(api_key):
-            return self.current_controller
+        Ensure there is an active, healthy controller.
 
-        if self._ping_controller(self.current_controller, api_key=api_key):
+        Returns:
+            str or None: Active controller URL, or None if none are healthy.
+        """
+        if self.current_controller != self.controller_urls[0]:
+            self.current_controller = self.try_revert_primary_controller(
+                api_key=api_key
+            )
+
+        if ping_url(
+                self.current_controller,
+                api_key=api_key,
+                logger=self.logger,
+                auth_token_type=self.auth_token_type
+        ):
             return self.current_controller
 
         remaining_urls = self._get_lower_priority_urls()
-        healthy_url = self._find_healthy_controller(remaining_urls, api_key)
+        healthy_url = find_first_healthy_url(
+            urls=remaining_urls,
+            api_key=api_key,
+            auth_token_type=self.auth_token_type,
+            logger=self.logger
+        )
         if healthy_url:
             self._switch_controller(healthy_url)
             return healthy_url
 
-        self.logger.error('No available controller. All health checks failed.')
+        maybe_log_message(
+            'No available controller. All health checks failed.',
+            logger=self.logger
+        )
         return None
 
     def try_revert_primary_controller(self, api_key):
         """
-        Attempt to revert to the primary controller.
+        Attempt to revert back to the primary controller if healthy.
+
+        Returns:
+            str: Current controller URL after the check.
         """
         if self.current_controller == self.controller_urls[0]:
             return self.current_controller
@@ -86,9 +107,11 @@ class AgentCommunication(object):
             return self.current_controller
 
         higher_priority_urls = self._get_higher_priority_urls()
-        healthy_url = self._find_healthy_controller(
+        healthy_url = find_first_healthy_url(
             higher_priority_urls,
-            api_key
+            api_key,
+            auth_token_type=self.auth_token_type,
+            logger=self.logger
         )
         if healthy_url:
             maybe_log_message(
@@ -102,16 +125,23 @@ class AgentCommunication(object):
 
         return self.current_controller
 
-    def _attempt_revert_to_primary(self, api_key):
-        previous = self.current_controller
-        self.try_revert_primary_controller(api_key)
-        return previous != self.current_controller
-
     def _get_higher_priority_urls(self):
+        """
+        Get controllers with higher priority than the current one.
+
+        Returns:
+            list: URLs with higher priority.
+        """
         current_index = self.controller_urls.index(self.current_controller)
         return self.controller_urls[:current_index]
 
     def _get_lower_priority_urls(self):
+        """
+        Get controllers with lower priority than the current one.
+
+        Returns:
+            list: URLs with lower priority.
+        """
         current_index = self.controller_urls.index(self.current_controller)
         return self.controller_urls[current_index + 1:]
 
@@ -127,16 +157,7 @@ class AgentCommunication(object):
             **headers
     ):
         """
-        Ensure active controller, then delegate to post_data_fn.
-
-        Args:
-            endpoint (str): The API endpoint path (e.g. 'status/update').
-            payload (dict or str): The data to send.
-            api_key (str, optional): API key to use for auth.
-            max_retries, delay, timeout, fail_silently: Passed through.
-            **headers: Additional headers.
-        Returns:
-            Response object or None.
+        Post data to the active controller.
         """
         controller_url = self.ensure_active_controller(api_key)
         if controller_url is None:
@@ -144,10 +165,10 @@ class AgentCommunication(object):
             return None
 
         if hasattr(self.post_data_fn.__self__, 'config'):
-            (self.post_data_fn.
-             __self__.config).current_controller = controller_url
-            (self.post_data_fn.
-             __self__.config).auth_token_type = self.auth_token_type
+            (self.post_data_fn.__self__.
+             config).current_controller = controller_url
+            (self.post_data_fn.__self__.
+             config).auth_token_type = self.auth_token_type
 
         return self.post_data_fn(
             endpoint,

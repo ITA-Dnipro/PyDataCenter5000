@@ -541,6 +541,82 @@ class ReceiveStatusEndpointTests(APITestCase):
             "'server_name' should be reported as missing"
         )
 
+    def test_subsequent_status_post_deactivates_previous_status(self):
+        """
+        Test that posting a new status for an existing hostname deactivates
+        the previously active status, leaving only one active record.
+        """
+        payload = self._get_valid_status_data()
+        hostname = payload['hostname']
+
+        response1 = self.client.post(self.url, data=payload, format='json')
+        self.assertEqual(
+            response1.status_code,
+            status.HTTP_201_CREATED,
+            f'Initial POST request failed with status '
+            f'{response1.status_code}, expected 201.'
+        )
+        self.assertEqual(
+            ServerStatus.objects.filter(hostname=hostname).count(),
+            1,
+            'Expected exactly 1 ServerStatus object after the first post.'
+        )
+        first_status = ServerStatus.objects.get(hostname=hostname)
+        self.assertTrue(
+            first_status.is_active,
+            'The first status object should have been created as active.'
+        )
+
+        payload['uptime'] = first_status.uptime + 100
+        payload['timestamp'] = timezone.now() + timedelta(seconds=10)
+
+        response2 = self.client.post(self.url, data=payload, format='json')
+        self.assertEqual(
+            response2.status_code,
+            status.HTTP_201_CREATED,
+            f'Subsequent POST request failed with status '
+            f'{response2.status_code}, expected 201.'
+        )
+
+        first_status.refresh_from_db()
+        self.assertFalse(
+            first_status.is_active,
+            'The first status should have been deactivated '
+            'after the second post.'
+        )
+        self.assertEqual(
+            ServerStatus.objects.filter(hostname=hostname).count(),
+            2,
+            'Expected 2 total ServerStatus objects for the host '
+            'after the update.'
+        )
+
+        active_count = ServerStatus.objects.filter(
+            hostname=hostname,
+            is_active=True
+        ).count()
+        self.assertEqual(
+            active_count,
+            1,
+            f'Expected exactly one active status for the host, '
+            f'but found {active_count}.'
+        )
+
+        latest_active_status = ServerStatus.objects.get(
+            hostname=hostname,
+            is_active=True
+        )
+        self.assertNotEqual(
+            latest_active_status.pk,
+            first_status.pk,
+            'The new active status should be a new database record.'
+        )
+        self.assertEqual(
+            latest_active_status.uptime,
+            payload['uptime'],
+            'The new active status did not have the updated uptime value.'
+        )
+
 
 @pytest.mark.parametrize('func,msg', [
     (send_async_webhook_message, {'content': 'mock-content'}),

@@ -1,9 +1,11 @@
+import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
 
-from .models import ServerStatus
+from .models import AgentUpgradeHistory, CommandHistory, ServerStatus
 
 FILTERABLE_FIELDS = {'hostname', 'ip'}
 
@@ -53,3 +55,40 @@ def get_latest_agents(query_params=None, cutoff_seconds=60):
         }
         for agent in latest_statuses
     ]
+
+
+logger = logging.getLogger(__name__)
+
+
+def maybe_dispatch_upgrade(hostname: str, agent_version: str):
+    latest_version = settings.LATEST_AGENT_VERSION
+
+    if not agent_version:
+        logger.warning(f'Agent {hostname} did not report version.')
+        return
+
+    if agent_version < latest_version:
+        logger.info(
+            f'Agent {hostname} outdated: {agent_version} < {latest_version}'
+        )
+
+        # create an update command
+        CommandHistory.objects.create(
+            hostname=hostname,
+            type='agent',
+            params={
+                'action': 'upgrade',
+                'target': latest_version,
+                'url': settings.AGENT_PACKAGE_URL,
+                'sha256': settings.AGENT_PACKAGE_SHA256,
+            },
+            status='pending'
+        )
+
+        # record in history
+        AgentUpgradeHistory.objects.create(
+            hostname=hostname,
+            from_version=agent_version,
+            to_version=latest_version,
+            status='pending'
+        )

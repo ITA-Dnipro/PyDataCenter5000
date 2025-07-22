@@ -16,25 +16,20 @@ WORKDIR /app
 COPY ../agents_infra/ /app/agents_infra/
 COPY ../servers/web/ /app/server
 
-# Copy scripts
+# Copy scripts and requirements
 COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_nginx.sh /tmp/
 COPY scripts/provision/setup_fastapi.sh /tmp/
 COPY scripts/provision/start_services.sh /tmp/
-
-# Make scripts executable
-RUN chmod +x /tmp/*.sh
-
-# Install services
-RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
-RUN /tmp/install_nginx.sh
-
-# Setup FastAPI
 COPY ../servers/web/requirements.txt /tmp/requirements.txt
-RUN /tmp/setup_fastapi.sh
 
-# Setup startup script
-RUN cp /tmp/start_services.sh /start.sh && rm /tmp/*.sh
+# Make scripts executable, install services, setup FastAPI, and clean up
+RUN chmod +x /tmp/*.sh && \
+    /tmp/setup_ssh.sh "${SSH_PASSWORD}" && \
+    /tmp/install_nginx.sh && \
+    /tmp/setup_fastapi.sh && \
+    cp /tmp/start_services.sh /start.sh && \
+    rm /tmp/*.sh
 
 # Start services
 CMD ["/start.sh"]

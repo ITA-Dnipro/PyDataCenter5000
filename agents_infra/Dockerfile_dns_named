@@ -19,12 +19,8 @@ COPY ../agents_infra/ /app/agents_infra/
 COPY scripts/provision/setup_ssh.sh /tmp/
 COPY scripts/provision/install_named.sh /tmp/
 
-# Make scripts executable
-RUN chmod +x /tmp/*.sh
-
-# Install services
-RUN /tmp/setup_ssh.sh "${SSH_PASSWORD}"
-RUN /tmp/install_named.sh
-
-# Clean up
-RUN rm /tmp/*.sh
+# Make scripts executable, install services, and clean up
+RUN chmod +x /tmp/*.sh && \
+    /tmp/setup_ssh.sh "${SSH_PASSWORD}" && \
+    /tmp/install_named.sh && \
+    rm /tmp/*.sh

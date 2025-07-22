@@ -166,16 +166,18 @@ class MockAgentCommunication(AgentCommunication):
             self._switch_controller(primary)
         return self.current_controller
 
+    def _mock_ping_url(self, url):
+        return url in self.mock_healthy_urls
+
     def ensure_active_controller(self, api_key):
-        if self._ping_controller(self.current_controller, api_key):
+        if self._mock_ping_url(self.current_controller):
             return self.current_controller
 
         for url in self.controller_urls:
-            if self._ping_controller(url, api_key):
+            if self._mock_ping_url(url):
                 self._switch_controller(url)
                 return url
 
-        self.logger.error('No mock controller available.')
         return None
 
 

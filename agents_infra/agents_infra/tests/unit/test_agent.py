@@ -1501,7 +1501,6 @@ def test_switch_controller_sets_state_and_logs():
     assert agent.last_success_time > 0
 
 
-@mock.patch('agents_infra.utils.network.ping_url', return_value=True)
 def test_ensure_active_controller_uses_current_if_healthy():
     agent = MockAgentCommunication()
     agent.current_controller = 'http://mock-controller2'
@@ -1511,14 +1510,6 @@ def test_ensure_active_controller_uses_current_if_healthy():
     assert result == 'http://mock-controller2'
 
 
-@mock.patch(
-    'agents_infra.utils.network.find_first_healthy_url',
-    return_value='http://mock-controller1'
-)
-@mock.patch(
-    'agents_infra.utils.timestamp.get_current_time',
-    return_value=1000
-)
 def test_try_revert_reverts_when_elapsed():
     agent = MockAgentCommunication()
     agent.current_controller = 'http://mock-controller2'
@@ -1530,7 +1521,6 @@ def test_try_revert_reverts_when_elapsed():
     assert agent.current_controller == 'http://mock-controller1'
 
 
-@mock.patch('agents_infra.utils.network.ping_url', return_value=False)
 @mock.patch('agents_infra.utils.network.find_first_healthy_url')
 def test_ensure_active_controller_switches_to_healthy(mock_find):
     mock_find.return_value = 'http://mock-controller3'
@@ -1549,11 +1539,6 @@ def test_ensure_active_controller_switches_to_healthy(mock_find):
     assert agent.current_controller == 'http://mock-controller3'
 
 
-@mock.patch('agents_infra.utils.network.ping_url', return_value=False)
-@mock.patch(
-    'agents_infra.utils.network.find_first_healthy_url',
-    return_value=None
-)
 def test_ensure_active_controller_fails_all():
     agent = MockAgentCommunication()
     agent.controller_urls = [
@@ -1567,7 +1552,6 @@ def test_ensure_active_controller_fails_all():
     assert result is None
 
 
-@mock.patch('agents_infra.utils.timestamp.get_current_time', return_value=100)
 def test_try_revert_skips_if_not_enough_elapsed():
     agent = MockAgentCommunication()
     agent.current_controller = 'http://mock-controller2'

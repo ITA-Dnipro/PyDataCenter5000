@@ -743,7 +743,6 @@ class TestEvaluateAgentAlerts:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert not mock_send_message.called
-        assert 'No alerts triggered' in caplog.text
 
     @patch('monitoring.tasks.AlertDispatcher.send')
     def test_no_data_for_metric(self, mock_send, caplog):

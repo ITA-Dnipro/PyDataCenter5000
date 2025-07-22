@@ -18,8 +18,9 @@ from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
-from .helpers import get_latest_agents
-from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
+from .helpers import get_latest_agents, maybe_dispatch_upgrade
+from .models import (AgentMetric, AgentUpgradeHistory, CommandHistory,
+                     ServerStatus, TriggeredAlert)
 from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
                           ServerStatusSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data
@@ -56,10 +57,12 @@ def receive_status(request):
             serializer.save()
             data = extract_status_data(serializer.validated_data, request)
             healthy = serializer.validated_data.get('healthy', False)
+            version = serializer.validated_data.get('version', None)
+            maybe_dispatch_upgrade(data['hostname'], version)
             alert_if_unhealthy(data['hostname'], healthy)
             logger.info(
-                '[RECEIVED] Host: %s | IP: %s | Uptime: %s',
-                data['hostname'], data['ip'], data['uptime']
+                '[RECEIVED] Host: %s | IP: %s | Uptime: %s | Version: %s',
+                data['hostname'], data['ip'], data['uptime'], version
             )
             return Response(
                 {
@@ -281,6 +284,20 @@ def submit_command_result(request):
         final_result = serializer.validated_data.get('result', '')
 
         alert_if_command_failed(command.hostname, final_result)
+        if final_status in ['done', 'failed']:
+            AgentUpgradeHistory.objects.filter(
+                hostname=command.hostname,
+                to_version=command.params.get('target'),
+                status='pending'
+            ).update(
+                status='success' if final_status == 'done' else 'failed',
+                finished_at=now(),
+                message=final_result
+            )
+            logger.info(
+                f'Updated AgentUpgradeHistory for {command.hostname} '
+                f'to {final_status}'
+            )
 
         if final_status == 'done' and command.notify_on_success:
             alert_on_success(command.hostname, final_result)

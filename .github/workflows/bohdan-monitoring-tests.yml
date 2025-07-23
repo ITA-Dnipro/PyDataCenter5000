@@ -89,7 +89,7 @@ jobs:
         run: |
           export PYTHONPATH="${GITHUB_WORKSPACE}"
           echo "PYTHONPATH=$PYTHONPATH"
-          pytest pydata_center/monitoring/tests/test_celery_integration.py \
+          pytest pydata_center/monitoring/tests/ \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

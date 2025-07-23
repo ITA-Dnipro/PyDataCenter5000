@@ -86,9 +86,9 @@ jobs:
           python -c "import sys; print(sys.path)"
 
       - name: Run monitoring tests with coverage
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          echo "PYTHONPATH=$PYTHONPATH"
           pytest pydata_center/monitoring/tests/test_celery_integration.py \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \

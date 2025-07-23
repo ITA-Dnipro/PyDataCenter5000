@@ -15,7 +15,9 @@ def main():
     credentials = ('admin:1234').encode('utf-8')
     credentials = base64.b64encode(credentials).decode('utf-8')
 
-    agent = DNSAgent.from_config_file(filename='agents_infra/agents/dns/config.ini')
+    agent = DNSAgent.from_config_file(
+        filename='agents_infra/agents/dns/config.ini'
+    )
     agent.config.name = 'dns_agent'
     agent.collect_server_metadata()
 
@@ -59,17 +61,28 @@ def main():
             output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
             if proc.returncode != 0:
+                command_history.status = CommandStatus.FAILED
+                command_history.result = output
                 raise BadProcessReturnCode(
                     'Command failed with return code %d' % proc.returncode
                 )
 
+            command_history.status = CommandStatus.DONE
+            command_history.result = output
+
             logging.info('Command %s succeeded' % command_history.command)
             logging.info('Command output: %s...[truncated]' % output[:300])
+
         except OSError as e:
+            command_history.status = CommandStatus.FAILED
+            command_history.result = str(e)
+
             logging.error(
                 'Subprocess failed due to error: %s' % str(e),
                 exc_info=True,
             )
+
+        agent.handle_command_lifecycle(command_history=command_history)
 
     def on_timeout(idx, retry, credentials):
         agent.post_data(

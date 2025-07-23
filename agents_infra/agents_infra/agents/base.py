@@ -473,17 +473,18 @@ class ServerAgent(object):
 
             return command_history
 
-    def handle_command_lifecycle(self, **kwargs):
+    def handle_command_lifecycle(self, command_history=None, **kwargs):
         """
-        Handle the command lifecycle by executing the command and
-        posting the result to the controller.
+        Handle the command lifecycle by optionally using a provided
+        command_history, or pulling it from the queue, executing, and
+        reporting back to controller.
         """
-        command_history = self.execute_command(**kwargs)
+        if command_history is None:
+            command_history = self.execute_command(**kwargs)
 
         if command_history:
             try:
                 patch_url = 'api/v1/commands/%s/' % command_history.id
-
                 payload = {
                     'id': command_history.id,
                     'hostname': command_history.hostname,

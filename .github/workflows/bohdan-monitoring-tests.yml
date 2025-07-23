@@ -78,6 +78,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r pydata_center/requirements.txt
 
+      - name: Debug Python path and files
+        run: |
+          echo "PYTHONPATH=$PYTHONPATH"
+          ls -l
+          ls -l pydata_center
+          python -c "import sys; print(sys.path)"
+
       - name: Run monitoring tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}

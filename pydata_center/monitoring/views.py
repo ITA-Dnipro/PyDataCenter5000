@@ -488,14 +488,22 @@ def register_agent(request):
             token = agent.generate_token()
             agent.token_hash = agent.hash_token(token)
             agent.save(update_fields=['token_hash'])
-        else:
-            token = None
 
-        return Response({
-            'token': token,
-            'message': 'Registered successfully.' if created
-            else 'Agent already exists.'
-        }, status=status.HTTP_201_CREATED)
+            response_data = {
+                'token': token,
+                'message': 'Registered successfully.'
+            }
+            response_status = status.HTTP_201_CREATED
+        else:
+            response_data = {
+                'token': None,
+                'message': 'Agent already exists.'
+            }
+            response_status = status.HTTP_200_OK
+
+        return Response(response_data, status=response_status)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(

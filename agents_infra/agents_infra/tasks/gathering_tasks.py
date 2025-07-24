@@ -1,4 +1,5 @@
 from agents_infra.utils.auth import Authentication
+from agents_infra.utils.sysinfo import generate_report
 
 from .basetask import BaseTask
 
@@ -7,7 +8,7 @@ class CollectAndSendStatusTask(BaseTask):
 
     def handle(self):
         data = self.agent.status_to_dict()
-        self.agent.post_data(
+        return self.agent.post_data(
             url=self.endpoint,
             payload=data,
             to_controller=True,
@@ -20,12 +21,12 @@ class CollectAndSendStatusTask(BaseTask):
 class CollectAndSendMetricsTask(BaseTask):
 
     def handle(self):
-        report = self.agent.generate_report()
+        report = generate_report(self.agent.logger)
         payload = {}
         for k in ('cpu', 'ram', 'disk', 'load_avg'):
             if k in report:
                 payload[k] = report[k]
-        self.agent.post_data(
+        return self.agent.post_data(
             url=self.endpoint + '?hostname=%s' % self.agent.hostname,
             payload=payload,
             to_controller=True,

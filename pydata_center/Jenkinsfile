@@ -14,11 +14,16 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+                dir('pydata_center') {
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                    '''
+                }
                 sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r pydata_center/requirements.txt
+                    . pydata_center/venv/bin/activate
                     pip install -r requirements-dev.txt
                 '''
             }
@@ -27,8 +32,8 @@ pipeline {
         stage('Lint') {
             steps {
                 sh '''
-                    . venv/bin/activate
-                    flake8 pydata_center || true
+                    . pydata_center/venv/bin/activate
+                    flake8 pydata_center --config pydata_center/.flake8 || true
                 '''
             }
         }
@@ -36,7 +41,7 @@ pipeline {
         stage('Test & Coverage') {
             steps {
                 sh '''
-                    . venv/bin/activate
+                    . pydata_center/venv/bin/activate
                     coverage run -m pytest
                     coverage report
                     coverage xml
@@ -45,12 +50,11 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            when {
-                expression { fileExists('Dockerfile') }
-            }
             steps {
-                script {
-                    dockerImage = docker.build("${IMAGE_NAME}:latest")
+                dir('pydata_center') {
+                    script {
+                        dockerImage = docker.build("${IMAGE_NAME}:latest", ".")
+                    }
                 }
             }
         }
@@ -58,7 +62,7 @@ pipeline {
 
     post {
         always {
-            junit 'reports/*.xml' // optional, safe to leave
+            junit 'reports/*.xml' // Optional: won't do anything unless you output junit xml
         }
         success {
             echo 'Build completed successfully!'

@@ -79,9 +79,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run monitoring tests with coverage
+      - name: Run all monitoring tests with coverage
         run: |
-          pytest pydata_center/monitoring/tests/test_celery_integration.py \
+          pytest pydata_center/monitoring/tests/ \
             --cov=pydata_center/monitoring \
             --cov-report=xml:coverage-monitoring.xml \
             --cov-report=term

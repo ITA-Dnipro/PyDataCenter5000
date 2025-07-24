@@ -1,9 +1,10 @@
 from django.contrib import admin
+from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (Agent, AgentMetric, AgentPingStatus, AlertRule,
-                     CommandHistory, ServerStatus, Webhook)
+from .models import (Agent, AgentLogEntry, AgentMetric, AgentPingStatus,
+                     AlertRule, CommandHistory, ServerStatus, Webhook)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -121,6 +122,13 @@ class WebhookAdmin(admin.ModelAdmin):
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_active')
+
+
+@admin.register(AgentLogEntry)
+class AgentLogEntryAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'agent_name', 'level', 'message')
+    list_filter = ('level', 'agent_name', 'timestamp')
+    search_fields = ('message', 'agent_name')
 
 
 @admin.register(AgentPingStatus)

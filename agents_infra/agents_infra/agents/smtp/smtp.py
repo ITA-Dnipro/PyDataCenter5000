@@ -1,8 +1,8 @@
 import abc
+import logging
 import socket
 
 from ...utils.configtools import Config
-from ...utils.logtools import maybe_log_message
 from ...utils.sysinfo import is_port_open
 from ..base import ServerAgent
 
@@ -46,9 +46,9 @@ class SMTPAgent(ServerAgent):
             sock.connect((self.ip, self.config.get('port')))
             banner = sock.recv(1024)
         except (socket.error, socket.timeout) as e:
-            maybe_log_message(
+            self.log_with_controller(
                 'Banner check failed due to error: %s' % str(e),
-                logger=self.logger,
+                level=logging.ERROR
             )
         finally:
             sock.close()

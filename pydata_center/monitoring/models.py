@@ -10,11 +10,6 @@ from django.db import models
 
 class ServerStatus(models.Model):
 
-    class Meta:
-        indexes = [
-            models.Index(fields=['hostname', 'timestamp'])
-        ]
-
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
     uptime = models.FloatField()
@@ -25,17 +20,19 @@ class ServerStatus(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.JSONField(null=True, blank=True, default=dict)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['hostname', 'timestamp'])
+        ]
+        verbose_name = 'server status'
+        verbose_name_plural = 'server statuses'
+
     def __str__(self):
         return f'{self.hostname} - {self.timestamp}'
 
 
 class AgentMetric(models.Model):
     """Server metric collected by the agent."""
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['server_status', 'timestamp']),
-        ]
 
     cpu = models.FloatField(
         null=True,
@@ -63,6 +60,11 @@ class AgentMetric(models.Model):
     server_status = models.ForeignKey(
         ServerStatus, on_delete=models.CASCADE, related_name='server_status'
     )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['server_status', 'timestamp']),
+        ]
 
     def __str__(self):
         return f'Metrics for {self.server_status.hostname} at {self.timestamp}'
@@ -99,6 +101,10 @@ class CommandHistory(models.Model):
         help_text='If true, send a Discord alert upon successful completion.'
     )
 
+    class Meta:
+        verbose_name = 'command history'
+        verbose_name_plural = 'command histories'
+
     def __str__(self):
         return f'{self.hostname} - {self.status} - {self.timestamp}'
 
@@ -121,11 +127,6 @@ class AlertRule(models.Model):
     agent. Alerts are triggered when rule's condition is met within a
     specified time window.
     """
-
-    class Meta:
-        verbose_name = 'Alert Rule'
-        verbose_name_plural = 'Alert Rules'
-        indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
 
     METRIC_CHOICES = [
         ('cpu', 'CPU Usage'),
@@ -163,6 +164,11 @@ class AlertRule(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = 'alert rule'
+        verbose_name_plural = 'alert rules'
+        indexes = [models.Index(fields=['metric', 'is_active', 'hostname'])]
+
     def __str__(self):
         return (
             f'{self.metric} {self.operator} {self.threshold} '
@@ -173,18 +179,18 @@ class AlertRule(models.Model):
 class TriggeredAlert(models.Model):
     """Alert triggered based on specific alert rule."""
 
-    class Meta:
-        verbose_name = 'Triggered Alert'
-        verbose_name_plural = 'Triggered Alerts'
-        indexes = [
-            models.Index(fields=['rule', 'triggered_at']),
-        ]
-
     rule = models.ForeignKey(
         AlertRule, on_delete=models.CASCADE, related_name='alert_rule'
     )
     message = models.CharField(max_length=255)
     triggered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'triggered alert'
+        verbose_name_plural = 'triggered alerts'
+        indexes = [
+            models.Index(fields=['rule', 'triggered_at']),
+        ]
 
     def __str__(self):
         return (
@@ -245,11 +251,6 @@ class Agent(models.Model):
 
 class AgentPingStatus(models.Model):
     """Agent ping status result from http request."""
-    class Meta:
-        indexes = [
-            models.Index(fields=['agent_name', 'timestamp']),
-        ]
-        ordering = ['-timestamp']
 
     STATUS_CHOICES = [
         ('ok', 'OK'),
@@ -264,5 +265,44 @@ class AgentPingStatus(models.Model):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+        verbose_name = 'agent ping status'
+        verbose_name_plural = 'agent ping statuses'
+
     def __str__(self):
         return f'{self.agent_name} - {self.timestamp} - {self.status}'
+
+
+class AgentLogEntry(models.Model):
+    """Log entry from the agent."""
+    LEVEL_CHOICES = [
+        ('DEBUG', 'Debug'),
+        ('INFO', 'Info'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+        ('CRITICAL', 'Critical'),
+    ]
+
+    agent_name = models.CharField(max_length=255)
+    timestamp = models.DateTimeField()
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
+    message = models.TextField()
+    context = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['agent_name', 'timestamp']),
+        ]
+        ordering = ['-timestamp']
+        verbose_name = 'agent log entry'
+        verbose_name_plural = 'agent log entries'
+
+    def __str__(self):
+        return (
+            f'[{self.timestamp}] {self.level} '
+            f'{self.agent_name} - {self.message[:50]}'
+        )

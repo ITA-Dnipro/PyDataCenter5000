@@ -17,7 +17,9 @@ from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
 from monitoring.email import send_async_email
-from monitoring.models import (Agent, AgentMetric, AgentPingStatus, AlertRule,
+from monitoring.graylog import send_log_to_graylog
+from monitoring.models import (Agent, AgentLogEntry, AgentMetric,
+                               AgentPingStatus, AlertRule, CommandHistory,
                                ServerStatus)
 from monitoring.tasks import (check_agent_health, check_all_agents_health,
                               evaluate_agent_alerts, save_agent_ping_status)
@@ -176,7 +178,6 @@ class ServerStatusAPITest(TestCase):
         )
 
     def test_invalid_healthy_type(self):
-        """Test that invalid healthy value returns 400."""
         """Test that invalid healthy value returns 400."""
         payload = self._get_base_payload()
         payload['healthy'] = 'abc'
@@ -1202,6 +1203,154 @@ class MetricsHistoryViewTests(APITestCase):
         )
 
 
+class ReceiveLogEndpointTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.operator_group, _ = Group.objects.get_or_create(name='Operator')
+
+        self.operator_user = User.objects.create_user(
+            username='operator', password='pass123'
+        )
+        self.operator_user.groups.add(self.operator_group)
+
+        self.viewer_user = User.objects.create_user(
+            username='viewer', password='pass123'
+        )
+
+        self.valid_payload = {
+            'agent_name': 'agent-01',
+            'timestamp': '2025-06-25T12:30:00Z',
+            'level': 'ERROR',
+            'message': 'Failed to restart ssh service',
+            'context': {'uptime': 123.45, 'ip': '192.168.1.100'}
+        }
+
+        self.invalid_payload = {
+            'agent_name': 'agent-01',
+            # timestamp missing
+            'level': 'ERROR',
+            'message': 'Missing timestamp'
+        }
+
+        self.url = reverse('monitoring:receive_log')
+
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_successful_log_post_by_operator(self, mock_send_log):
+        """Operator user can successfully post a valid log."""
+        self.client.force_authenticate(user=self.operator_user)
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED,
+            msg=f'Expected 201 CREATED but got {response.status_code}'
+        )
+        self.assertEqual(
+            AgentLogEntry.objects.count(), 1,
+            msg='Log entry was not created in the database'
+        )
+        self.assertEqual(
+            response.data['agent_name'], 'agent-01',
+            msg='Response data does not contain the correct agent_name'
+        )
+        mock_send_log.assert_called_once_with(
+            'ERROR',
+            'Failed to restart ssh service',
+            'agent-01',
+            '2025-06-25T12:30:00+00:00',
+            {'uptime': 123.45, 'ip': '192.168.1.100'}
+        )
+
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_by_unauthorized_user(self, mock_send_log):
+        """Viewer user cannot post logs (permission denied)."""
+        self.client.force_authenticate(user=self.viewer_user)
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_403_FORBIDDEN,
+            msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
+        )
+        mock_send_log.assert_not_called()
+
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_by_unauthenticated_user(self, mock_send_log):
+        """Unauthenticated users cannot post logs."""
+        response = self.client.post(
+            self.url, self.valid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_403_FORBIDDEN,
+            msg=f'Expected 403 FORBIDDEN but got {response.status_code}'
+        )
+        mock_send_log.assert_not_called()
+
+    @patch('monitoring.graylog.send_log_to_graylog.delay')
+    def test_log_post_with_invalid_payload(self, mock_send_log):
+        """Posting log with invalid payload returns 400 Bad Request."""
+        self.client.force_authenticate(user=self.operator_user)
+        response = self.client.post(
+            self.url, self.invalid_payload, format='json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST,
+            msg=f'Expected 400 BAD REQUEST but got {response.status_code}'
+        )
+        self.assertIn(
+            'timestamp', response.data,
+            msg="Response data does not contain error missing 'timestamp'"
+        )
+        mock_send_log.assert_not_called()
+
+
+class SendLogToGraylogTaskTest(TestCase):
+    @patch('monitoring.graylog.graylog_logger')
+    def test_send_log_calls_correct_level_method(self, mock_logger):
+        """
+        Test suite for correct data task call.
+        """
+        # arrange
+        level = 'ERROR'
+        message = 'Test error message'
+        agent_name = 'agent-42'
+        timestamp_iso = '2025-06-30T14:00:00Z'
+        context = {'key': 'value'}
+
+        # act
+        send_log_to_graylog(level, message, agent_name, timestamp_iso, context)
+
+        # assert
+        expected_extra = {
+            'agent_name': agent_name,
+            'timestamp': timestamp_iso,
+            'context': context
+        }
+        mock_logger.error.assert_called_once_with(
+            message, extra=expected_extra
+            )
+
+    @patch('monitoring.graylog.graylog_logger')
+    def test_send_log_default_level_info(self, mock_logger):
+        """
+        Test that when an unknown log level is passed to the task,
+        the 'info' logging method is called by default.
+        """
+        send_log_to_graylog(
+            'UNKNOWN_LEVEL', 'message', 'agent', '2025-06-30T14:00:00Z', None
+        )
+
+        expected_extra = {
+            'agent_name': 'agent',
+            'timestamp': '2025-06-30T14:00:00Z',
+            'context': {}
+        }
+
+        mock_logger.info.assert_called_once_with(
+            'message', extra=expected_extra
+            )
+
+
 @pytest.mark.django_db
 class TestCheckAgentHealth:
     """Test suite for a check_agent_health task."""
@@ -1540,3 +1689,199 @@ class TestCreateAgent(APITestCase):
         self.assertIn('token', response.data)
         self.assertIsNone(response.data['token'])
         self.assertEqual(response.data['message'], 'Agent already exists.')
+
+
+class SetAgentTagsAPITest(APITestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username='test_user',
+            password='test_password'
+        )
+        operator_group, _ = Group.objects.get_or_create(name='Operator')
+        cls.user.groups.add(operator_group)
+        cls.hostname = 'test_hostname'
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
+        ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip='127.0.0.1',
+            uptime=123,
+            timestamp=timezone.now(),
+            os='linux',
+            server_name='test-server'
+        )
+        self.url = reverse(
+            'monitoring:set_agent_tags',
+            args=[self.hostname]
+        )
+
+    def test_set_tags_success(self):
+        """
+        Test that a valid request successfully creates a command.
+        """
+        payload = {'env': 'production', 'role': 'web'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'A valid payload should be accepted.'
+        )
+        self.assertEqual(
+            CommandHistory.objects.count(),
+            1,
+            'A command should be created in the database.'
+        )
+
+        command = CommandHistory.objects.first()
+        self.assertEqual(
+            command.hostname,
+            self.hostname,
+            'Command should be linked to the correct hostname.'
+        )
+        self.assertEqual(
+            command.type,
+            'agent',
+            'Command type should be "agent".'
+        )
+        self.assertEqual(
+            command.status,
+            'pending',
+            'Initial command status should be "pending".'
+        )
+        self.assertEqual(
+            command.params['method'],
+            'set_tags',
+            'The specific command in params should be "set_tags".'
+        )
+        self.assertEqual(
+            command.params['kwargs'],
+            payload,
+            'Command arguments should match the payload.'
+        )
+
+    def test_partial_update_success(self):
+        """
+        Test that a request with a single tag succeeds.
+        """
+        payload = {'role': 'database'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'A request with a subset of valid tags should be accepted.'
+        )
+        command = CommandHistory.objects.first()
+        self.assertEqual(
+            command.params['kwargs'],
+            {'role': 'database'},
+            'Command arguments should reflect the partial update.'
+        )
+
+    def test_empty_payload_fails(self):
+        """
+        Test that an empty JSON object is rejected with a 400 error.
+        """
+        response = self.client.post(
+            self.url,
+            data={},
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            'An empty payload should be rejected.'
+        )
+
+    def test_invalid_key_fails(self):
+        """
+        Test that a request with unknown keys is rejected.
+        """
+        payload = {'env': 'staging', 'location': 'kyiv'}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            'A payload with invalid keys should be rejected.'
+        )
+        self.assertIn(
+            'location',
+            response.data['non_field_errors'][0],
+            'Expected error message to mention the invalid key "location".'
+        )
+
+    def test_nonexistent_agent_fails(self):
+        """
+        Test that a request for a non-existent agent returns 404.
+        """
+        bad_url = reverse(
+            'monitoring:set_agent_tags',
+            args=['unknown-agent']
+        )
+        payload = {'env': 'test'}
+        response = self.client.post(
+            bad_url,
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            'Request for a non-existent agent should result in a 404 error.'
+        )
+
+    def test_unauthenticated_fails(self):
+        """
+        Test that an unauthenticated request is rejected.
+        """
+        unauthenticated_client = APIClient()
+        payload = {'env': 'test'}
+        response = unauthenticated_client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+            'Unauthenticated access should be denied with 401 or 403.'
+        )
+
+    def test_values_are_normalized(self):
+        """
+        Test that tag values are stripped and converted to lowercase.
+        """
+        payload = {'env': '  Production ', 'role': ' WEB '}
+        response = self.client.post(
+            self.url,
+            data=payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            'Normalization should not prevent a valid request.'
+        )
+        command = CommandHistory.objects.first()
+        expected_args = {'env': 'production', 'role': 'web'}
+        self.assertEqual(
+            command.params['kwargs'],
+            expected_args,
+            'Tag values should be properly stripped and lowercased.'
+        )

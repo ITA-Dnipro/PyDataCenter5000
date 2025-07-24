@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "pydatacenter5000"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r pydata_center/requirements.txt
+                    pip install -r requirements-dev.txt
+                '''
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    flake8 pydata_center || true
+                '''
+            }
+        }
+
+        stage('Test & Coverage') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    coverage run -m pytest
+                    coverage report
+                    coverage xml
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            when {
+                expression { fileExists('Dockerfile') }
+            }
+            steps {
+                script {
+                    dockerImage = docker.build("${IMAGE_NAME}:latest")
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            junit 'reports/*.xml' // optional, safe to leave
+        }
+        success {
+            echo 'Build completed successfully!'
+        }
+        failure {
+            echo 'Build failed.'
+        }
+    }
+}

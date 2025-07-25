@@ -1,9 +1,12 @@
 pipeline {
   agent any
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+  }
 
   environment {
     IMAGE_NAME = "pydatacenter5000"
-    // Use your test settings so no external DB is needed
     DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
   }
 
@@ -12,48 +15,55 @@ pipeline {
       steps { checkout scm }
     }
 
-    stage('Install Dependencies') {
-      steps {
-        // create venv and install
-        sh '''
-          python3 -m venv venv
-          . venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-        '''
-      }
-    }
+    stage('Lint & Test') {
+      parallel {
+        stage('Python Lint') {
+          steps {
+            script {
+              docker.image('python:3.8-alpine').inside(
+                "-v ${WORKSPACE}:/app -w /app -e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
+              ) {
+                sh '''
+                  apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
+                  pip install flake8
+                  flake8 . --config .flake8
+                '''
+              }
+            }
+          }
+        }
 
-    stage('Lint') {
-      steps {
-        sh '''
-          . venv/bin/activate
-          flake8 . --config .flake8
-        '''
-      }
-    }
-
-    stage('Test & Coverage') {
-      steps {
-        sh '''
-          . venv/bin/activate
-          coverage run -m pytest
-          coverage report
-          coverage xml
-        '''
+        stage('Python Tests') {
+          steps {
+            script {
+              docker.image('python:3.8-alpine').inside(
+                "-v ${WORKSPACE}:/app -w /app -e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
+              ) {
+                sh '''
+                  mkdir -p reports
+                  pip install --upgrade pip
+                  pip install -r requirements.txt
+                  coverage run -m pytest --junitxml=reports/junit.xml
+                  coverage report
+                '''
+              }
+            }
+          }
+        }
       }
     }
 
     stage('Build Docker Image') {
       steps {
-        sh "docker build -t ${IMAGE_NAME}:latest ."
+        script {
+          docker.build("${IMAGE_NAME}:latest", "./pydata_center")
+        }
       }
     }
   }
 
   post {
     always {
-      // if you ever generate junit xml, point here
       junit 'monitoring/tests/**/test-*.xml'
     }
     success {

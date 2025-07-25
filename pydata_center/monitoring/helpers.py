@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
+from packaging import version
 
 from .models import AgentUpgradeHistory, CommandHistory, ServerStatus
 
@@ -67,7 +68,7 @@ def maybe_dispatch_upgrade(hostname: str, agent_version: str):
         logger.warning(f'Agent {hostname} did not report version.')
         return
 
-    if agent_version < latest_version:
+    if version.parse(agent_version) < version.parse(latest_version):
         logger.info(
             f'Agent {hostname} outdated: {agent_version} < {latest_version}'
         )

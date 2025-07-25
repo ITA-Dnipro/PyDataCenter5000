@@ -24,10 +24,12 @@ def main():
     supervisor = AgentSupervisor(agent)
 
     def fetch_command(credentials, **kwargs):
-        data = agent.fetch_command_from_controller(
-            Authorization='Basic %s' % credentials, **kwargs
+        data = agent.get_data(
+            url='commands/pull/',
+            to_controller=True,
+            Authorization='Basic %s' % credentials,
+            **kwargs
         )
-
         if data:
             logging.info('Data received - maybe adding command to queue')
 

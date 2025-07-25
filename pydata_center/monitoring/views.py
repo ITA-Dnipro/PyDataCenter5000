@@ -285,18 +285,31 @@ def submit_command_result(request):
 
         alert_if_command_failed(command.hostname, final_result)
         if final_status in ['done', 'failed']:
+            status_value = 'success' if final_status == 'done' else 'failed'
+            # Update AgentUpgradeHistory
             AgentUpgradeHistory.objects.filter(
                 hostname=command.hostname,
                 to_version=command.params.get('target'),
                 status='pending'
             ).update(
-                status='success' if final_status == 'done' else 'failed',
+                status=status_value,
                 finished_at=now(),
                 message=final_result
             )
             logger.info(
                 f'Updated AgentUpgradeHistory for {command.hostname} '
                 f'to {final_status}'
+            )
+
+            # Update CommandHistory
+            CommandHistory.objects.filter(
+                id=command.id
+            ).update(
+                status=final_status,
+                result=final_result
+            )
+            logger.info(
+                f'Updated CommandHistory {command.id} to {final_status}'
             )
 
         if final_status == 'done' and command.notify_on_success:

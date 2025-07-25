@@ -1,0 +1,10 @@
+{
+  "version": "1.3.0",
+  "sha256": "<f8e308b07102dcb1a103f04fb33f387b63bda76933b6fa4a83a4d663fa6f7205>",
+  "files": [
+    "__init__.py",
+    "dns.py",
+    "config.ini",
+    "version.txt"
+  ]
+}

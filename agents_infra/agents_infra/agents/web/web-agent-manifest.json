@@ -1,0 +1,10 @@
+{
+  "version": "1.3.0",
+  "sha256": "<ce357cc9f07160310fce71e86532800fb65a8ac0095a7275c8def36c1d8caa2d>",
+  "files": [
+    "__init__.py",
+    "web.py",
+    "config.ini",
+    "version.txt"
+  ]
+}

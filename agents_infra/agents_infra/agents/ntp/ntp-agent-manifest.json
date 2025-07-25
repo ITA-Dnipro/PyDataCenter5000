@@ -1,0 +1,10 @@
+{
+  "version": "1.3.0",
+  "sha256": "<4a78a1276b173efc628f10c2d23b325d1647149718a1cb3bee17646164a99844>",
+  "files": [
+    "__init__.py",
+    "ntp.py",
+    "config.ini",
+    "version.txt"
+  ]
+}

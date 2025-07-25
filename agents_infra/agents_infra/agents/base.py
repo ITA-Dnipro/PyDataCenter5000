@@ -20,6 +20,7 @@ from urlparse import urljoin
 
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
+from ..managers.upgrade_manager import AgentUpgradeManager
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import Config, parse_config_file
 from ..utils.helpers import is_process_active, restart_service
@@ -74,6 +75,13 @@ class ServerAgent(object):
 
         # Initialize tags
         self.tags = {}
+
+        version_file = os.path.join(os.getcwd(), 'version.txt')
+        if os.path.exists(version_file):
+            with open(version_file) as vf:
+                self.version = vf.read().strip()
+        else:
+            self.version = None
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -575,105 +583,7 @@ class ServerAgent(object):
             return command_history
 
     def upgrade(self, target_version, url, sha256):
-        """
-        Upgrade agent to the specified version.
-
-        Params:
-            target_version (str): New version string.
-            url (str): URL to download package from.
-            sha256 (str): Expected SHA256 of the package.
-        """
-        self.logger.info('Starting upgrade to '
-                         'version {}'.format(target_version))
-
-        tmp_dir = tempfile.mkdtemp()
-        backup_dir = os.path.join(tmp_dir, 'backup')
-        package_path = os.path.join(tmp_dir, 'agent_package.tar.gz')
-
-        try:
-            # Backup current agent directory
-            agent_dir = os.getcwd()
-            shutil.copytree(agent_dir, backup_dir)
-            self.logger.info('Backup created at {}'.format(backup_dir))
-
-            # Download package
-            self.logger.info('Downloading package from {}'.format(url))
-            response = urllib2.urlopen(url)
-            with open(package_path, 'wb') as out_file:
-                shutil.copyfileobj(response, out_file)
-            response.close()
-
-            # Verify SHA256
-            self.logger.info('Verifying package SHA256')
-            sha256_actual = hashlib.sha256()
-            with open(package_path, 'rb') as f:
-                while True:
-                    chunk = f.read(4096)
-                    if not chunk:
-                        break
-                    sha256_actual.update(chunk)
-
-            if sha256_actual.hexdigest() != sha256:
-                raise ValueError(
-                    (
-                        'SHA256 mismatch: expected {}, got {}'
-                        .format(sha256, sha256_actual.hexdigest())
-                    )
-                )
-
-            # Extract and replace
-            self.logger.info('Extracting package')
-            with tarfile.open(package_path) as tar:
-                tar.extractall(path=tmp_dir)
-
-            # Assuming the extracted dir has same name as current agent dir
-            extracted_dir = os.path.join(tmp_dir, 'agent')
-
-            # Remove old files
-            for item in os.listdir(agent_dir):
-                item_path = os.path.join(agent_dir, item)
-                if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-                else:
-                    os.remove(item_path)
-
-            # Copy new files
-            for item in os.listdir(extracted_dir):
-                src = os.path.join(extracted_dir, item)
-                dst = os.path.join(agent_dir, item)
-                if os.path.isdir(src):
-                    shutil.copytree(src, dst)
-                else:
-                    shutil.copy2(src, dst)
-
-            self.logger.info('Upgrade to {} '
-                             'completed successfully'.format(target_version))
-
-            # Updating the version
+        manager = AgentUpgradeManager(self.logger, os.getcwd())
+        result = manager.upgrade(target_version, url, sha256)
+        if result.success:
             self.version = target_version
-
-        except Exception as e:
-            self.logger.error('Upgrade failed: {}. '
-                              'Restoring from backup.'.format(e))
-            # rollback
-            for item in os.listdir(agent_dir):
-                item_path = os.path.join(agent_dir, item)
-                if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-                else:
-                    os.remove(item_path)
-
-            for item in os.listdir(backup_dir):
-                src = os.path.join(backup_dir, item)
-                dst = os.path.join(agent_dir, item)
-                if os.path.isdir(src):
-                    shutil.copytree(src, dst)
-                else:
-                    shutil.copy2(src, dst)
-
-            self.logger.info('Rollback completed.')
-            raise
-
-        finally:
-            shutil.rmtree(tmp_dir)
-            self.logger.info('Temporary files cleaned up.')

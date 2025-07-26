@@ -1,4 +1,6 @@
+import errno
 import json
+import os
 
 import pkg_resources
 from file_utils import read_from_file, write_to_file
@@ -13,12 +15,21 @@ class AgentCommunication:
         self.logger = logger
 
     def get_token_file_path(self, token_path=None):
+        if (
+            token_path and os.path.exists(token_path)
+                and os.access(token_path, os.W_OK)
+        ):
+            return token_path
+
         if token_path is None:
             token_path = pkg_resources.resource_filename(
                 self.__class__.__module__,
-                f'tokens/{self.server_name}.token'
+                'tokens/%s.token' % self.server_name
             )
-        return token_path
+            if os.path.exists(token_path) and os.access(token_path, os.W_OK):
+                return token_path
+
+        return '/var/lib/agent/%s.token' % self.server_name
 
     def save_local_token(self, token, token_path=None):
         path = self.get_token_file_path(token_path)
@@ -28,11 +39,14 @@ class AgentCommunication:
         path = self.get_token_file_path(token_path)
         return read_from_file(path)
 
-    def register_agent_if_needed(self):
+    def is_token_available(self):
         token = self.load_local_token()
         if token:
             self.auth_token = token
-            return
+            return True
+        return False
+
+    def fetch_token_if_missing(self):
 
         token = self._request_token_from_controller()
         if token:
@@ -46,8 +60,8 @@ class AgentCommunication:
             raise Exception('Agent registration failed: no token received')
 
     def post_data_with_auth(self, url, payload, **kwargs):
-        if not self.auth_token:
-            self.register_agent_if_needed()
+        if not self.is_token_available():
+            self.fetch_token_if_missing()
 
         if not self.auth_token:
             maybe_log_message(
@@ -92,8 +106,8 @@ class AgentCommunication:
                     logger=self.logger
                 )
                 raise Exception('Invalid JSON response: %s' % e)
-
-            return data.get('token')
+            token = data.get('token')
+            return token
         except Exception as e:
             maybe_log_message(
                 'Unexpected error',

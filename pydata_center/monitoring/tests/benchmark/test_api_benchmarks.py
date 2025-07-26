@@ -4,7 +4,7 @@ import random
 import pytest
 import requests
 
-BASE_URL = os.getenv('LOCUST_TARGET', 'http://localhost:8000')
+BASE_URL = os.getenv('LOCUST_TARGET', 'http://0.0.0.0:8000')
 USERNAME = os.getenv('LOCUST_USERNAME', 'locust_tester')
 PASSWORD = os.getenv('LOCUST_PASSWORD', 'supersecret')
 

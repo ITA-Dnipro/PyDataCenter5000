@@ -7,7 +7,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('monitoring', '0016_remove_agent_token_agent_token_hash'),
-        ('monitoring', '0019_merge_20250702_2007'),
     ]
 
     operations = [

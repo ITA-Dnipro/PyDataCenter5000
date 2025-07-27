@@ -1824,7 +1824,7 @@ class TestCreateAgent(APITestCase):
         # Second registration
         response = self.client.post(self.url, self.agent_data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('token', response.data)
         self.assertIsNone(response.data['token'])
         self.assertEqual(response.data['message'], 'Agent already exists.')

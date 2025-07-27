@@ -497,7 +497,7 @@ def register_agent(request):
 
     agent_name = serializer.validated_data['name']
     agent, created = Agent.objects.get_or_create(name=agent_name)
-    print(agent, created)
+
     # The post_save signal handles token generation
     token = getattr(agent, '_plain_token', None)
 

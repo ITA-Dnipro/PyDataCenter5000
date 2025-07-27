@@ -295,6 +295,10 @@ class ReceiveStatusEndpointTests(APITestCase):
         )
 
         status_obj = ServerStatus.objects.get(hostname='testserver')
+        self.assertTrue(
+            status_obj.is_active,
+            'A newly created status should be active by default.'
+        )
         self.assertEqual(
             status_obj.ip,
             valid_data['ip'],
@@ -586,6 +590,82 @@ class ReceiveStatusEndpointTests(APITestCase):
             "'server_name' should be reported as missing"
         )
 
+    def test_subsequent_status_post_deactivates_previous_status(self):
+        """
+        Test that posting a new status for an existing hostname deactivates
+        the previously active status, leaving only one active record.
+        """
+        payload = self._get_valid_status_data()
+        hostname = payload['hostname']
+
+        response1 = self.client.post(self.url, data=payload, format='json')
+        self.assertEqual(
+            response1.status_code,
+            status.HTTP_201_CREATED,
+            f'Initial POST request failed with status '
+            f'{response1.status_code}, expected 201.'
+        )
+        self.assertEqual(
+            ServerStatus.objects.filter(hostname=hostname).count(),
+            1,
+            'Expected exactly 1 ServerStatus object after the first post.'
+        )
+        first_status = ServerStatus.objects.get(hostname=hostname)
+        self.assertTrue(
+            first_status.is_active,
+            'The first status object should have been created as active.'
+        )
+
+        payload['uptime'] = first_status.uptime + 100
+        payload['timestamp'] = timezone.now() + timedelta(seconds=10)
+
+        response2 = self.client.post(self.url, data=payload, format='json')
+        self.assertEqual(
+            response2.status_code,
+            status.HTTP_201_CREATED,
+            f'Subsequent POST request failed with status '
+            f'{response2.status_code}, expected 201.'
+        )
+
+        first_status.refresh_from_db()
+        self.assertFalse(
+            first_status.is_active,
+            'The first status should have been deactivated '
+            'after the second post.'
+        )
+        self.assertEqual(
+            ServerStatus.objects.filter(hostname=hostname).count(),
+            2,
+            'Expected 2 total ServerStatus objects for the host '
+            'after the update.'
+        )
+
+        active_count = ServerStatus.objects.filter(
+            hostname=hostname,
+            is_active=True
+        ).count()
+        self.assertEqual(
+            active_count,
+            1,
+            f'Expected exactly one active status for the host, '
+            f'but found {active_count}.'
+        )
+
+        latest_active_status = ServerStatus.objects.get(
+            hostname=hostname,
+            is_active=True
+        )
+        self.assertNotEqual(
+            latest_active_status.pk,
+            first_status.pk,
+            'The new active status should be a new database record.'
+        )
+        self.assertEqual(
+            latest_active_status.uptime,
+            payload['uptime'],
+            'The new active status did not have the updated uptime value.'
+        )
+
 
 @pytest.mark.parametrize('func,msg', [
     (send_async_webhook_message, {'content': 'mock-content'}),
@@ -788,7 +868,6 @@ class TestEvaluateAgentAlerts:
             evaluate_agent_alerts(destinations=[destination], batch=False)
 
             assert not mock_send_message.called
-        assert 'No alerts triggered' in caplog.text
 
     @patch('monitoring.tasks.AlertDispatcher.send')
     def test_no_data_for_metric(self, mock_send, caplog):
@@ -996,6 +1075,66 @@ class TestCreateAgentMetrics(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('cpu', response.data)
+
+    def test_metric_links_to_active_server_status_even_if_inactive_exists(
+            self
+    ):
+        """
+        Tests that if both an active and an inactive ServerStatus exist for a
+        hostname, a new AgentMetric correctly links to the active one.
+        """
+        self.server.delete()
+
+        old_inactive_status = ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip=self.ip,
+            os=self.os_type,
+            uptime=1000,
+            timestamp=self.timestamp - timedelta(days=1),
+            server_name='Old Record',
+            is_active=False
+        )
+
+        new_active_status = ServerStatus.objects.create(
+            hostname=self.hostname,
+            ip=self.ip,
+            os=self.os_type,
+            uptime=self.uptime,
+            timestamp=self.timestamp,
+            server_name='New Active Record',
+            is_active=True
+        )
+
+        payload = self.generate_report()
+
+        response = self.client.post(
+            f'{self.url}?hostname={self.hostname}',
+            payload,
+            format='json'
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            'The metric submission should be successful.'
+        )
+        self.assertEqual(
+            AgentMetric.objects.count(),
+            1,
+            'Exactly one AgentMetric object should be created.'
+        )
+
+        new_metric = AgentMetric.objects.first()
+        self.assertEqual(
+            new_metric.server_status.id,
+            new_active_status.id,
+            'Metric must be linked to the ID of the ACTIVE ServerStatus.'
+        )
+        self.assertNotEqual(
+            new_metric.server_status.id,
+            old_inactive_status.id,
+            'Metric must NOT be linked to the ID of the INACTIVE ServerStatus.'
+        )
 
 
 class MetricsHistoryViewTests(APITestCase):

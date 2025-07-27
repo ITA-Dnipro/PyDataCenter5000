@@ -1,7 +1,5 @@
 import hashlib
 
-import jwt
-from django.conf import settings
 from rest_framework import authentication
 
 from .helpers import raise_invalid_token
@@ -28,16 +26,7 @@ class AgentTokenAuthentication(authentication.BaseAuthentication):
 
         token = auth_header[1]
 
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=['HS256']
-            )
-        except jwt.ExpiredSignatureError:
-            raise_invalid_token('Token has expired.')
-        except jwt.InvalidTokenError:
-            raise_invalid_token('Invalid token.')
+        payload = decode_agent_jwt(token)
 
         agent_id = payload.get('agent_id')
         if not agent_id:

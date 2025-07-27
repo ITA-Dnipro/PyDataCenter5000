@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Dict
 
 import jwt
@@ -53,3 +54,24 @@ def decode_agent_jwt(token: str) -> dict:
         raise raise_invalid_token('Token has expired.')
     except jwt.InvalidTokenError:
         raise raise_invalid_token('Invalid token.')
+
+
+def generate_agent_token(agent_id, agent_name):
+    payload = {
+        'agent_id': agent_id,
+        'name': agent_name,
+        'iat': int(
+            datetime.datetime.utcnow().timestamp()
+        ),
+    }
+
+    token = jwt.encode(
+        payload,
+        settings.SECRET_KEY,
+        algorithm='HS256'
+    )
+
+    if isinstance(token, bytes):
+        token = token.decode()
+
+    return token

@@ -24,7 +24,7 @@ from .graylog import send_log_to_graylog
 from .helpers import get_latest_agents
 from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
                      TriggeredAlert)
-from .permissions import IsAgentWithPermission
+from .permissions import HasMonitoringPermission, IsAuthenticatedAgent
 from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
                           AgentRegistrationSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 )
 @api_view(['POST'])
 @authentication_classes([AgentTokenAuthentication])
-@permission_classes([IsAgentWithPermission])
+@permission_classes([IsAuthenticatedAgent | HasMonitoringPermission])
 def receive_status(request):
     """
     Receive and log server status data sent via POST request.
@@ -345,7 +345,7 @@ def dashboard_view(request):
 )
 @api_view(['POST'])
 @authentication_classes([AgentTokenAuthentication])
-@permission_classes([IsAgentWithPermission])
+@permission_classes([IsAuthenticatedAgent | HasMonitoringPermission])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')
 

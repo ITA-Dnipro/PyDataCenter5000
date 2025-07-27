@@ -6,11 +6,12 @@ connect to Postgre as a superuser and run: ALTER USER your_username CREATEDB;
 """
 
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
+from monitoring.authentication import AgentTokenAuthentication
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
 
@@ -48,6 +49,25 @@ class TestServerStatusAPI:
         self.client = APIClient()
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
+        # Patch authentication to return a mock agent user
+        self._auth_patcher = patch.object(
+            AgentTokenAuthentication,
+            'authenticate',
+            return_value=(self._mock_user(), None)
+        )
+        self._auth_patcher.start()
+
+    def teardown_method(self, method):
+        self._auth_patcher.stop()
+
+    def _mock_user(self):
+        user = MagicMock()
+        user.is_authenticated = True
+        user.is_active = True
+        user.is_agent = True
+        user.has_perm.return_value = True
+        return user
+
     @pytest.mark.parametrize(
         'healthy, should_trigger',
         [(False, True), (True, False)],
@@ -65,7 +85,9 @@ class TestServerStatusAPI:
         }
 
         if should_trigger:
-            with patch('monitoring.views.alert_if_unhealthy') as mock_alert:
+            with patch(
+                'monitoring.views.alert_if_unhealthy'
+            ) as mock_alert:
                 response = self.client.post(
                     self.url,
                     data=payload,
@@ -78,7 +100,7 @@ class TestServerStatusAPI:
                 )
         else:
             with patch(
-                    'monitoring.alerts.send_discord_alert'
+                'monitoring.alerts.send_discord_alert'
             ) as mock_send_alert:
                 response = self.client.post(
                     self.url,
@@ -105,8 +127,14 @@ class TestServerStatusAPI:
     )
     def test_bad_payloads_return_400(self, invalid_payload, test_id):
         """Test that bad payloads return 400 status."""
-        url = reverse('monitoring:receive_status') + '?hostname=invalid-host'
-        response = self.client.post(url, data=invalid_payload, format='json')
+        url = reverse(
+            'monitoring:receive_status'
+        ) + '?hostname=invalid-host'
+        response = self.client.post(
+            url,
+            data=invalid_payload,
+            format='json'
+        )
         assert response.status_code == 400
 
     def test_unauthenticated_access_is_denied(self):

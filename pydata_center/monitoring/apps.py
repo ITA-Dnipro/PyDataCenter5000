@@ -47,6 +47,9 @@ class MonitoringConfig(AppConfig):
                     algorithm='HS256'
                 )
 
+                if isinstance(token, bytes):
+                    token = token.decode()
+
                 instance.token_hash = hashlib.sha512(
                     token.encode()
                 ).hexdigest()

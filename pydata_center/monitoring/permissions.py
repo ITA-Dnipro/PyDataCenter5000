@@ -19,15 +19,18 @@ class IsAdminOrOperatorForWrite(BasePermission):
 
 class IsAgentWithPermission(BasePermission):
     """
-    Custom permission for Agent-based authentication.
+    Grants access if the user is an active Agent or has a specific permission
+    defined by the view.
     """
 
     def has_permission(self, request, view):
         user = request.user
 
-        # Check if the user is an Agent
         if getattr(user, 'is_agent', False):
             return user.is_active
 
-        # Otherwise fallback to normal Django permission system (for User)
-        return request.user.has_perm('monitoring.add_serverstatus')
+        required_perm = getattr(view, 'required_permission', None)
+        if required_perm:
+            return user.has_perm(required_perm)
+
+        return False

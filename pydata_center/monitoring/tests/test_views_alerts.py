@@ -14,8 +14,6 @@ from django.urls import reverse
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
 
-from PyDataCenter5000.pydata_center.monitoring.models import Agent
-
 pytestmark = pytest.mark.django_db
 
 

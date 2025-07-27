@@ -226,6 +226,10 @@ class Agent(models.Model):
     def is_authenticated(self):
         return True
 
+    @property
+    def is_agent(self):
+        return True
+
     def __str__(self):
         return self.name
 

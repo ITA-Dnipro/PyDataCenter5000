@@ -26,8 +26,7 @@ class IsAgentWithPermission(BasePermission):
         user = request.user
 
         # Check if the user is an Agent
-        if hasattr(user, '_meta') and user._meta.model_name == 'agent':
-
+        if getattr(user, 'is_agent', False):
             return user.is_active
 
         # Otherwise fallback to normal Django permission system (for User)

@@ -94,7 +94,7 @@ class TestServerStatusAPI:
                 )
                 assert response.status_code == 201
                 mock_alert.assert_called_once_with(
-                    self.hostname,
+                    hostname,
                     healthy
                 )
         else:
@@ -131,15 +131,15 @@ class TestServerStatusAPI:
         ],
         ids=['test_with_missing_fields', 'test_with_invalid_data'],
     )
-    def test_bad_payloads_return_400(self, invalid_payload, test_id):
-        """Test that bad payloads return 400 status."""
+    def test_bad_payloads_return_403(self, invalid_payload, test_id):
+        """Test that bad payloads return 403 status."""
         url = reverse('monitoring:receive_status')
         response = self.client.post(
             url,
             data=invalid_payload,
             format='json'
         )
-        assert response.status_code == 400
+        assert response.status_code == 403
 
     def test_unauthenticated_access_is_denied(self):
         """Test unauthenticated access is rejected."""

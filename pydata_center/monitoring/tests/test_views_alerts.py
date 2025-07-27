@@ -41,9 +41,7 @@ class TestServerStatusAPI:
 
     def setup_method(self, method):
         self.hostname = 'mock-agent'
-        self.url = reverse(
-            'monitoring:receive_status'
-        ) + f'?hostname={self.hostname}'
+        self.url = reverse('monitoring:receive_status')
         self.token = 'mock.jwt.token'
 
         self.client = APIClient()
@@ -74,14 +72,15 @@ class TestServerStatusAPI:
     )
     def test_status_alert_behavior(self, healthy, should_trigger):
         """Test healthy/unhealthy status triggers correct alert behavior."""
-
+        hostname = 'agent_fail' if not healthy else 'agent_ok'
         payload = {
+            'hostname': hostname,
             'ip': '127.0.0.1',
             'uptime': 123,
             'healthy': healthy,
             'timestamp': datetime.now().isoformat(),
             'os': 'Linux',
-            'server_name': self.hostname,
+            'server_name': hostname,
         }
 
         if should_trigger:
@@ -113,23 +112,28 @@ class TestServerStatusAPI:
     @pytest.mark.parametrize(
         'invalid_payload, test_id',
         [
-            ({}, 'missing_required_fields'),
-            ({
-                'ip': 'not_an_ip',
-                'uptime': 'not_a_number',
-                'healthy': 'maybe',
-                'timestamp': 'not_a_date',
-                'os': 'Linux',
-                'server_name': 'bad-agent',
-            }, 'invalid_data_types'),
+            (
+                    {'hostname': 'agent-missing-fields'},
+                    'missing_required_fields',
+            ),
+            (
+                    {
+                        'hostname': 'agent-invalid-data',
+                        'ip': 'not_an_ip_address',
+                        'uptime': 'not_a_number',
+                        'healthy': 'maybe',
+                        'timestamp': 'not_a_date',
+                        'os': 'Linux',
+                        'server_name': 'agent-invalid-data',
+                    },
+                    'invalid_data_types',
+            ),
         ],
         ids=['test_with_missing_fields', 'test_with_invalid_data'],
     )
     def test_bad_payloads_return_400(self, invalid_payload, test_id):
         """Test that bad payloads return 400 status."""
-        url = reverse(
-            'monitoring:receive_status'
-        ) + '?hostname=invalid-host'
+        url = reverse('monitoring:receive_status')
         response = self.client.post(
             url,
             data=invalid_payload,

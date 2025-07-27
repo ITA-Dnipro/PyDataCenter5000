@@ -4,6 +4,7 @@ from rest_framework import authentication
 
 from .helpers import raise_invalid_token
 from .models import Agent
+from .utils import decode_agent_jwt
 
 
 class AgentTokenAuthentication(authentication.BaseAuthentication):

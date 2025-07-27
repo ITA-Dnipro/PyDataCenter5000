@@ -480,30 +480,25 @@ def metrics_graphing_page(request):
 @permission_classes([])
 def register_agent(request):
     serializer = AgentRegistrationSerializer(data=request.data)
-    if serializer.is_valid():
-        agent_name = serializer.validated_data['name']
-        agent, created = Agent.objects.get_or_create(name=agent_name)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if created or not agent.token_hash:
-            token = agent.generate_token()
-            agent.token_hash = agent.hash_token(token)
-            agent.save(update_fields=['token_hash'])
+    agent_name = serializer.validated_data['name']
+    agent, created = Agent.objects.get_or_create(name=agent_name)
+    print(agent, created)
+    # The post_save signal handles token generation
+    token = getattr(agent, '_plain_token', None)
 
-            response_data = {
-                'token': token,
-                'message': 'Registered successfully.'
-            }
-            response_status = status.HTTP_201_CREATED
-        else:
-            response_data = {
-                'token': None,
-                'message': 'Agent already exists.'
-            }
-            response_status = status.HTTP_200_OK
+    response_data = {
+        'token': token,
+        'message': 'Registered successfully.'
+        if created else 'Agent already exists.'
+    }
 
-        return Response(response_data, status=response_status)
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(
+        response_data,
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    )
 
 
 @extend_schema(

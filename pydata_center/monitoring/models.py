@@ -211,28 +211,13 @@ class Webhook(models.Model):
 
 class Agent(models.Model):
     name = models.CharField(max_length=255, unique=True)
-    token_hash = models.CharField(max_length=128, unique=True, blank=True)
+    token_hash = models.CharField(
+        max_length=128,
+        unique=False,
+        null=True,
+        blank=True
+    )
     is_active = models.BooleanField(default=True)
-
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-
-        if is_new and not self.token_hash:
-            token = self.generate_token()
-            self.token_hash = self.hash_token(token)
-            super().save(update_fields=['token_hash'])
-
-            self._plain_token = token
-
-    def generate_token(self):
-        payload = {
-            'agent_id': self.id,
-            'name': self.name,
-            'iat': int(datetime.datetime.utcnow().timestamp()),
-        }
-        token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
-        return token
 
     def hash_token(self, token: str) -> str:
         return hashlib.sha512(token.encode()).hexdigest()
@@ -244,9 +229,14 @@ class Agent(models.Model):
     def __str__(self):
         return self.name
 
-    @property
-    def plain_token(self):
-        return getattr(self, '_plain_token', None)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['token_hash'],
+                name='unique_token_hash_nonnull',
+                condition=~models.Q(token_hash=None)
+            )
+        ]
 
 
 class AgentPingStatus(models.Model):

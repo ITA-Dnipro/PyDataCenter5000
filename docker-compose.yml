@@ -56,9 +56,8 @@ services:
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_ntp_ntp
-      args:
-        SSH_PASSWORD: ${SSH_PASSWORD_NTP}
     container_name: ntp_ntp
+    entrypoint: ["/app/scripts/provision/setup_ssh.sh"]
     restart: on-failure
     privileged: true
     cgroup: host
@@ -78,43 +77,61 @@ services:
     ports:
       - "8091:8081"
       - "221:22"
+    secrets:
+      - source: ssh_password_ntp
+        target: ssh_password
 
   dns_named:
     <<: *agent-base
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_dns_named
-      args:
-        SSH_PASSWORD: ${SSH_PASSWORD_NAMED}
     container_name: dns_named
     ports:
       - "8092:8081"
       - "222:22"
+    secrets:
+      - source: ssh_password_named
+        target: ssh_password
 
   web_fastapi:
     <<: *agent-base
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_web_fastapi
-      args:
-        SSH_PASSWORD: ${SSH_PASSWORD_FASTAPI}
     container_name: web_fastapi
     ports:
       - "8080:8000"
       - "8093:8081"
       - "223:22"
+    secrets:
+      - source: ssh_password_fastapi
+        target: ssh_password
+
 
   smtp_postfix:
     <<: *agent-base
     build:
       context: ./agents_infra
       dockerfile: Dockerfile_smtp_postfix
-      args:
-        SSH_PASSWORD: ${SSH_PASSWORD_POSTFIX}
     container_name: smtp_postfix
     ports:
       - "8094:8081"
       - "224:22"
+    secrets:
+      - source: ssh_password_postfix
+        target: ssh_password
+
+
+secrets:
+  ssh_password_ntp:
+    file: ./secrets/ssh_password_ntp.txt
+  ssh_password_named:
+    file: ./secrets/ssh_password_named.txt
+  ssh_password_fastapi:
+    file: ./secrets/ssh_password_fastapi.txt
+  ssh_password_postfix:
+    file: ./secrets/ssh_password_postfix.txt
 
 volumes:
   db_data:

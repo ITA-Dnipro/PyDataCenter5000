@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
+from .models import (AgentLogEntry, AgentMetric, CommandHistory, ServerStatus,
+                     TriggeredAlert)
 
 
 class AgentMetricSerializer(serializers.ModelSerializer):
@@ -41,6 +42,7 @@ class AgentMetricSerializer(serializers.ModelSerializer):
 class ServerStatusSerializer(serializers.ModelSerializer):
     metrics = AgentMetricSerializer(many=True, read_only=True)
     tags = serializers.JSONField(required=False)
+    hostname = serializers.CharField(max_length=100)
 
     class Meta:
         model = ServerStatus
@@ -84,3 +86,59 @@ class TriggeredAlertSerializer(serializers.ModelSerializer):
     class Meta:
         model = TriggeredAlert
         fields = '__all__'
+
+
+class AgentLogEntrySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AgentLogEntry
+        fields = '__all__'
+
+
+class SetTagsSerializer(serializers.Serializer):
+    """
+    Serializer for validating and cleaning the payload for the set-tags
+    endpoint.
+    Ensures that at least one valid tag is provided and normalizes the input.
+    """
+    env = serializers.CharField(required=False, allow_blank=True)
+    role = serializers.CharField(required=False, allow_blank=True)
+    region = serializers.CharField(required=False, allow_blank=True)
+
+    @staticmethod
+    def _clean_value(value):
+        """
+        Helper method to strip and lowercase the value if it's not None.
+        """
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    def validate_env(self, value):
+        return self._clean_value(value)
+
+    def validate_role(self, value):
+        return self._clean_value(value)
+
+    def validate_region(self, value):
+        return self._clean_value(value)
+
+    def validate(self, data):
+        """
+        Check that at least one tag is provided and that all keys are valid.
+        """
+        valid_keys = {'env', 'role', 'region'}
+
+        for key in self.initial_data:
+            if key not in valid_keys:
+                raise serializers.ValidationError(
+                    f"Invalid key provided: '{key}'. "
+                    f"Only 'env', 'role', 'region' are allowed."
+                )
+
+        if not data:
+            raise serializers.ValidationError(
+                "At least one tag ('env', 'role', 'region') must be provided."
+            )
+
+        return data

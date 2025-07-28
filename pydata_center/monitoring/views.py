@@ -2,6 +2,7 @@ import logging
 from datetime import timezone
 
 from django.contrib.auth.decorators import permission_required
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
@@ -11,17 +12,19 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
+from .graylog import send_log_to_graylog
 from .helpers import get_latest_agents
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
-from .serializers import (AgentMetricSerializer, CommandHistorySerializer,
-                          ServerStatusSerializer, TriggeredAlertSerializer)
+from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
+                          CommandHistorySerializer, ServerStatusSerializer,
+                          SetTagsSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data
 
 logger = logging.getLogger(__name__)
@@ -52,8 +55,16 @@ def receive_status(request):
     serializer = ServerStatusSerializer(data=request.data)
 
     if serializer.is_valid():
+        hostname = serializer.validated_data.get('hostname')
+
         try:
-            serializer.save()
+            with transaction.atomic():
+                ServerStatus.objects.filter(
+                    hostname=hostname,
+                    is_active=True
+                ).update(is_active=False)
+                serializer.save()
+
             data = extract_status_data(serializer.validated_data, request)
             healthy = serializer.validated_data.get('healthy', False)
             alert_if_unhealthy(data['hostname'], healthy)
@@ -304,6 +315,37 @@ def dashboard_view(request):
     )
 
 
+@extend_schema(
+    tags=['Metrics'],
+    request=AgentMetricSerializer,
+    parameters=[
+        OpenApiParameter(
+            name='hostname',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description=(
+                'Hostname of the server.'
+                'Will be resolved to server_status ID.'
+            )
+        ),
+    ],
+    responses={
+        status.HTTP_201_CREATED: OpenApiResponse(
+            description='Metric successfully recorded.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Validation error or missing hostname.'
+        ),
+        status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(
+            description='Server with given hostname not found.'
+        )
+    },
+    description=(
+        'Agent submits a metric payload to'
+        'be linked to an existing ServerStatus.'
+    )
+)
 @api_view(['POST'])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')
@@ -312,7 +354,10 @@ def create_agent_metric(request):
         return Response({'error': 'Hostname is required'}, status=400)
 
     try:
-        server_status = ServerStatus.objects.get(hostname=hostname)
+        server_status = ServerStatus.objects.get(
+            hostname=hostname,
+            is_active=True
+        )
     except ServerStatus.DoesNotExist:
         return Response(
             {'error': f'Server with hostname {hostname} not found'},
@@ -432,3 +477,88 @@ def metrics_graphing_page(request):
         'historical_metrics.html',
         {'hostnames': hostnames}
     )
+
+
+@extend_schema(
+    tags=['Logs'],
+    request=AgentLogEntrySerializer,
+    responses={
+        status.HTTP_201_CREATED: AgentLogEntrySerializer,
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Validation error in log payload'
+        ),
+        status.HTTP_403_FORBIDDEN: OpenApiResponse(
+            description='Permission denied.'
+        ),
+    },
+    description='Agent sends a log entry to the central controller.',
+)
+@api_view(['POST'])
+@permission_classes([IsAdminOrOperatorForWrite])
+def receive_log(request):
+    """POST endpoint for receiving logs from agents."""
+    serializer = AgentLogEntrySerializer(data=request.data)
+    if serializer.is_valid():
+        log_entry = serializer.save()
+
+        send_log_to_graylog.delay(
+            log_entry.level,
+            log_entry.message,
+            log_entry.agent_name,
+            log_entry.timestamp.isoformat(),
+            log_entry.context
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    tags=['Agents'],
+    request=SetTagsSerializer,
+    responses={
+        status.HTTP_202_ACCEPTED: OpenApiResponse(
+            description='Command to set tags has been queued.'
+        ),
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Invalid or missing tags.'
+        ),
+        status.HTTP_404_NOT_FOUND: OpenApiResponse(
+            description='Agent not found.'
+        ),
+    },
+    description='Queues a "set_tags" command for a specific agent.'
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminOrOperatorForWrite])
+def set_agent_tags(request, hostname):
+    """
+    Creates a 'set_tags' command for a given agent.
+    The agent will pick up this command on its next check-in.
+    """
+    if not ServerStatus.objects.filter(hostname=hostname).exists():
+        return Response(
+            {'error': f'Agent with hostname "{hostname}" not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    serializer = SetTagsSerializer(data=request.data)
+    if serializer.is_valid():
+        CommandHistory.objects.create(
+            hostname=hostname,
+            type='agent',
+            status='pending',
+            params={
+                'method': 'set_tags',
+                'kwargs': serializer.validated_data
+            }
+        )
+        return Response(
+            {
+                'message': (
+                    f"Command to set tags for agent '{hostname}' "
+                    f'has been queued.'
+                )
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

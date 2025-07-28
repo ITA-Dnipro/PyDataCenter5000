@@ -6,10 +6,10 @@ import os
 import subprocess
 
 import dotenv
-from agents_infra.agents import SMTPAgent
-from agents_infra.agents.exceptions import BadSubprocessReturnCode
-from agents_infra.agents.supervisor import AgentSupervisor
-from agents_infra.agents.utils import make_callback
+from agents.exceptions import BadSubprocessReturnCode
+from agents.smtp import SMTPAgent
+from agents.supervisor import AgentSupervisor
+from agents.utils import make_callback
 
 
 def main():

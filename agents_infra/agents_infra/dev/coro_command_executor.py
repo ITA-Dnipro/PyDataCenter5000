@@ -25,7 +25,7 @@ def main():
 
     def fetch_command(credentials, **kwargs):
         data = agent.get_data(
-            url='commands/fetch/',
+            url='commands/fetch/?hostname=svitlana',
             to_controller=True,
             Authorization='Basic %s' % credentials,
             **kwargs

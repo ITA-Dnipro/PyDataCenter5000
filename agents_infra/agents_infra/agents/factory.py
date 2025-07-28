@@ -21,7 +21,10 @@ AGENT_CLASS_MAP = {
 
 def agent_factory(agent_name):
     agent_class = AGENT_CLASS_MAP[agent_name]
+
+    # assuming each agent name follows the pattern <role>[_<type>]
     agent_role = agent_name.split('_')[0]
+
     config_path = os.path.join(
         os.path.dirname(__file__), agent_role, 'config.ini'
     )

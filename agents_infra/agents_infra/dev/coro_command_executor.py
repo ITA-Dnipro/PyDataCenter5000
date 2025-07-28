@@ -25,7 +25,7 @@ def main():
 
     def fetch_command(credentials, **kwargs):
         data = agent.get_data(
-            url='commands/pull/',
+            url='commands/fetch/',
             to_controller=True,
             Authorization='Basic %s' % credentials,
             **kwargs

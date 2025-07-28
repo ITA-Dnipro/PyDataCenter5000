@@ -1,0 +1,22 @@
+    [
+      {
+        "name": "collect_and_send_status",
+        "interval": 5,
+        "endpoint": "server/status/"
+      },
+      {
+        "name": "collect_and_send_metrics",
+        "interval": 5,
+        "endpoint": "agent/metrics/"
+      },
+      {
+        "name": "fetch_command",
+        "interval": 3,
+        "endpoint": "command/fetch/"
+      },
+      {
+        "name": "execute_command",
+        "interval": 2,
+        "endpoint": null
+      }
+    ]

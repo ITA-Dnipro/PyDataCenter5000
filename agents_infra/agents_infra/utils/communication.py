@@ -36,6 +36,7 @@ class AgentCommunication(object):
         else:
             self.current_controller = controller_urls[0]
         self.revert_interval = revert_interval
+        self.last_success_time = get_current_time()
 
     @property
     def logger(self):
@@ -111,7 +112,7 @@ class AgentCommunication(object):
             return self.current_controller
 
         elapsed = get_current_time() - self.last_success_time
-        if elapsed < revert_interval:
+        if elapsed < self.revert_interval:
             return self.current_controller
 
         higher_priority_urls = self._get_higher_priority_urls()

@@ -77,6 +77,48 @@ class TestGetLatestAgents:
                 ==
                 newest_vm02.timestamp)
 
+    def test_ignores_inactive_record_even_if_newer(self):
+        """
+        Test that the function selects the active record, even if an
+        inactive record for the same host has a more recent timestamp.
+        """
+        ServerStatus.objects.all().delete()
+        hostname = 'edge-case-vm'
+
+        active_and_older = ServerStatus.objects.create(
+            hostname=hostname,
+            ip='192.168.10.1',
+            uptime=1000,
+            timestamp=self.right_now - timedelta(hours=1),
+            healthy=True,
+            is_active=True
+        )
+        ServerStatus.objects.create(
+            hostname=hostname,
+            ip='192.168.10.2',
+            uptime=2000,
+            timestamp=self.right_now,
+            healthy=False,
+            is_active=False
+        )
+
+        agents = get_latest_agents()
+
+        assert len(agents) == 1, \
+            'Should only return one record for the host.'
+
+        expected_agent = {
+            'hostname': active_and_older.hostname,
+            'ip': active_and_older.ip,
+            'uptime': active_and_older.uptime,
+            'timestamp': active_and_older.timestamp,
+            'healthy': active_and_older.healthy,
+            'tags': active_and_older.tags,
+            'offline': True
+        }
+        assert agents[0] == expected_agent, \
+            'The returned agent must be the one marked as is_active=True.'
+
     def test_correctly_identifies_offline_agent(self):
         """
         Tests that an agent that has not reported recently is

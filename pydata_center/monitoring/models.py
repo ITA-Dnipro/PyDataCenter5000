@@ -207,14 +207,27 @@ class TriggeredAlert(models.Model):
         )
 
 
-class Webhook(models.Model):
-    url = models.URLField()
+class AlertingChannel(models.Model):
+    SYSTEM_CHOICES = [
+        ('email', 'Email'),
+        ('slack', 'Slack'),
+        ('discord', 'Discord'),
+        ('telegram', 'Telegram'),
+        ('sms', 'SMS'),
+        ('webhook', 'Generic Webhook'),
+        # more alerting systems can be added
+    ]
+    system = models.CharField(max_length=50, choices=SYSTEM_CHOICES)
+    url = models.URLField(blank=True)  # for webhook types
     enabled = models.BooleanField(default=True)
     description = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f'Webhook: {self.description or self.url[:30]}'
+        return (
+            f'{self.system.capitalize()} Channel: '
+            f'{self.description or self.url[:30]}'
+        )
 
 
 class Agent(models.Model):

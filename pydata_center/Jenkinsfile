@@ -20,6 +20,7 @@ pipeline {
               docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
                 sh '''
                   apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
+                  export PYTHONPATH=$(pwd)
                   pip install flake8
                   flake8 --config=pydata_center/.flake8 pydata_center/
                 '''
@@ -34,6 +35,7 @@ pipeline {
               docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
                 sh '''
                   apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
+                  export PYTHONPATH=$(pwd)
                   pip install --upgrade pip
                   pip install -r pydata_center/requirements.txt
                   mkdir -p reports

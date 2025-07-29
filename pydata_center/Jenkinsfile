@@ -9,7 +9,7 @@ pipeline {
   environment {
     IMAGE_NAME = "pydatacenter5000"
     DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
-    PYTHONPATH = "${env.WORKSPACE}"
+    PYTHONPATH = "${env.WORKSPACE}/pydata_center"
   }
 
   stages {
@@ -19,15 +19,14 @@ pipeline {
           steps {
             script {
               docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE} " +
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
                 "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
               ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install flake8
-                  flake8 --config=.flake8 pydata_center/
-
+                  flake8 --config=.flake8 .
                 '''
               }
             }
@@ -38,15 +37,15 @@ pipeline {
           steps {
             script {
               docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE} " +
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
                 "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
               ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  pip install -r pydata_center/requirements.txt
-                  mkdir -p reports
-                  coverage run -m pytest --junitxml=reports/junit.xml
+                  pip install -r requirements.txt
+                  mkdir -p ../reports
+                  coverage run -m pytest --junitxml=../reports/junit.xml
                   coverage report
                 '''
               }

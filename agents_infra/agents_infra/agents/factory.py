@@ -20,7 +20,10 @@ AGENT_CLASS_MAP = {
 
 
 def agent_factory(agent_name):
-    agent_class = AGENT_CLASS_MAP[agent_name]
+    agent_class = AGENT_CLASS_MAP.get(agent_name)
+
+    if not agent_class:
+        raise ValueError('Unknown agent name: %r' % agent_name)
 
     # assuming each agent name follows the pattern <role>[_<type>]
     agent_role = agent_name.split('_')[0]

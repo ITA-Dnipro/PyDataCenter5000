@@ -6,7 +6,11 @@ import sys
 from agents_infra.agents import agent_factory
 from agents_infra.supervisor import AgentSupervisor
 from agents_infra.tasks import periodic_task_wrapper, task_factory
-from agents_infra.utils.logtools import maybe_log_message
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s'
+)
 
 
 def load_tasks_config():
@@ -54,8 +58,12 @@ def main():
         )
         sys.exit(1)
     agent_name = sys.argv[1]
-    runner = AgentApp(agent_name, task_configs=load_tasks_config())
-    runner.run()
+    try:
+        runner = AgentApp(agent_name, task_configs=load_tasks_config())
+        runner.run()
+    except ValueError as e:
+        logging.getLogger('main').error(str(e), exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

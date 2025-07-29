@@ -187,7 +187,7 @@ def save_agent_ping_status(agent_ip, status_data):
     last_status = (
         AgentPingStatus.objects
         .filter(ip=agent_ip)
-        .order_by('-timestamp')
+        .order_by('-timestamp', '-id')
         .first()
     )
     new_status = status_data.get('status', 'unreachable')

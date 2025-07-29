@@ -1680,12 +1680,17 @@ class TestSaveAgentPingStatus:
         }
 
         save_agent_ping_status(ip, data)
-        status = (
+
+        assert AgentPingStatus.objects.filter(ip=ip).count() == 2, \
+            'A new ping status record should have been created.'
+
+        latest_status = (
             AgentPingStatus.objects
-            .filter(ip=ip).order_by('-timestamp').first()
+            .filter(ip=ip).order_by('-timestamp', '-id').first()
         )
 
-        assert status.uptime == 150, 'uptime was not updated to 150'
+        assert latest_status.uptime == 150, \
+            'The latest record should have the new uptime.'
 
 
 @pytest.mark.django_db

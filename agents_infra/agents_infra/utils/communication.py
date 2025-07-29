@@ -31,8 +31,13 @@ class AgentCommunication(object):
         self.post_data_fn = post_data_fn
         self.auth_token_type = auth_token_type
         self.controller_urls = controller_urls
-        if self.controller_urls is None:
+        if not self.controller_urls:
             self.current_controller = None
+            maybe_log_message(
+                'Controller urls are not set',
+                logger=self.logger,
+                level=logging.INFO
+            )
         else:
             self.current_controller = controller_urls[0]
         self.revert_interval = revert_interval
@@ -53,12 +58,13 @@ class AgentCommunication(object):
         """
         Switch the current controller to a new one.
         """
+        old_url = self.current_controller
         self.current_controller = new_url
         self.last_success_time = get_current_time()
         maybe_log_message(
             'Controller switched: %s -> %s' % (
-                self.current_controller,
-                new_url
+                old_url,
+                self.current_controller
             ),
             logger=self.logger,
             level=logging.INFO

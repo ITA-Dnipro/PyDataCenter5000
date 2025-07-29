@@ -79,7 +79,7 @@ def check_http_health(
                 level=logging.WARNING
             )
             return False
-        headers['Authorization'] = f'{auth_token_type} {api_key}'
+        headers['Authorization'] = '%s %s' % (auth_token_type, api_key)
 
     health_url = url.rstrip('/') + health_path
 

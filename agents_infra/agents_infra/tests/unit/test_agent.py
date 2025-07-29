@@ -5,6 +5,8 @@ import platform
 import re
 import socket
 import tempfile
+import time
+import types
 
 import ConfigParser
 import mock
@@ -13,6 +15,7 @@ import pytest
 import urllib2
 from agents_infra.agents.base import ServerAgent
 from agents_infra.command import CommandHistory
+from agents_infra.utils.communication import AgentCommunication
 from agents_infra.utils.configtools import Config
 
 HTTP_ERROR_OUTPUT = (
@@ -54,7 +57,9 @@ def mock_config_file():
         'region=eu\n'
         '\n'
         '[controller]\n'
-        'url=http://localhost\n'
+        'controller_urls=http://localhost1,'
+        'http://localhost2,'
+        'http://localhost3\n'
         'api_prefix=api/v1/\n'
         'whitelist_commands=ls,uptime,whoami,cmd\n'
     )
@@ -86,7 +91,11 @@ class MockAgent(ServerAgent):
             config = Config(
                 name='mock',
                 api_prefix='api/v1/',
-                url='http://localhost',
+                controller_urls=[
+                    'http://localhost1',
+                    'http://localhost2',
+                    'http://localhost3'
+                ],
                 port=12345,
             )
 
@@ -114,6 +123,62 @@ class MockAgent(ServerAgent):
 
     def is_service_healthy(self):
         return super(MockAgent, self).is_service_healthy()
+
+
+class DummyConfig:
+    name = 'mock-agent'
+    current_controller = None
+    auth_token_type = None
+
+
+class DummyPostDataFn:
+    def __init__(self):
+        self.__self__ = type('Self', (), {'config': DummyConfig()})()
+
+    def __call__(self, *args, **kwargs):
+        return True  # or mock desired behavior
+
+
+class MockAgentCommunication(AgentCommunication):
+    def __init__(self, controller_urls=None, healthy_urls=None):
+        if controller_urls is None:
+            controller_urls = [
+                'http://mock-controller1',
+                'http://mock-controller2',
+                'http://mock-controller3'
+            ]
+
+        self.mock_healthy_urls = set(healthy_urls or controller_urls)
+
+        dummy_post_data_fn = DummyPostDataFn()
+
+        super(MockAgentCommunication, self).__init__(
+            auth_token_type='mock-token',
+            post_data_fn=dummy_post_data_fn,
+            controller_urls=controller_urls
+        )
+
+        self.last_success_time = 0
+
+    def try_revert_primary_controller(self, api_key):
+        primary = self.controller_urls[0]
+        if primary in self.mock_healthy_urls:
+            self._switch_controller(primary)
+        return self.current_controller
+
+    def _mock_ping_url(self, url):
+        return url in self.mock_healthy_urls
+
+    def ensure_active_controller(self, api_key):
+        if self._mock_ping_url(self.current_controller):
+            return self.current_controller
+
+        for url in self.controller_urls:
+            if self._mock_ping_url(url):
+                self._switch_controller(url)
+                return url
+
+        return None
 
 
 @pytest.yield_fixture
@@ -163,7 +228,9 @@ def test_critical_processes_parsing(mock_config_file):
 def test_post_data_success_logged(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
+
     agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.current_controller = 'http://mock-controller'
 
     class MockResponse(object):
 
@@ -180,7 +247,7 @@ def test_post_data_success_logged(
         urllib2, 'urlopen', lambda req, timeout=None: MockResponse()
     )
 
-    agent.post_data('http://mock/api', {'test': 'data'})
+    agent.post_data('/api', {'test': 'data'})
 
     assert_msg_in_logfile('POST request status: 200')
     assert_msg_in_logfile(
@@ -192,7 +259,7 @@ def test_post_data_retry(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
-
+    agent.config.current_controller = 'http://mock-controller'
     call_count = {'count': 0}
 
     def mock_urlopen(req, timeout=None):
@@ -216,7 +283,7 @@ def test_post_data_retry(
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent.post_data(
-        'http://mock/endpoint', {'retry': 'test'}, max_retries=3, delay=0
+        '/endpoint', {'retry': 'test'}, max_retries=3, delay=0
     )
 
     assert_msg_in_logfile(
@@ -230,6 +297,7 @@ def test_post_data_max_retries_fail(
     monkeypatch, mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(mock_config_file)
+    agent.config.current_controller = 'http://mock-controller'
 
     monkeypatch.setattr(
         urllib2,
@@ -241,7 +309,7 @@ def test_post_data_max_retries_fail(
 
     with pytest.raises(RuntimeError, match='POST failed after 3 attempts'):
         agent.post_data(
-            'http://mock/api',
+            '/api',
             {'fail': True},
             max_retries=3,
             delay=0,
@@ -256,6 +324,7 @@ def test_post_data_error_logged(
     mock_config_file, assert_msg_in_logfile
 ):
     agent = MockAgent.from_config_file(filename=mock_config_file)
+    agent.config.current_controller = 'http://mock-controller'
 
     errors = [
         (urllib2.HTTPError(
@@ -306,7 +375,7 @@ def test_post_data_to_controller_success_logged(
     monkeypatch.setattr(urllib2, 'urlopen', mock_urlopen)
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.controller_url = 'http://mock/controller/'
+    agent.config.current_controller = 'http://mock/controller/'
 
     agent.post_data(
         'server/status/',
@@ -327,9 +396,12 @@ def test_post_data_to_controller_missing_url(
 ):
     """Test that missing controller URL is properly handled and logged."""
 
-    agent = MockAgent.from_config_file(mock_config_file)
+    # Set controller's URL explicitly to be independent of changes
+    # of default values in agent.py/
+    agent = MockAgent()
 
-    agent.config.url = ''
+    agent.controller_urls = []
+    agent.config.current_controller = ''
 
     agent.post_data(
         url='',
@@ -347,7 +419,7 @@ def test_post_data_headers_update(mock_config_file):
     """Test that post_data correctly adds Authorization header."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.config.auth_token_type = 'Bearer'
-
+    agent.config.current_controller = 'http://mock/api'
     captured_request = {'headers': None}
 
     def mock_urlopen(request, timeout=5):
@@ -411,7 +483,7 @@ def test_get_data_success_logged(
         )
 
         agent = MockAgent.from_config_file(mock_config_file)
-        agent.config.url = 'http://mock/'
+        agent.config.current_controller = 'http://mock/'
 
         result = agent.get_data('server/command/', to_controller=True)
 
@@ -448,7 +520,7 @@ def test_get_data_empty_response(
 
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
 
     result = agent.get_data('server/command/', to_controller=True)
 
@@ -464,7 +536,7 @@ def test_get_data_missing_data(mock_config_file, assert_msg_in_logfile):
     """
 
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.url = ''
+    agent.config.current_controller = ''
 
     result = agent.get_data('server/status/', to_controller=True)
 
@@ -482,7 +554,7 @@ def test_get_data_error_logged(
     Test proper handling and logging of different GET request errors.
     """
     agent = MockAgent.from_config_file(mock_config_file)
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
 
     errors = [
         HTTP_ERROR_OUTPUT,
@@ -857,7 +929,11 @@ def test_explicit_whitelist_commands_extends_default_list():
     config = {
         'name': 'server_name',
         'api_prefix': 'api/v1/',
-        'url': 'http://localhost',
+        'controller_urls': [
+            'http://localhost1',
+            'http://localhost2',
+            'http://localhost3'
+        ],
         'port': 9999,
         'critical_processes': [],
         'whitelist_commands': commands,
@@ -875,7 +951,11 @@ def test_explicit_whitelist_commands_none_uses_default_list():
     config = {
         'name': 'server_name',
         'api_prefix': 'api/v1/',
-        'url': 'http://localhost',
+        'controller_urls': [
+            'http://localhost1',
+            'http://localhost2',
+            'http://localhost3'
+        ],
         'port': 9999,
         'critical_processes': [],
         'whitelist_commands': [],
@@ -1040,7 +1120,11 @@ def test_config_file_parsing_full_mock_config(mock_config_file):
     assert agent.tags['role'] == 'backend'
     assert agent.tags['region'] == 'eu'
     assert agent.config.api_prefix == 'api/v1/'
-    assert agent.config.url == 'http://localhost'
+    assert agent.config.controller_urls == [
+        'http://localhost1',
+        'http://localhost2',
+        'http://localhost3'
+    ]
 
     assert agent.config.critical_processes == [
         'ssh', 'sshd', 'nginx', 'postgres'
@@ -1055,7 +1139,7 @@ def test_get_data_headers_default(mock_config_file):
 
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.controller_url = 'http://mock/'
+    agent.current_controller = 'http://mock/'
     agent.api_prefix = 'api/'
 
     captured_request = {'headers': None}
@@ -1082,7 +1166,7 @@ def test_get_data_headers_with_api_key(mock_config_file):
     agent = MockAgent.from_config_file(mock_config_file)
 
     agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
     agent.config.api_prefix = 'api/'
     agent.config.auth_token_type = 'Bearer'
 
@@ -1113,7 +1197,7 @@ def test_get_data_headers_with_kwargs(mock_config_file):
     """Test that additional headers from kwargs are added correctly."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
     agent.config.api_prefix = 'api/'
     agent.config.auth_token_type = 'Bearer'
 
@@ -1155,7 +1239,7 @@ def test_get_data_headers_kwargs_override(mock_config_file):
     """Test that kwargs headers override default headers in get_data."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
     agent.config.api_prefix = 'api/'
     agent.config.auth_token_type = 'Bearer'
 
@@ -1195,7 +1279,7 @@ def test__get_data_headers_update(mock_config_file):
     """Test that headers.update correctly adds Authorization header."""
     agent = MockAgent.from_config_file(mock_config_file)
     agent.hostname = 'mock_server'
-    agent.config.url = 'http://mock/'
+    agent.config.current_controller = 'http://mock/'
     agent.config.api_prefix = 'api/'
     agent.config.auth_token_type = 'Bearer'
 
@@ -1404,6 +1488,91 @@ def test_status_to_dict_timestamp_format(mock_config_file):
         "Timestamp '%s' does not match format YYYY-MM-DD HH:MM:SS"
         % timestamp
     )
+
+
+def test_switch_controller_sets_state_and_logs():
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
+    agent.last_success_time = 0
+
+    agent._switch_controller('http://mock-controller1')
+
+    assert agent.current_controller == 'http://mock-controller1'
+    assert agent.last_success_time > 0
+
+
+def test_ensure_active_controller_uses_current_if_healthy():
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
+
+    result = agent.ensure_active_controller(api_key='abc')
+
+    assert result == 'http://mock-controller2'
+
+
+def test_try_revert_reverts_when_elapsed():
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
+    agent.last_success_time = 0
+
+    result = agent.try_revert_primary_controller(api_key='abc')
+
+    assert result == 'http://mock-controller1'
+    assert agent.current_controller == 'http://mock-controller1'
+
+
+@mock.patch('agents_infra.utils.network.find_first_healthy_url')
+def test_ensure_active_controller_switches_to_healthy(mock_find):
+    mock_find.return_value = 'http://mock-controller3'
+
+    agent = MockAgentCommunication()
+    agent.controller_urls = [
+        'http://invalid_mock-controller1',
+        'http://invalid_mock-controller2',
+        'http://mock-controller3'
+    ]
+    agent.current_controller = 'http://invalid_mock-controller1'
+
+    result = agent.ensure_active_controller(api_key='abc')
+
+    assert result == 'http://mock-controller3'
+    assert agent.current_controller == 'http://mock-controller3'
+
+
+def test_ensure_active_controller_fails_all():
+    agent = MockAgentCommunication()
+    agent.controller_urls = [
+        'http://invalid_mock-controller1',
+        'http://invalid_mock-controller2'
+    ]
+    agent.current_controller = 'http://invalid_mock-controller1'
+
+    result = agent.ensure_active_controller(api_key='abc')
+
+    assert result is None
+
+
+def test_try_revert_skips_if_not_enough_elapsed():
+    agent = MockAgentCommunication()
+    agent.current_controller = 'http://mock-controller2'
+    agent.last_success_time = 50
+
+    result = agent.try_revert_primary_controller(api_key='abc')
+
+    assert result == 'http://mock-controller1'
+
+
+def test_ensure_active_controller_success_current(monkeypatch):
+    """
+        Test that ensure_active_controller returns the current
+        controller if it is healthy.
+    """
+    agent = MockAgentCommunication()
+    agent.controller_urls = ['http://mock-controller1']
+    agent.current_controller = 'http://mock-controller1'
+
+    result = agent.ensure_active_controller(api_key=None)
+    assert result == 'http://mock-controller1'
 
 
 def load_agent_from_config(config_content):

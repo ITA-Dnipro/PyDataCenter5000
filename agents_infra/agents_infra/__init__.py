@@ -6,15 +6,15 @@ from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
 from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
-from .utils import configtools
+from .utils import configtools, timestamp
 
 cfg = configtools.load_global_config()
 
-if cfg:
+if cfg is not None:
     # Prepare config as a dictionary
     config = {
-        'url': configtools.get_config_option(
-            cfg, 'controller', 'url', default=''
+        'urls': configtools.get_config_option(
+            cfg, 'controller', 'urls', cast=configtools.parse_csv_list
         ),
         'api_prefix': configtools.get_config_option(
             cfg, 'controller', 'api_prefix', default='api/'

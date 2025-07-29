@@ -113,7 +113,7 @@ class Config(object):
         self,
         name='',
         api_prefix=DEFAULT_API_PREFIX,
-        url='',
+        controller_urls=None,
         critical_processes=None,
         whitelist_commands=None,
         port=-1,
@@ -130,7 +130,12 @@ class Config(object):
         self.name = name
 
         self.api_prefix = api_prefix
-        self.url = url
+        self.controller_urls = controller_urls
+
+        if not self.controller_urls:
+            self.current_controller = ''
+        else:
+            self.current_controller = self.controller_urls[0]
 
         self.critical_processes = (
             critical_processes if critical_processes is not None else []
@@ -327,7 +332,9 @@ def parse_config_file(filename=None):
             # Simple explicit type handling
             if key == 'port':
                 value = int(value)
-            elif key in ('critical_processes', 'whitelist_commands'):
+            elif key in ('critical_processes',
+                         'whitelist_commands',
+                         'controller_urls'):
                 value = parse_csv_list(value)
             elif key == 'health_port':
                 value = int(value)
@@ -337,6 +344,9 @@ def parse_config_file(filename=None):
                     tags[key] = value.strip().lower()
             else:
                 config[key] = value
+
+    if 'controller_urls' in config and config['controller_urls']:
+        config['current_controller'] = config['controller_urls'][0]
 
     return Config.from_dict(config), tags
 

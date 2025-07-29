@@ -21,7 +21,7 @@ pipeline {
                 sh '''
                   apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
                   pip install flake8
-                  flake8 . --config .flake8
+                  flake8 --config=pydata_center/.flake8 pydata_center/
                 '''
               }
             }
@@ -35,7 +35,7 @@ pipeline {
                 sh '''
                   apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
                   pip install --upgrade pip
-                  pip install -r requirements.txt
+                  pip install -r pydata_center/requirements.txt
                   mkdir -p reports
                   coverage run -m pytest --junitxml=reports/junit.xml
                   coverage report

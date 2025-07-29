@@ -84,22 +84,28 @@ class AgentCommunication(object):
         # Acquire lock to safely read/update current_controller
         self.controller_lock.acquire()
         try:
-            if self.current_controller != self.controller_urls[0]:
-                self.current_controller = self.try_revert_primary_controller(
-                    api_key=api_key
-                )
+            self.current_controller = self.try_revert_primary_controller(
+                api_key=api_key
+            )
             current = self.current_controller
         finally:
             self.controller_lock.release()
 
         # Perform health check outside the lock
-        if ping_url(
-            current,
-            api_key=api_key,
-            logger=self.logger,
-            auth_token_type=self.auth_token_type
-        ):
-            return current
+        try:
+            if ping_url(
+                    current,
+                    api_key=api_key,
+                    logger=self.logger,
+                    auth_token_type=self.auth_token_type
+            ):
+                return current
+        except Exception as e:
+            maybe_log_message(
+                'Exception during ping_url '
+                'for controller %s: %s' % (current, str(e)),
+                logger=self.logger
+            )
 
         remaining_urls = self._get_lower_priority_urls()
         healthy_url = find_first_healthy_url(

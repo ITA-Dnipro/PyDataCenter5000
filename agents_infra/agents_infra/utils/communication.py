@@ -1,6 +1,8 @@
 import logging
+import socket
 import threading
 
+import urllib2
 from logtools import maybe_log_message
 
 from ..utils.network import (check_http_health, find_first_healthy_url,
@@ -84,9 +86,10 @@ class AgentCommunication(object):
         # Acquire lock to safely read/update current_controller
         self.controller_lock.acquire()
         try:
-            self.current_controller = self.try_revert_primary_controller(
-                api_key=api_key
-            )
+            self.current_controller = (
+                self.attempt_revert_to_primary_controller(
+                    api_key=api_key
+                ))
             current = self.current_controller
         finally:
             self.controller_lock.release()
@@ -129,13 +132,21 @@ class AgentCommunication(object):
         )
         return None
 
-    def try_revert_primary_controller(self, api_key):
+    def attempt_revert_to_primary_controller(self, api_key):
         """
         Attempt to revert back to the primary controller if healthy.
 
         Returns:
             str: Current controller URL after the check.
         """
+        if not self.controller_urls:
+            maybe_log_message(
+                'No controller URLs configured. Cannot attempt revert.',
+                logger=self.logger,
+                level=logging.WARNING
+            )
+            return None
+
         if self.current_controller == self.controller_urls[0]:
             return self.current_controller
 
@@ -144,12 +155,21 @@ class AgentCommunication(object):
             return self.current_controller
 
         higher_priority_urls = self._get_higher_priority_urls()
+        if not higher_priority_urls:
+            maybe_log_message(
+                'No higher-priority controllers to check for reversion.',
+                logger=self.logger,
+                level=logging.INFO
+            )
+            return self.current_controller
+
         healthy_url = find_first_healthy_url(
             higher_priority_urls,
             api_key,
             auth_token_type=self.auth_token_type,
             logger=self.logger
         )
+
         if healthy_url:
             maybe_log_message(
                 'Reverting controller: %s -> %s' % (
@@ -182,6 +202,22 @@ class AgentCommunication(object):
         current_index = self.controller_urls.index(self.current_controller)
         return self.controller_urls[current_index + 1:]
 
+    def _update_post_data_config(self, controller_url):
+        """
+        Updates the config of the object that owns post_data_fn, if applicable.
+        """
+        try:
+            config = getattr(self.post_data_fn.__self__, 'config', None)
+            if config:
+                config.current_controller = controller_url
+                config.auth_token_type = self.auth_token_type
+        except AttributeError:
+            maybe_log_message(
+                'Failed to update post_data_fn config.',
+                logger=self.logger,
+                level=logging.WARNING
+            )
+
     def post_data(
             self,
             endpoint,
@@ -195,26 +231,68 @@ class AgentCommunication(object):
     ):
         """
         Post data to the active controller.
+
+        Attempts to send a payload to the specified endpoint of
+        the currently active controller.
+        Handles controller failover and updates internal controller metadata.
+
+        Args:
+            endpoint (str): The API endpoint (relative path) to send
+            the data to.
+            payload (dict): The JSON-serializable data to be sent
+            in the request body.
+            api_key (str, optional): API key used
+            for authentication (if applicable).
+            max_retries (int, optional): Number of retry
+            attempts on failure. Default is 3.
+            delay (int, optional): Delay (in seconds) between
+            retry attempts. Default is 5.
+            timeout (int, optional): Timeout (in seconds) for
+            the request. Default is 5.
+            fail_silently (bool, optional): If True, suppress exceptions and
+            return None on failure.
+            **headers: Additional HTTP headers to include in the request (e.g.,
+                       `Content-Type`, `Authorization`, custom headers).
+
+        Returns:
+            Response object or None: The result of the `post_data_fn` call,
+            or None if the controller is unavailable or the request
+             fails and `fail_silently` is True.
         """
         controller_url = self.ensure_active_controller(api_key)
         if controller_url is None:
             self.logger.error('No healthy controller available.')
             return None
 
-        if hasattr(self.post_data_fn.__self__, 'config'):
-            (self.post_data_fn.__self__.
-             config).current_controller = controller_url
-            (self.post_data_fn.__self__.
-             config).auth_token_type = self.auth_token_type
+        self._update_post_data_config(controller_url)
 
-        return self.post_data_fn(
-            endpoint,
-            payload,
-            to_controller=True,
-            api_key=api_key,
-            max_retries=max_retries,
-            delay=delay,
-            timeout=timeout,
-            fail_silently=fail_silently,
-            **headers
-        )
+        try:
+            return self.post_data_fn(
+                endpoint,
+                payload,
+                to_controller=True,
+                api_key=api_key,
+                max_retries=max_retries,
+                delay=delay,
+                timeout=timeout,
+                fail_silently=fail_silently,
+                **headers
+            )
+        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+            maybe_log_message(
+                'Network error during post_data_fn: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            if not fail_silently:
+                raise
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error in post_data_fn: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            if not fail_silently:
+                raise
+
+        return None

@@ -26,7 +26,7 @@ pipeline {
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install flake8
-                  flake8 pydata_center/ --config=pydata_center/.flake8
+                  flake8 --config=pydata_center/.flake8 pydata_center/
                 '''
               }
             }
@@ -43,7 +43,7 @@ pipeline {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  pip install -r requirements.txt
+                  pip install -r pydata_center/requirements.txt
                   mkdir -p reports
                   coverage run -m pytest --junitxml=reports/junit.xml
                   coverage report

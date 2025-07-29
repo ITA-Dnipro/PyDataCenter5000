@@ -1,4 +1,4 @@
-FROM python:3.8-alpine
+FROM python:3.8-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -8,15 +8,14 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Install system dependencies
-RUN apk update && apk add --no-cache \
-    build-base \
-    postgresql-dev \
-    musl-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
     libffi-dev \
     gcc \
     python3-dev \
-    openssl-dev \
-    cargo
+    cargo \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt requirements.txt

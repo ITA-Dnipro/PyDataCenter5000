@@ -1,5 +1,6 @@
 pipeline {
   agent any
+
   options {
     timeout(time: 30, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
@@ -8,19 +9,19 @@ pipeline {
   environment {
     IMAGE_NAME = "pydatacenter5000"
     DJANGO_SETTINGS_MODULE = "pydata_center.pydata_center.settings_test"
+    PYTHONPATH = "${env.WORKSPACE}/pydata_center"
   }
 
   stages {
-
     stage('Lint & Test') {
       parallel {
         stage('Python Lint') {
           steps {
             script {
-              docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
+              docker.image('python:3.8-slim').inside("-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}") {
                 sh '''
-                  apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
-                  export PYTHONPATH=$(pwd)
+                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                  pip install --upgrade pip
                   pip install flake8
                   flake8 --config=pydata_center/.flake8 pydata_center/
                 '''
@@ -32,10 +33,9 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
+              docker.image('python:3.8-slim').inside("-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}") {
                 sh '''
-                  apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
-                  export PYTHONPATH=$(pwd)
+                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install -r pydata_center/requirements.txt
                   mkdir -p reports

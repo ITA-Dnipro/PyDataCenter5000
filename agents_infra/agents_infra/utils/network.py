@@ -31,7 +31,10 @@ def is_tcp_reachable(url, timeout=3, logger=None):
         return True
     except Exception as e:
         maybe_log_message(
-            f'TCP reachability check failed for {url}: {e}',
+            'TCP reachability check failed for %s: %s' % (
+                url,
+                e
+            ),
             logger=logger,
             level=logging.WARNING
         )
@@ -93,7 +96,10 @@ def check_http_health(
             ValueError
     ) as e:
         maybe_log_message(
-            f'HTTP health check failed for {url}: {e}',
+            'HTTP health check failed for %s: %s' % (
+                url,
+                e
+            ),
             logger=logger,
             level=logging.WARNING
         )
@@ -122,7 +128,7 @@ def ping_url(
     """
     if not is_tcp_reachable(url, timeout, logger=logger):
         maybe_log_message(
-            f'Controller unreachable at TCP level: {url}',
+            'Controller unreachable at TCP level: %s' % url,
             logger=logger,
             level=logging.WARNING
         )
@@ -137,7 +143,7 @@ def ping_url(
     )
     if not healthy:
         maybe_log_message(
-            f'Health check failed for controller: {url}',
+            'Health check failed for controller: %s' % url,
             logger=logger,
             level=logging.ERROR
         )

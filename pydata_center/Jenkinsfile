@@ -20,9 +20,7 @@ pipeline {
         stage('Python Lint') {
           steps {
             script {
-              docker.image('python:3.8-alpine').inside(
-                "-v ${WORKSPACE}:/app -w /app -e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
-              ) {
+              docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
                 sh '''
                   apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
                   pip install flake8
@@ -36,13 +34,12 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              docker.image('python:3.8-alpine').inside(
-                "-v ${WORKSPACE}:/app -w /app -e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
-              ) {
+              docker.image('python:3.8-alpine').inside("-e DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}") {
                 sh '''
-                  mkdir -p reports
+                  apk update && apk add --no-cache build-base musl-dev libffi-dev gcc python3-dev openssl-dev cargo postgresql-dev
                   pip install --upgrade pip
                   pip install -r requirements.txt
+                  mkdir -p reports
                   coverage run -m pytest --junitxml=reports/junit.xml
                   coverage report
                 '''
@@ -56,7 +53,7 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          docker.build("${IMAGE_NAME}:latest", "./pydata_center")
+          docker.build("${IMAGE_NAME}:latest", ".")
         }
       }
     }
@@ -64,7 +61,7 @@ pipeline {
 
   post {
     always {
-      junit 'monitoring/tests/**/test-*.xml'
+      junit 'reports/junit.xml'
     }
     success {
       echo 'CI pipeline succeeded!'

@@ -7,7 +7,7 @@ pipeline {
 
   environment {
     IMAGE_NAME = "pydatacenter5000"
-    DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
+    DJANGO_SETTINGS_MODULE = "pydata_center.pydata_center.settings_test"
   }
 
   stages {

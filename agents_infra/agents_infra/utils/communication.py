@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from logtools import maybe_log_message
 
@@ -42,6 +43,7 @@ class AgentCommunication(object):
             self.current_controller = controller_urls[0]
         self.revert_interval = revert_interval
         self.last_success_time = get_current_time()
+        self.controller_lock = threading.Lock()
 
     @property
     def logger(self):
@@ -72,23 +74,32 @@ class AgentCommunication(object):
 
     def ensure_active_controller(self, api_key):
         """
-        Ensure there is an active, healthy controller.
+            Ensure there is an active, healthy controller.
 
-        Returns:
-            str or None: Active controller URL, or None if none are healthy.
+            Returns:
+                str or None: Active controller URL,
+                or None if none are healthy.
         """
-        if self.current_controller != self.controller_urls[0]:
-            self.current_controller = self.try_revert_primary_controller(
-                api_key=api_key
-            )
 
+        # Acquire lock to safely read/update current_controller
+        self.controller_lock.acquire()
+        try:
+            if self.current_controller != self.controller_urls[0]:
+                self.current_controller = self.try_revert_primary_controller(
+                    api_key=api_key
+                )
+            current = self.current_controller
+        finally:
+            self.controller_lock.release()
+
+        # Perform health check outside the lock
         if ping_url(
-                self.current_controller,
-                api_key=api_key,
-                logger=self.logger,
-                auth_token_type=self.auth_token_type
+            current,
+            api_key=api_key,
+            logger=self.logger,
+            auth_token_type=self.auth_token_type
         ):
-            return self.current_controller
+            return current
 
         remaining_urls = self._get_lower_priority_urls()
         healthy_url = find_first_healthy_url(
@@ -97,8 +108,13 @@ class AgentCommunication(object):
             auth_token_type=self.auth_token_type,
             logger=self.logger
         )
+
         if healthy_url:
-            self._switch_controller(healthy_url)
+            self.controller_lock.acquire()
+            try:
+                self._switch_controller(healthy_url)
+            finally:
+                self.controller_lock.release()
             return healthy_url
 
         maybe_log_message(

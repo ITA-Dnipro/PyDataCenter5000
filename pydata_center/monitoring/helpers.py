@@ -32,12 +32,8 @@ def get_latest_agents(query_params=None, cutoff_seconds=60):
                     else 'timestamp__lt'
                 ] = cutoff_time
 
-    latest_subquery = ServerStatus.objects.filter(
-        hostname=OuterRef('hostname')
-    ).order_by('-timestamp').values('pk')[:1]
-
     latest_statuses = ServerStatus.objects.filter(
-        pk=Subquery(latest_subquery),
+        is_active=True,
         **filters
     ).order_by('hostname')
 

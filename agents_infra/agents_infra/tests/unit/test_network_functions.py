@@ -17,7 +17,7 @@ def test_find_healthy_controller_returns_first_healthy(monkeypatch):
         'http://mock-controller3'
     ]
 
-    def mock_ping_url(url, api_key, auth_token_type, logger=None):
+    def mock_ping_url(url, api_key, auth_token_type, logger=None, timeout=3):
         return url == 'http://mock-controller2'
 
     monkeypatch.setattr(

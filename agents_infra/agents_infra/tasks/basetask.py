@@ -1,7 +1,4 @@
 import abc
-import sys
-
-from agents_infra.exceptions import TaskException
 
 
 class BaseTask(object):

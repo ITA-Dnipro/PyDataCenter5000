@@ -8,8 +8,8 @@ pipeline {
 
   environment {
     IMAGE_NAME = "pydatacenter5000"
-    DJANGO_SETTINGS_MODULE = "pydata_center.pydata_center.settings_test"
-    PYTHONPATH = "${env.WORKSPACE}/pydata_center"
+    DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
+    PYTHONPATH = "${env.WORKSPACE}"
   }
 
   stages {
@@ -18,12 +18,15 @@ pipeline {
         stage('Python Lint') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside("-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}") {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE} " +
+                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
+              ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install flake8
-                  flake8 --config=pydata_center/.flake8 pydata_center/
+                  flake8 pydata_center/ --config=pydata_center/.flake8
                 '''
               }
             }
@@ -33,11 +36,14 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside("-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}") {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE} " +
+                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
+              ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  pip install -r pydata_center/requirements.txt
+                  pip install -r requirements.txt
                   mkdir -p reports
                   coverage run -m pytest --junitxml=reports/junit.xml
                   coverage report

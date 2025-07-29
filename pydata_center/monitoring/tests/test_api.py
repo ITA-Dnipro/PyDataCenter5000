@@ -1,10 +1,13 @@
+import hashlib
 import json
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
 import requests
+from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.core.management import call_command
@@ -15,8 +18,9 @@ from django.utils import timezone
 from freezegun import freeze_time
 from monitoring.email import send_async_email
 from monitoring.graylog import send_log_to_graylog
-from monitoring.models import (AgentLogEntry, AgentMetric, AgentPingStatus,
-                               AlertRule, CommandHistory, ServerStatus)
+from monitoring.models import (Agent, AgentLogEntry, AgentMetric,
+                               AgentPingStatus, AlertRule, CommandHistory,
+                               ServerStatus)
 from monitoring.tasks import (check_agent_health, check_all_agents_health,
                               evaluate_agent_alerts, save_agent_ping_status)
 from monitoring.webhook import WebhookMessage, send_async_webhook_message
@@ -47,7 +51,27 @@ class ServerStatusAPITest(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=1,
+            is_active=True
+        )
+
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def _get_base_payload(self):
         return {
@@ -200,7 +224,28 @@ class ReceiveStatusEndpointTests(APITestCase):
         cls.user.groups.add(operator_group)
 
     def setUp(self):
-        self.client.force_authenticate(user=self.user)
+        self.client = APIClient()
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=3,
+            is_active=True
+        )
+
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def _get_valid_status_data(self):
         return {
@@ -943,13 +988,28 @@ class TestCreateAgentMetrics(APITestCase):
             timestamp=self.timestamp,
             server_name='Test Server'
         )
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass'
+        self.client = APIClient()
+
+        # Create test agent
+        self.agent = Agent.objects.create(
+            id=2,
+            is_active=True
         )
 
-        self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
+        # Generate token
+        self.token = jwt.encode(
+            {'agent_id': self.agent.id},
+            settings.SECRET_KEY,
+            algorithm='HS256'
+        )
+
+        # Store token hash in DB
+        token_hash = hashlib.sha512(self.token.encode()).hexdigest()
+        self.agent.token_hash = token_hash
+        self.agent.save()
+
+        # Set Authorization header
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
     def get_cpu_usage(self):
         return 45.0
@@ -1738,6 +1798,36 @@ class TestCheckAllAgentsHealth:
             assert result == 'fake-task-id', (
                 f"Expected result ID to be 'fake-task-id', got '{result}'"
             )
+
+
+class TestCreateAgent(APITestCase):
+    def setUp(self):
+        self.url = reverse('monitoring:agent-register')
+        self.agent_data = {
+            'name': 'test-agent'
+        }
+
+    def test_register_new_agent(self):
+        """Should register a new agent and return a token"""
+        response = self.client.post(self.url, self.agent_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('token', response.data)
+        self.assertIsNotNone(response.data['token'])
+        self.assertEqual(response.data['message'], 'Registered successfully.')
+        self.assertTrue(Agent.objects.filter(name='test-agent').exists())
+
+    def test_register_existing_agent(self):
+        """Should not generate new token if agent already exists"""
+        # First registration
+        self.client.post(self.url, self.agent_data, format='json')
+        # Second registration
+        response = self.client.post(self.url, self.agent_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', response.data)
+        self.assertIsNone(response.data['token'])
+        self.assertEqual(response.data['message'], 'Agent already exists.')
 
 
 class SetAgentTagsAPITest(APITestCase):

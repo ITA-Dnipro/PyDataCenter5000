@@ -12,17 +12,22 @@ from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
                                    extend_schema, extend_schema_view)
 from monitoring.permissions import IsAdminOrOperatorForWrite
 from rest_framework import filters, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import (api_view, authentication_classes,
+                                       permission_classes)
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
+from .authentication import AgentTokenAuthentication
 from .graylog import send_log_to_graylog
 from .helpers import get_latest_agents
-from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
+from .models import (Agent, AgentMetric, CommandHistory, ServerStatus,
+                     TriggeredAlert)
+from .permissions import HasMonitoringPermission, IsAuthenticatedAgent
 from .serializers import (AgentLogEntrySerializer, AgentMetricSerializer,
+                          AgentRegistrationSerializer,
                           CommandHistorySerializer, ServerStatusSerializer,
                           SetTagsSerializer, TriggeredAlertSerializer)
 from .utils import extract_status_data
@@ -47,7 +52,8 @@ logger = logging.getLogger(__name__)
         description='Receive and log server status data sent via POST request.'
 )
 @api_view(['POST'])
-@permission_required('monitoring.add_serverstatus', raise_exception=True)
+@authentication_classes([AgentTokenAuthentication])
+@permission_classes([IsAuthenticatedAgent | HasMonitoringPermission])
 def receive_status(request):
     """
     Receive and log server status data sent via POST request.
@@ -347,6 +353,8 @@ def dashboard_view(request):
     )
 )
 @api_view(['POST'])
+@authentication_classes([AgentTokenAuthentication])
+@permission_classes([IsAuthenticatedAgent | HasMonitoringPermission])
 def create_agent_metric(request):
     hostname = request.query_params.get('hostname')
 
@@ -476,6 +484,32 @@ def metrics_graphing_page(request):
         request,
         'historical_metrics.html',
         {'hostnames': hostnames}
+    )
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def register_agent(request):
+    serializer = AgentRegistrationSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    agent_name = serializer.validated_data['name']
+    agent, created = Agent.objects.get_or_create(name=agent_name)
+
+    # The post_save signal handles token generation
+    token = getattr(agent, '_plain_token', None)
+
+    response_data = {
+        'token': token,
+        'message': 'Registered successfully.'
+        if created else 'Agent already exists.'
+    }
+
+    return Response(
+        response_data,
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
     )
 
 

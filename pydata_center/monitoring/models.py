@@ -1,3 +1,8 @@
+import datetime
+import hashlib
+
+import jwt
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -223,6 +228,40 @@ class AlertingChannel(models.Model):
             f'{self.system.capitalize()} Channel: '
             f'{self.description or self.url[:30]}'
         )
+
+
+class Agent(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    token_hash = models.CharField(
+        max_length=128,
+        unique=False,
+        null=True,
+        blank=True
+    )
+    is_active = models.BooleanField(default=True)
+
+    def hash_token(self, token: str) -> str:
+        return hashlib.sha512(token.encode()).hexdigest()
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_agent(self):
+        return True
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['token_hash'],
+                name='unique_token_hash_nonnull',
+                condition=~models.Q(token_hash=None)
+            )
+        ]
 
 
 class AgentPingStatus(models.Model):

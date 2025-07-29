@@ -1,6 +1,11 @@
+import datetime
 from typing import Any, Dict
 
+import jwt
+from django.conf import settings
 from django.http import HttpRequest
+
+from .helpers import raise_invalid_token
 
 
 def get_client_ip(request: HttpRequest) -> str:
@@ -28,3 +33,45 @@ def extract_status_data(
         'ip': data.get('ip') or get_client_ip(request),
         'uptime': data.get('uptime', 'unknown')
     }
+
+
+def decode_agent_jwt(token: str) -> dict:
+    """
+    Decode and validate a JWT using the project’s secret key.
+
+    Raises:
+        AuthenticationFailed if the token is invalid or expired.
+    Returns:
+        Decoded JWT payload as dict.
+    """
+    try:
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=['HS256']
+        )
+    except jwt.ExpiredSignatureError:
+        raise raise_invalid_token('Token has expired.')
+    except jwt.InvalidTokenError:
+        raise raise_invalid_token('Invalid token.')
+
+
+def generate_agent_token(agent_id, agent_name):
+    payload = {
+        'agent_id': agent_id,
+        'name': agent_name,
+        'iat': int(
+            datetime.datetime.utcnow().timestamp()
+        ),
+    }
+
+    token = jwt.encode(
+        payload,
+        settings.SECRET_KEY,
+        algorithm='HS256'
+    )
+
+    if isinstance(token, bytes):
+        token = token.decode()
+
+    return token

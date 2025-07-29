@@ -182,7 +182,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-
+tokens/
 # other logs
 status_log.txt
 

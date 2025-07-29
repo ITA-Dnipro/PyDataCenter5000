@@ -88,6 +88,10 @@ class TriggeredAlertSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class AgentRegistrationSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+
+
 class AgentLogEntrySerializer(serializers.ModelSerializer):
 
     class Meta:

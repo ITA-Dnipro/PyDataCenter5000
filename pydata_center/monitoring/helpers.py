@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.db.models import OuterRef, Subquery
 from django.utils.timezone import now
+from rest_framework import exceptions
 
 from .models import ServerStatus
 
@@ -49,3 +50,7 @@ def get_latest_agents(query_params=None, cutoff_seconds=60):
         }
         for agent in latest_statuses
     ]
+
+
+def raise_invalid_token(reason):
+    raise exceptions.AuthenticationFailed(reason)

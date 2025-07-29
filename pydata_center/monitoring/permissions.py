@@ -15,3 +15,27 @@ class IsAdminOrOperatorForWrite(BasePermission):
             return False
         return request.user.groups.filter(
             name__in=['Admin', 'Operator']).exists()
+
+
+class IsAuthenticatedAgent(BasePermission):
+    """
+    Grants access if the user is an active authenticated Agent.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        return getattr(user, 'is_agent', False) and user.is_active
+
+
+class HasMonitoringPermission(BasePermission):
+    """
+    Grants access if the user has the permission specified by the view.
+    """
+
+    def has_permission(self, request, view):
+        required_perm = getattr(view, 'required_permission', None)
+
+        if required_perm:
+            return request.user.has_perm(required_perm)
+
+        return False

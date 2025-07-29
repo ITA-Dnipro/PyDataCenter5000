@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (AgentLogEntry, AgentMetric, AgentPingStatus,
+from .models import (Agent, AgentLogEntry, AgentMetric, AgentPingStatus,
                      AlertingChannel, AlertRule, CommandHistory, ServerStatus)
 
 
@@ -120,6 +120,11 @@ class AlertingChannelAdmin(admin.ModelAdmin):
     list_filter = ('system', 'enabled')
     search_fields = ('description', 'url')
     readonly_fields = ('created_at', 'url')
+
+
+@admin.register(Agent)
+class AgentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active')
 
 
 @admin.register(AgentLogEntry)

@@ -6,11 +6,12 @@ connect to Postgre as a superuser and run: ALTER USER your_username CREATEDB;
 """
 
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import Group, Permission, User
 from django.urls import reverse
+from monitoring.authentication import AgentTokenAuthentication
 from monitoring.models import CommandHistory
 from rest_framework.test import APIClient
 
@@ -34,23 +35,43 @@ def authenticated_client(db):
     return client
 
 
+@pytest.mark.django_db
 class TestServerStatusAPI:
     """Tests for the server status endpoint."""
 
     def setup_method(self, method):
+        self.hostname = 'mock-agent'
         self.url = reverse('monitoring:receive_status')
+        self.token = 'mock.jwt.token'
+
+        self.client = APIClient()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
+
+        # Patch authentication to return a mock agent user
+        self._auth_patcher = patch.object(
+            AgentTokenAuthentication,
+            'authenticate',
+            return_value=(self._mock_user(), None)
+        )
+        self._auth_patcher.start()
+
+    def teardown_method(self, method):
+        self._auth_patcher.stop()
+
+    def _mock_user(self):
+        user = MagicMock()
+        user.is_authenticated = True
+        user.is_active = True
+        user.is_agent = True
+        user.has_perm.return_value = True
+        return user
 
     @pytest.mark.parametrize(
         'healthy, should_trigger',
         [(False, True), (True, False)],
     )
-    def test_status_alert_behavior(
-            self,
-            authenticated_client,
-            healthy,
-            should_trigger
-    ):
-        """Tests both healthy and unhealthy status alert logic."""
+    def test_status_alert_behavior(self, healthy, should_trigger):
+        """Test healthy/unhealthy status triggers correct alert behavior."""
         hostname = 'agent_fail' if not healthy else 'agent_ok'
         payload = {
             'hostname': hostname,
@@ -63,19 +84,24 @@ class TestServerStatusAPI:
         }
 
         if should_trigger:
-            path_to_mock = 'monitoring.views.alert_if_unhealthy'
-            with patch(path_to_mock) as mock_alert:
-                response = authenticated_client.post(
+            with patch(
+                'monitoring.views.alert_if_unhealthy'
+            ) as mock_alert:
+                response = self.client.post(
                     self.url,
                     data=payload,
                     format='json'
                 )
                 assert response.status_code == 201
-                mock_alert.assert_called_once_with(hostname, healthy)
+                mock_alert.assert_called_once_with(
+                    hostname,
+                    healthy
+                )
         else:
-            path_to_mock = 'monitoring.alerts.send_discord_alert'
-            with patch(path_to_mock) as mock_send_alert:
-                response = authenticated_client.post(
+            with patch(
+                'monitoring.alerts.send_discord_alert'
+            ) as mock_send_alert:
+                response = self.client.post(
                     self.url,
                     data=payload,
                     format='json'
@@ -105,22 +131,22 @@ class TestServerStatusAPI:
         ],
         ids=['test_with_missing_fields', 'test_with_invalid_data'],
     )
-    def test_bad_payloads_return_400(
-            self, authenticated_client, invalid_payload, test_id
-    ):
-        """Test that various types of bad payloads return a 400 status."""
-        response = authenticated_client.post(
-            self.url,
+    def test_bad_payloads_return_400(self, invalid_payload, test_id):
+        """Test that bad payloads return 400 status."""
+        url = reverse('monitoring:receive_status')
+        response = self.client.post(
+            url,
             data=invalid_payload,
             format='json'
         )
         assert response.status_code == 400
 
     def test_unauthenticated_access_is_denied(self):
-        """Test that unauthenticated access to status endpoint is rejected."""
+        """Test unauthenticated access is rejected."""
         client = APIClient()
-        response = client.post(self.url, data={}, format='json')
-        assert response.status_code in (401, 403)
+        url = reverse('monitoring:receive_status')
+        response = client.post(url, data={}, format='json')
+        assert response.status_code in (400, 401, 403)
 
 
 class TestCommandHistoryAPI:

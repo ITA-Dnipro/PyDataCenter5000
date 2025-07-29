@@ -6,8 +6,6 @@ from ..utils.network import (check_http_health, find_first_healthy_url,
                              is_tcp_reachable, ping_url)
 from ..utils.timestamp import get_current_time
 
-revert_interval = 900
-
 
 class AgentCommunication(object):
     """
@@ -15,7 +13,13 @@ class AgentCommunication(object):
     including health checks, failover logic, and posting data.
     """
 
-    def __init__(self, auth_token_type, post_data_fn, controller_urls):
+    def __init__(
+            self,
+            auth_token_type,
+            post_data_fn,
+            controller_urls,
+            revert_interval=900
+    ):
         """
         Initialize AgentCommunication.
 
@@ -27,7 +31,11 @@ class AgentCommunication(object):
         self.post_data_fn = post_data_fn
         self.auth_token_type = auth_token_type
         self.controller_urls = controller_urls
-        self.current_controller = controller_urls[0]
+        if self.controller_urls is None:
+            self.current_controller = None
+        else:
+            self.current_controller = controller_urls[0]
+        self.revert_interval = revert_interval
 
     @property
     def logger(self):

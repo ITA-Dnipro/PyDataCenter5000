@@ -3,8 +3,8 @@ from django.contrib.auth.models import Group
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 
-from .models import (AgentLogEntry, AgentMetric, AgentPingStatus, AlertRule,
-                     CommandHistory, ServerStatus, Webhook)
+from .models import (AgentLogEntry, AgentMetric, AgentPingStatus,
+                     AlertingChannel, AlertRule, CommandHistory, ServerStatus)
 
 
 class GroupBaseAdmin(admin.ModelAdmin):
@@ -114,9 +114,12 @@ class AlertRuleAdmin(admin.ModelAdmin):
     activate_rules.short_description = 'Deactivate selected alert rules'
 
 
-@admin.register(Webhook)
-class WebhookAdmin(admin.ModelAdmin):
-    list_display = ('url', 'enabled')
+@admin.register(AlertingChannel)
+class AlertingChannelAdmin(admin.ModelAdmin):
+    list_display = ('system', 'description', 'enabled', 'created_at')
+    list_filter = ('system', 'enabled')
+    search_fields = ('description', 'url')
+    readonly_fields = ('created_at', 'url')
 
 
 @admin.register(AgentLogEntry)

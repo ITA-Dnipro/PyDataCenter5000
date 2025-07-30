@@ -1,36 +1,25 @@
-from agents_infra.utils.auth import Authentication
 from agents_infra.utils.sysinfo import generate_report
 
-from .basetask import BaseTask
+from .base_http_task import BasePostTask
 
 
-class CollectAndSendStatusTask(BaseTask):
+class CollectAndSendStatusTask(BasePostTask):
 
-    def handle(self):
-        data = self.agent.status_to_dict()
-        return self.agent.post_data(
-            url=self.endpoint,
-            payload=data,
-            to_controller=True,
-            max_retries=1,
-            fail_silently=False,
-            api_key=Authentication.get_key()
-        )
+    def _produce_payload(self):
+        return self.agent.status_to_dict()
 
 
-class CollectAndSendMetricsTask(BaseTask):
+class CollectAndSendMetricsTask(BasePostTask):
 
-    def handle(self):
+    def __init__(self, agent, endpoint, interval):
+        endpoint = endpoint + '?hostname=%s' % agent.hostname
+        super(CollectAndSendMetricsTask,
+              self).__init__(agent, endpoint, interval)
+
+    def _produce_payload(self):
         report = generate_report(self.agent.logger)
         payload = {}
         for k in ('cpu', 'ram', 'disk', 'load_avg'):
             if k in report:
                 payload[k] = report[k]
-        return self.agent.post_data(
-            url=self.endpoint + '?hostname=%s' % self.agent.hostname,
-            payload=payload,
-            to_controller=True,
-            max_retries=1,
-            fail_silently=False,
-            api_key=Authentication.get_key()
-        )
+        return payload

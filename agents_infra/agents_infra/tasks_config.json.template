@@ -10,13 +10,8 @@
         "endpoint": "agent/metrics/"
       },
       {
-        "name": "fetch_command",
+        "name": "fetch_and_handle_command",
         "interval": 3,
         "endpoint": "command/fetch/"
-      },
-      {
-        "name": "execute_command",
-        "interval": 2,
-        "endpoint": null
       }
     ]

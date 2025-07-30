@@ -5,31 +5,34 @@ import logging
 import os
 import subprocess
 
-from agents_infra.agents.dns.dns import DNSAgent
-from agents_infra.exceptions import BadProcessReturnCode
-from agents_infra.supervisor import AgentSupervisor
-from agents_infra.utils import make_callback
+import dotenv
+from agents.exceptions import BadSubprocessReturnCode
+from agents.smtp import SMTPAgent
+from agents.supervisor import AgentSupervisor
+from agents.utils import make_callback
 
 
 def main():
-    credentials = ('admin:1234').encode('utf-8')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '../.env'
+    )
+    dotenv.load_dotenv(path)
+
+    credentials = (
+        '%s:%s' % (os.getenv('DJANGO_USER'), os.getenv('DJANGO_PASSWORD'))
+    ).encode('utf-8')
     credentials = base64.b64encode(credentials).decode('utf-8')
 
-    agent = DNSAgent.from_config_file(
-        filename='agents_infra/agents/dns/config.ini'
-    )
-    agent.config.name = 'dns_agent'
+    agent = SMTPAgent.from_config_file()
     agent.collect_server_metadata()
 
     supervisor = AgentSupervisor(agent)
 
     def fetch_command(credentials, **kwargs):
-        data = agent.get_data(
-            url='commands/fetch/?hostname=svitlana',
-            to_controller=True,
-            Authorization='Basic %s' % credentials,
-            **kwargs
+        data = agent.fetch_command_from_controller(
+            Authorization='Basic %s' % credentials, **kwargs
         )
+
         if data:
             logging.info('Data received - maybe adding command to queue')
 
@@ -63,28 +66,17 @@ def main():
             output = stdout.decode('utf-8') + stderr.decode('utf-8')
 
             if proc.returncode != 0:
-                command_history.status = CommandStatus.FAILED
-                command_history.result = output
-                raise BadProcessReturnCode(
+                raise BadSubprocessReturnCode(
                     'Command failed with return code %d' % proc.returncode
                 )
 
-            command_history.status = CommandStatus.DONE
-            command_history.result = output
-
             logging.info('Command %s succeeded' % command_history.command)
             logging.info('Command output: %s...[truncated]' % output[:300])
-
         except OSError as e:
-            command_history.status = CommandStatus.FAILED
-            command_history.result = str(e)
-
             logging.error(
                 'Subprocess failed due to error: %s' % str(e),
                 exc_info=True,
             )
-
-        agent.handle_command_lifecycle(command_history=command_history)
 
     def on_timeout(idx, retry, credentials):
         agent.post_data(

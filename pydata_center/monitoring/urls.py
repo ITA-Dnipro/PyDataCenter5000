@@ -21,7 +21,7 @@ urlpatterns = [
         name='fetch_pending_command'
     ),
     path(
-        'command/result/',
+        'command/result/<int:command_id>/',
         submit_command_result,
         name='submit_command_result'
     ),

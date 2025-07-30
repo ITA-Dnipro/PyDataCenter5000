@@ -228,30 +228,23 @@ def fetch_pending_command(request):
 
 
 @extend_schema(
-        tags=['Command'],
-        request=CommandHistorySerializer,
-        responses={
-            status.HTTP_200_OK: CommandHistorySerializer,
-            status.HTTP_400_BAD_REQUEST: OpenApiResponse(
-                description='Validation error or invalid status'
-            ),
-            status.HTTP_404_NOT_FOUND: OpenApiResponse(
-                description='Command not found or ID missing'
-            ),
-        },
-        description=(
-            'Agent submits the result or status update for a command by ID.'
+    tags=['Command'],
+    request=CommandHistorySerializer,
+    responses={
+        status.HTTP_200_OK: CommandHistorySerializer,
+        status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+            description='Validation error or invalid status'
         ),
+        status.HTTP_404_NOT_FOUND: OpenApiResponse(
+            description='Command not found'
+        ),
+    },
+    description=(
+        'Agent submits the result or status update for a command by ID.'
+    ),
 )
 @api_view(['PATCH'])
-def submit_command_result(request):
-    command_id = request.data.get('id')
-    if not command_id:
-        return Response(
-            {'error': 'id is required'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
+def submit_command_result(request, command_id):
     try:
         command = CommandHistory.objects.get(id=command_id)
     except CommandHistory.DoesNotExist:

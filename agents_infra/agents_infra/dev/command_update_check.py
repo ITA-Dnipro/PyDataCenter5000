@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 import base64
-import sys
 import json
+import sys
 
 from agents_infra.agents.dns.dns import DNSAgent
 from agents_infra.exceptions import BadProcessReturnCode
@@ -25,7 +25,7 @@ def main():
 
         agent.collect_server_metadata()
 
-        print("🚀 Agent initialized:", agent.config.name)
+        print('🚀 Agent initialized:', agent.config.name)
 
         command_data = agent.get_data(
             url='command/fetch/?hostname=%s' % agent.hostname,
@@ -34,10 +34,10 @@ def main():
         )
 
         if not command_data:
-            print("⚠ No command data received from controller.")
+            print('⚠ No command data received from controller.')
             return
 
-        print("📥 Command data received:", command_data)
+        print('📥 Command data received:', command_data)
 
         patch_url = 'command/result/%s/' % 12
         payload = {
@@ -45,13 +45,15 @@ def main():
             'result': 'done'
         }
         response = agent.patch_data(
-            patch_url, json.loads(json.dumps(payload)), Authorization=auth_header
+            patch_url,
+            json.loads(json.dumps(payload)),
+            Authorization=auth_header
         )
 
-        print("🔁 PATCH sent. Response:", response)
-        print("✔ Agent command processed and patched.")
+        print('🔁 PATCH sent. Response:', response)
+        print('✔ Agent command processed and patched.')
     except Exception as e:
-        print("🔥 Unhandled exception in main():", str(e))
+        print('🔥 Unhandled exception in main():', str(e))
         sys.exit(1)
 
 

@@ -33,16 +33,19 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:/workspace -w /workspace"
-              ) {
+              docker.image('python:3.8-slim').inside('-v $PWD:/workspace -w /workspace') {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  pip install -r requirements.txt
 
-                  mkdir -p reports
-                  coverage run -m pytest --junitxml=reports/junit.xml
+                  echo "Listing contents to verify location:"
+                  ls -al /workspace
+                  ls -al /workspace/pydata_center
+
+                  pip install -r pydata_center/requirements.txt
+
+                  mkdir -p /workspace/reports
+                  coverage run -m pytest pydata_center --junitxml=/workspace/reports/junit.xml
                   coverage report
                   coverage xml -o reports/coverage.xml
                 '''

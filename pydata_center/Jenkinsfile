@@ -9,7 +9,7 @@ pipeline {
     environment {
         IMAGE_NAME = "pydatacenter5000"
         DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
-        PYTHONPATH = "${env.WORKSPACE}/pydata_center"
+        PYTHONPATH = "${WORKSPACE}/pydata_center"
     }
 
     stages {
@@ -17,7 +17,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.8-slim'
-                    args "-v ${env.WORKSPACE}/pydata_center:/app -w /app"
+                    args "-v ${WORKSPACE}/pydata_center:/app -w /app"
                 }
             }
             steps {
@@ -34,7 +34,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.8-slim'
-                    args "-v ${env.WORKSPACE}/pydata_center:/app -v ${env.WORKSPACE}/reports:/app/reports -w /app"
+                    args "-v ${WORKSPACE}/pydata_center:/app -v ${WORKSPACE}/reports:/app/reports -w /app"
                 }
             }
             steps {

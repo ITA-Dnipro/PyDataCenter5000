@@ -17,11 +17,12 @@ pipeline {
         stage('Python Lint') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside('-v $PWD:/app -w /app/pydata_center') {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:/app -w /app/pydata_center"
+              ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
-                  pip install --upgrade pip
-                  pip install flake8
+                  pip install --upgrade pip flake8
                   flake8 .
                 '''
               }
@@ -32,15 +33,18 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              checkout scm
-              docker.image('python:3.8-slim').inside('-v $PWD:/app -w /app/pydata_center') {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:/workspace -w /workspace"
+              ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  pip install -r /app/requirements.txt
-                  mkdir -p /app/reports
-                  coverage run -m pytest --junitxml=/app/reports/junit.xml
+                  pip install -r requirements.txt
+
+                  mkdir -p reports
+                  coverage run -m pytest --junitxml=reports/junit.xml
                   coverage report
+                  coverage xml -o reports/coverage.xml
                 '''
               }
             }

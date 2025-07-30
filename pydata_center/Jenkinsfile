@@ -26,7 +26,10 @@ pipeline {
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install flake8
-                  flake8 --config=.flake8 .
+                  echo "Working dir: $(pwd)"
+                  echo "Contents:"
+                  ls -al
+                  flake8 --config=../.flake8 .
                 '''
               }
             }

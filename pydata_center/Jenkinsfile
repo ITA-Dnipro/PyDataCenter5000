@@ -12,13 +12,20 @@ pipeline {
   }
 
   stages {
+    stage('Print Workspace Path') {
+      steps {
+        sh 'pwd'
+        sh 'ls -al'
+      }
+    }
+
     stage('Lint & Test') {
       parallel {
         stage('Python Lint') {
           steps {
             script {
               docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:/app -w /app/pydata_center"
+                "-v ${env.WORKSPACE}:/workspace -w /workspace/pydata_center"
               ) {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
@@ -35,19 +42,20 @@ pipeline {
             script {
               docker.image('python:3.8-slim').inside("-v ${env.WORKSPACE}:/workspace -w /workspace") {
                 sh '''
+                  echo "Listing workspace root:"
+                  ls -al /workspace
+                  echo "Listing pydata_center directory:"
+                  ls -al /workspace/pydata_center || echo "pydata_center folder not found"
+
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
 
-                  echo "Listing contents to verify location:"
-                  ls -al /workspace
-                  ls -al /workspace/pydata_center
-                  cat /workspace/pydata_center/requirements.txt || echo "requirements.txt not found"
                   pip install -r pydata_center/requirements.txt
 
                   mkdir -p /workspace/reports
                   coverage run -m pytest pydata_center --junitxml=/workspace/reports/junit.xml
                   coverage report
-                  coverage xml -o reports/coverage.xml
+                  coverage xml -o /workspace/reports/coverage.xml
                 '''
               }
             }

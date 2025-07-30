@@ -20,7 +20,8 @@ from urlparse import urljoin
 
 from ..command import CommandHistory, CommandStatus, dispatch_command
 from ..exceptions import BadProcessReturnCode
-from ..managers.upgrade_manager import AgentUpgradeManager
+from ..managers.upgrade_manager import (AgentUpgradeManager,
+                                        TarballUpgradeManager)
 from ..utils import LOG_CONFIG_PATH, maybe_log_message
 from ..utils.configtools import Config, parse_config_file
 from ..utils.helpers import is_process_active, restart_service
@@ -40,7 +41,10 @@ class ServerAgent(object):
     # Global config parsed once at import-level (__init__.py)
     config = None  # Will hold default/global config
 
-    def __init__(self, protocol=None, command_queue_size=0, config=None):
+    def __init__(
+            self, protocol=None, command_queue_size=0,
+            config=None, upgrade_manager=None
+    ):
         self.health_thread = None
 
         # Normalize user config
@@ -82,6 +86,13 @@ class ServerAgent(object):
                 self.version = vf.read().strip()
         else:
             self.version = None
+
+        self.upgrade_manager = upgrade_manager
+        if self.upgrade_manager is None:
+            self.upgrade_manager = TarballUpgradeManager(
+                self.logger,
+                os.getcwd()
+            )
 
     @classmethod
     def from_config_file(cls, filename=None, log_path=None):
@@ -582,8 +593,18 @@ class ServerAgent(object):
 
             return command_history
 
-    def upgrade(self, target_version, url, sha256):
-        manager = AgentUpgradeManager(self.logger, os.getcwd())
-        result = manager.upgrade(target_version, url, sha256)
-        if result.success:
+    def upgrade(self, target_version, url, sha256, *args, **kwargs):
+        result = self.upgrade_manager.upgrade(
+            target_version,
+            url,
+            sha256,
+            *args,
+            **kwargs
+        )
+        if result.is_success():
             self.version = target_version
+            self.logger.info('Upgrade successful: %s', result.message)
+        elif result.is_skipped():
+            self.logger.info('Upgrade skipped: %s', result.message)
+        elif result.is_failed():
+            self.logger.error('Upgrade failed: %s', result.message)

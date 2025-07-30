@@ -26,9 +26,6 @@ pipeline {
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
                   pip install flake8
-                  echo "Working dir: $(pwd)"
-                  echo "Contents:"
-                  ls -al
                   flake8 .
                 '''
               }
@@ -46,6 +43,9 @@ pipeline {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
+                  echo "Working dir: $(pwd)"
+                  echo "Listing files:"
+                  ls -al
                   pip install -r requirements.txt
                   mkdir -p ../reports
                   coverage run -m pytest --junitxml=../reports/junit.xml

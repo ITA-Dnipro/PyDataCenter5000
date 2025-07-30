@@ -9,6 +9,7 @@ pipeline {
   environment {
     IMAGE_NAME = "pydatacenter5000"
     DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
+    VENV_DIR = ".venv"
   }
 
   stages {
@@ -24,12 +25,15 @@ pipeline {
         stage('Python Lint') {
           steps {
             sh '''
+              python3 -m venv $VENV_DIR
+              . $VENV_DIR/bin/activate
               pip install --upgrade pip flake8
               cd pydata_center
               flake8 .
             '''
           }
         }
+
         stage('Python Tests') {
           steps {
             withCredentials([string(credentialsId: 'django-secret-key', variable: 'DJANGO_SECRET_KEY')]) {
@@ -40,10 +44,13 @@ pipeline {
                 echo "Listing pydata_center directory:"
                 ls -al pydata_center || echo "pydata_center folder not found"
 
+                python3 -m venv $VENV_DIR
+                . $VENV_DIR/bin/activate
                 pip install --upgrade pip
                 pip install -r pydata_center/requirements.txt
 
                 mkdir -p reports
+                . $VENV_DIR/bin/activate
                 coverage run -m pytest pydata_center --junitxml=reports/junit.xml
                 coverage report
                 coverage xml -o reports/coverage.xml

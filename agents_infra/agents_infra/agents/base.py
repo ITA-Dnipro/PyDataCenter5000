@@ -484,10 +484,8 @@ class ServerAgent(object):
 
         if command_history:
             try:
-                patch_url = 'api/v1/commands/%s/' % command_history.id
+                patch_url = 'api/v1/command/result/%s/' % command_history.id
                 payload = {
-                    'id': command_history.id,
-                    'hostname': command_history.hostname,
                     'status': command_history.status.value,
                     'result': command_history.result,
                 }

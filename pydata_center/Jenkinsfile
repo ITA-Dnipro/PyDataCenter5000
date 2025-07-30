@@ -1,73 +1,78 @@
 pipeline {
-    agent none
+  agent any
 
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
-    }
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+  }
 
-    environment {
-        IMAGE_NAME = "pydatacenter5000"
-        DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
-        PYTHONPATH = "${WORKSPACE}/pydata_center"
-    }
+  environment {
+    IMAGE_NAME = "pydatacenter5000"
+    DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
+    PYTHONPATH = "${env.WORKSPACE}/pydata_center"
+  }
 
-    stages {
+  stages {
+    stage('Lint & Test') {
+      parallel {
         stage('Python Lint') {
-            agent {
-                docker {
-                    image 'python:3.8-slim'
-                    args "-v ${WORKSPACE}/pydata_center:/app -w /app"
-                }
-            }
-            steps {
+          steps {
+            script {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
+                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
+              ) {
                 sh '''
-                    apt-get update && apt-get install -y python3-pip
-                    pip install --upgrade pip
-                    pip install flake8
-                    flake8 --config=.flake8 .
+                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                  pip install --upgrade pip
+                  pip install flake8
+                  flake8 --config=.flake8 .
                 '''
+              }
             }
+          }
         }
 
         stage('Python Tests') {
-            agent {
-                docker {
-                    image 'python:3.8-slim'
-                    args "-v ${WORKSPACE}/pydata_center:/app -v ${WORKSPACE}/reports:/app/reports -w /app"
-                }
-            }
-            steps {
+          steps {
+            script {
+              docker.image('python:3.8-slim').inside(
+                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
+                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
+              ) {
                 sh '''
-                    apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                    mkdir -p reports
-                    coverage run -m pytest --junitxml=../reports/junit.xml
-                    coverage report
+                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                  pip install --upgrade pip
+                  pip install -r requirements.txt
+                  mkdir -p ../reports
+                  coverage run -m pytest --junitxml=../reports/junit.xml
+                  coverage report
                 '''
+              }
             }
+          }
         }
-
-        stage('Build Docker Image') {
-            agent any
-            steps {
-                script {
-                    docker.build("${IMAGE_NAME}:latest", ".")
-                }
-            }
-        }
+      }
     }
 
-    post {
-        always {
-            junit "${WORKSPACE}/reports/junit.xml"
+    stage('Build Docker Image') {
+      steps {
+        script {
+          docker.build("${IMAGE_NAME}:latest", ".")
         }
-        success {
-            echo 'CI pipeline succeeded!'
-        }
-        failure {
-            echo 'CI pipeline failed ☠'
-        }
+      }
     }
+  }
+
+  post {
+    always {
+      junit 'reports/junit.xml'
+    }
+    success {
+      echo 'CI pipeline succeeded!'
+    }
+    failure {
+      echo 'CI pipeline failed ☠'
+    }
+  }
 }

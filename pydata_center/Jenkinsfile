@@ -17,7 +17,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.8-slim'
-                    args '-v ${env.WORKSPACE}/pydata_center:/app -w /app'
+                    args "-v ${env.WORKSPACE}/pydata_center:/app -w /app"
                 }
             }
             steps {
@@ -34,7 +34,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.8-slim'
-                    args '-v ${env.WORKSPACE}/pydata_center:/app -v ${env.WORKSPACE}/reports:/app/reports -w /app'
+                    args "-v ${env.WORKSPACE}/pydata_center:/app -v ${env.WORKSPACE}/reports:/app/reports -w /app"
                 }
             }
             steps {

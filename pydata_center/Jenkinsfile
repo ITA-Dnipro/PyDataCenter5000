@@ -37,23 +37,25 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside("-v ${env.WORKSPACE}:/workspace -w /workspace") {
-                sh '''
-                  echo "Listing workspace root:"
-                  ls -al /workspace
-                  echo "Listing pydata_center directory:"
-                  ls -al /workspace/pydata_center || echo "pydata_center folder not found"
+              withCredentials([string(credentialsId: 'django-secret-key', variable: 'DJANGO_SECRET_KEY')]) {
+                docker.image('python:3.8-slim').inside("-v ${env.WORKSPACE}:/workspace -w /workspace -e DJANGO_SECRET_KEY=${env.DJANGO_SECRET_KEY}") {
+                  sh '''
+                    echo "Listing workspace root:"
+                    ls -al /workspace
+                    echo "Listing pydata_center directory:"
+                    ls -al /workspace/pydata_center || echo "pydata_center folder not found"
 
-                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
-                  pip install --upgrade pip
+                    apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                    pip install --upgrade pip
 
-                  pip install -r pydata_center/requirements.txt
+                    pip install -r pydata_center/requirements.txt
 
-                  mkdir -p /workspace/reports
-                  coverage run -m pytest pydata_center --junitxml=/workspace/reports/junit.xml
-                  coverage report
-                  coverage xml -o /workspace/reports/coverage.xml
-                '''
+                    mkdir -p /workspace/reports
+                    coverage run -m pytest pydata_center --junitxml=/workspace/reports/junit.xml
+                    coverage report
+                    coverage xml -o /workspace/reports/coverage.xml
+                  '''
+                }
               }
             }
           }

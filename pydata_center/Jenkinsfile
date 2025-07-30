@@ -43,9 +43,9 @@ pipeline {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  echo Listing from Jenkins workspace:'
-                  ls -al ${env.WORKSPACE}'
-                  ls -al ${env.WORKSPACE}/pydata_center'
+                  echo Listing from Jenkins workspace:
+                  ls -al ${env.WORKSPACE}
+                  ls -al ${env.WORKSPACE}/pydata_center
                   pip install -r requirements.txt
                   mkdir -p ../reports
                   coverage run -m pytest --junitxml=../reports/junit.xml

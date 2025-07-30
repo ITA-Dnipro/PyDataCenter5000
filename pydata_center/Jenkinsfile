@@ -9,7 +9,6 @@ pipeline {
   environment {
     IMAGE_NAME = "pydatacenter5000"
     DJANGO_SETTINGS_MODULE = "pydata_center.settings_test"
-    PYTHONPATH = "${env.WORKSPACE}/pydata_center"
   }
 
   stages {
@@ -18,10 +17,7 @@ pipeline {
         stage('Python Lint') {
           steps {
             script {
-              docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
-                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
-              ) {
+              docker.image('python:3.8-slim').inside('-v $PWD:/app -w /app/pydata_center') {
                 sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
@@ -36,25 +32,16 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
-
               checkout scm
-
-              docker.image('python:3.8-slim').inside(
-                "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
-                "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
-              ) {
-                sh """
+              docker.image('python:3.8-slim').inside('-v $PWD:/app -w /app/pydata_center') {
+                sh '''
                   apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
                   pip install --upgrade pip
-                  echo Listing from Jenkins workspace:
-                  ls -al ${env.WORKSPACE}
-                  ls -al ${env.WORKSPACE}/pydata_center
-                  find ${env.WORKSPACE} -type f
-                  pip install -r ${env.WORKSPACE}/requirements.txt
-                  mkdir -p ../reports
-                  coverage run -m pytest --junitxml=../reports/junit.xml
+                  pip install -r /app/requirements.txt
+                  mkdir -p /app/reports
+                  coverage run -m pytest --junitxml=/app/reports/junit.xml
                   coverage report
-                """
+                '''
               }
             }
           }

@@ -16,11 +16,24 @@ COPY ../servers/web/ /app/server
 # Copy scripts and requirements
 COPY scripts/provision/install_nginx.sh /tmp/
 COPY scripts/provision/setup_fastapi.sh /tmp/
+
 # COPY scripts/provision/start_services.sh /tmp/
 COPY ../servers/web/requirements.txt /tmp/requirements.txt
 
-# Make scripts executable, install services, setup FastAPI, and clean up
-RUN chmod +x /tmp/*.sh && \
-    /tmp/install_nginx.sh && \
-    /tmp/setup_fastapi.sh && \
-    rm /tmp/*.sh
+# Install system dependencies and Python venv
+RUN apt-get update \
+    && apt-get install -y python3-venv python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment and install Python dependencies
+RUN mkdir -p /opt/fastapi \
+    && python3 -m venv /opt/fastapi/venv \
+    && /opt/fastapi/venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/fastapi/venv/bin/pip install gunicorn uvicorn[standard] fastapi \
+    && /opt/fastapi/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Setup Nginx and FastAPI
+RUN chmod +x /tmp/*.sh \
+    && /tmp/install_nginx.sh \
+    && /tmp/setup_fastapi.sh \
+    && rm /tmp/*.sh /tmp/requirements.txt

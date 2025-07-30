@@ -43,7 +43,6 @@ pipeline {
                   pip install -r requirements.txt
 
                   mkdir -p reports
-
                   set -e
                   coverage run -m pytest . --junitxml=reports/junit.xml
                   coverage report
@@ -53,7 +52,7 @@ pipeline {
             }
           }
         }
-      } // <-- THIS was missing
+      }
     }
 
     stage('Build Docker Image') {
@@ -74,6 +73,12 @@ pipeline {
           echo 'junit.xml not found, skipping test report publishing'
         }
       }
+    }
+    success {
+      echo 'CI pipeline succeeded!'
+    }
+    failure {
+      echo 'CI pipeline failed ☠'
     }
   }
 }

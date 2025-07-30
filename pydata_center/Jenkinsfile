@@ -36,6 +36,9 @@ pipeline {
         stage('Python Tests') {
           steps {
             script {
+
+              checkout scm
+
               docker.image('python:3.8-slim').inside(
                 "-v ${env.WORKSPACE}:${env.WORKSPACE} -w ${env.WORKSPACE}/pydata_center " +
                 "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
@@ -46,7 +49,8 @@ pipeline {
                   echo Listing from Jenkins workspace:
                   ls -al ${env.WORKSPACE}
                   ls -al ${env.WORKSPACE}/pydata_center
-                  pip install -r requirements.txt
+                  find ${env.WORKSPACE} -type f
+                  pip install -r ${env.WORKSPACE}/requirements.txt
                   mkdir -p ../reports
                   coverage run -m pytest --junitxml=../reports/junit.xml
                   coverage report

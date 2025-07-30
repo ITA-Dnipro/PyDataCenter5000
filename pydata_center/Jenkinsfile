@@ -29,7 +29,7 @@ pipeline {
                   echo "Working dir: $(pwd)"
                   echo "Contents:"
                   ls -al
-                  flake8 --config=../.flake8 .
+                  flake8 .
                 '''
               }
             }

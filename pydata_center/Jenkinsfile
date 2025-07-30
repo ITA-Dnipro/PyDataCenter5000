@@ -20,11 +20,14 @@ pipeline {
             sh '''
               cd pydata_center
 
-              if [ ! -d "$VENV_DIR" ]; then
-                python3 -m venv "$VENV_DIR"
+              VENV=".venv"
+
+              if [ ! -d "$VENV" ]; then
+                python3 -m venv "$VENV"
               fi
 
-              . "$VENV_DIR/bin/activate"
+              . "$VENV/bin/activate"
+
               pip install --upgrade pip flake8
               flake8 .
             '''

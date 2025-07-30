@@ -13,6 +13,7 @@ fi
 
 # Configure Nginx as reverse proxy
 rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-available/default
 
 cat > /etc/nginx/sites-available/fastapi << 'EOF'
 server {

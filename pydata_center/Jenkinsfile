@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent none
 
     options {
         timeout(time: 30, unit: 'MINUTES')
@@ -13,51 +13,44 @@ pipeline {
     }
 
     stages {
-        stage('Lint & Test') {
-            parallel {
-                stage('Python Lint') {
-                    agent {
-                        docker {
-                            image: 'python:3.8-slim'
-                            args: '-v ${env.WORKSPACE}/pydata_center:/app -w /app'
-                        }
-                    }
-                    steps {
-                        script {
-                            sh '''
-                                apt-get update && apt-get install -y python3-pip
-                                pip install --upgrade pip
-                                pip install flake8
-                                flake8 --config=.flake8 .
-                            '''
-                        }
-                    }
+        stage('Python Lint') {
+            agent {
+                docker {
+                    image 'python:3.8-slim'
+                    args '-v ${env.WORKSPACE}/pydata_center:/app -w /app'
                 }
+            }
+            steps {
+                sh '''
+                    apt-get update && apt-get install -y python3-pip
+                    pip install --upgrade pip
+                    pip install flake8
+                    flake8 --config=.flake8 .
+                '''
+            }
+        }
 
-                stage('Python Tests') {
-                    agent {
-                        docker {
-                            image: 'python:3.8-slim'
-                            args: '-v ${env.WORKSPACE}/pydata_center:/app -v ${env.WORKSPACE}/reports:/app/reports -w /app'
-                        }
-                    }
-                    steps {
-                        script {
-                            sh '''
-                                apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
-                                pip install --upgrade pip
-                                pip install -r requirements.txt
-                                mkdir -p reports
-                                coverage run -m pytest --junitxml=../reports/junit.xml
-                                coverage report
-                            '''
-                        }
-                    }
+        stage('Python Tests') {
+            agent {
+                docker {
+                    image 'python:3.8-slim'
+                    args '-v ${env.WORKSPACE}/pydata_center:/app -v ${env.WORKSPACE}/reports:/app/reports -w /app'
                 }
+            }
+            steps {
+                sh '''
+                    apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                    mkdir -p reports
+                    coverage run -m pytest --junitxml=../reports/junit.xml
+                    coverage report
+                '''
             }
         }
 
         stage('Build Docker Image') {
+            agent any
             steps {
                 script {
                     docker.build("${IMAGE_NAME}:latest", ".")

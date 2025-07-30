@@ -1,0 +1,145 @@
+services:
+  db:
+    image: postgres:15
+    container_name: database
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: always
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      retries: 5
+    networks:
+      - app-network
+
+  controller:
+    build:
+      context: ./pydata_center
+      dockerfile: Dockerfile
+    container_name: controller
+    env_file:
+      - .env
+    restart: on-failure
+    command: ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: ${DJANGO_DEBUG}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+    volumes:
+      - ./pydata_center:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check", "--deploy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  ntp_ntp: &agent-base
+    build:
+      context: ./agents_infra
+      dockerfile: Dockerfile_ntp_ntp
+    container_name: ntp_ntp
+    entrypoint: ["/app/scripts/provision/setup_ssh.sh"]
+    restart: on-failure
+    privileged: true
+    cgroup: host
+    command: /sbin/init
+    volumes:
+      - ./agents_infra/agents_infra:/app/agents_infra
+      - ./agents_infra/scripts:/app/scripts
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    depends_on:
+      - controller
+    networks:
+      - app-network
+    ports:
+      - "8091:8081"
+      - "221:22"
+      - "123:123/udp"
+    secrets:
+      - source: ssh_password_ntp
+        target: ssh_password
+
+  dns_named:
+    <<: *agent-base
+    build:
+      context: ./agents_infra
+      dockerfile: Dockerfile_dns_named
+    container_name: dns_named
+    ports:
+      - "8092:8081"
+      - "222:22"
+      - "53:53/udp"
+      - "53:53/tcp"
+    secrets:
+      - source: ssh_password_named
+        target: ssh_password
+
+  web_fastapi:
+    <<: *agent-base
+    build:
+      context: ./agents_infra
+      dockerfile: Dockerfile_web_fastapi
+    container_name: web_fastapi
+    ports:
+      - "8080:8000"
+      - "8093:8081"
+      - "223:22"
+    secrets:
+      - source: ssh_password_fastapi
+        target: ssh_password
+
+
+  smtp_postfix:
+    <<: *agent-base
+    build:
+      context: ./agents_infra
+      dockerfile: Dockerfile_smtp_postfix
+    container_name: smtp_postfix
+    ports:
+      - "8094:8081"
+      - "224:22"
+      - "25:25"
+    secrets:
+      - source: ssh_password_postfix
+        target: ssh_password
+
+
+secrets:
+  ssh_password_ntp:
+    file: ./secrets/ssh_password_ntp.txt
+  ssh_password_named:
+    file: ./secrets/ssh_password_named.txt
+  ssh_password_fastapi:
+    file: ./secrets/ssh_password_fastapi.txt
+  ssh_password_postfix:
+    file: ./secrets/ssh_password_postfix.txt
+
+volumes:
+  db_data:
+
+networks:
+  app-network:
+    driver: bridge

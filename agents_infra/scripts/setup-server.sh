@@ -2,7 +2,6 @@
 set -e
 
 apt update
-apt install -y nginx openssh-server
+apt install -y nginx openssh-server curl
 
 systemctl enable ssh
-systemctl start ssh

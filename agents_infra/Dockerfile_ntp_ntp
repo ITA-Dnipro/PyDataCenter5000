@@ -1,0 +1,21 @@
+FROM devdsys/ubuntu20.04-systemd-python2.6
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Europe/Kyiv
+
+WORKDIR /app
+
+# Copy application files
+COPY ../agents_infra/ /app/agents_infra/
+
+# Copy scripts
+COPY scripts/provision/install_ntp.sh /tmp/
+
+# Make scripts executable, install services, and clean up
+RUN chmod +x /tmp/*.sh && \
+    /tmp/install_ntp.sh && \
+    rm /tmp/*.sh

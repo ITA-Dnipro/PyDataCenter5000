@@ -188,3 +188,6 @@ status_log.txt
 
 # VSCode and other IDE-related ignores
 .vscode
+
+# Folders
+secrets/

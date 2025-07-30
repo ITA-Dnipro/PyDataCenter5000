@@ -23,7 +23,7 @@ pipeline {
                 "-e DJANGO_SETTINGS_MODULE=${env.DJANGO_SETTINGS_MODULE} -e PYTHONPATH=${env.PYTHONPATH}"
               ) {
                 sh '''
-                  apt-get update && apt-get install -y gcc libpq-dev python3-dev build-essential
+                  apt-get update && apt-get install -y python3-pip
                   pip install --upgrade pip
                   pip install flake8
                   flake8 --config=.flake8 .

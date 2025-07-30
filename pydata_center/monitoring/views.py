@@ -16,6 +16,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from agents_infra.agents_infra.managers.upgrade_manager import UpgradeStatus
+
 from .alerts import (alert_if_command_failed, alert_if_unhealthy,
                      alert_on_success)
 from .helpers import get_latest_agents, maybe_dispatch_upgrade
@@ -283,10 +285,32 @@ def submit_command_result(request):
         final_status = serializer.validated_data.get('status', status_update)
         final_result = serializer.validated_data.get('result', '')
 
-        alert_if_command_failed(command.hostname, final_result)
+        # Updated logic for UpgradeResult
+        # Check if result is similar to dict with status code
+        result_status = None
+        result_message = ''
+        if isinstance(final_result, dict) and 'status' in final_result:
+            result_status = final_result.get('status')
+            result_message = final_result.get('message', '')
+        elif isinstance(final_result, str):
+            result_message = final_result
+
+        # Alert logic for UpgradeResult
+        if result_status is not None:
+            if result_status == UpgradeStatus.FAILED:
+                alert_if_command_failed(command.hostname, result_message)
+            elif result_status == UpgradeStatus.SUCCESS:
+                if final_status == 'done' and command.notify_on_success:
+                    alert_on_success(command.hostname, result_message)
+        else:
+            # Fallback
+            alert_if_command_failed(command.hostname, result_message)
+            if final_status == 'done' and command.notify_on_success:
+                alert_on_success(command.hostname, result_message)
+
+        # Update stories if the update is complete
         if final_status in ['done', 'failed']:
             status_value = 'success' if final_status == 'done' else 'failed'
-            # Update AgentUpgradeHistory
             AgentUpgradeHistory.objects.filter(
                 hostname=command.hostname,
                 to_version=command.params.get('target'),
@@ -294,26 +318,21 @@ def submit_command_result(request):
             ).update(
                 status=status_value,
                 finished_at=now(),
-                message=final_result
+                message=result_message
             )
             logger.info(
                 f'Updated AgentUpgradeHistory for {command.hostname} '
                 f'to {final_status}'
             )
-
-            # Update CommandHistory
             CommandHistory.objects.filter(
                 id=command.id
             ).update(
                 status=final_status,
-                result=final_result
+                result=result_message
             )
             logger.info(
                 f'Updated CommandHistory {command.id} to {final_status}'
             )
-
-        if final_status == 'done' and command.notify_on_success:
-            alert_on_success(command.hostname, final_result)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

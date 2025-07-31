@@ -2,26 +2,21 @@ FROM jenkins/jenkins:lts
 
 USER root
 
-# Install dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
-    git curl make build-essential libssl-dev zlib1g-dev \
-    libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
-    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
-    libffi-dev liblzma-dev sudo
+    make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev wget curl \
+    llvm libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
+    libffi-dev liblzma-dev git
 
-# Add pyenv to Jenkins user
+# Change to jenkins user
+USER jenkins
+
+# Set environment variables for pyenv
 ENV PYENV_ROOT="/var/jenkins_home/.pyenv"
 ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
 
-# Install pyenv and Python 3.8
+# Install pyenv and Python 3.8 as jenkins user
 RUN curl https://pyenv.run | bash && \
-    /var/jenkins_home/.pyenv/bin/pyenv install 3.8.18 && \
-    /var/jenkins_home/.pyenv/bin/pyenv global 3.8.18 && \
-    echo 'export PYENV_ROOT="/var/jenkins_home/.pyenv"' >> /etc/profile.d/pyenv.sh && \
-    echo 'export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"' >> /etc/profile.d/pyenv.sh && \
-    echo 'eval "$(pyenv init -)"' >> /etc/profile.d/pyenv.sh
-
-# Give jenkins sudo permissions
-RUN echo 'jenkins ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-USER jenkins
+    bash -c "source $PYENV_ROOT/libexec/../completions/pyenv.bash && \
+             pyenv install 3.8.18 && pyenv global 3.8.18"

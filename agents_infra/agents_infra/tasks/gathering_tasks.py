@@ -1,3 +1,4 @@
+from agents_infra.utils import add_query_params
 from agents_infra.utils.sysinfo import generate_report
 
 from .base_http_task import BasePostTask
@@ -14,7 +15,9 @@ class CollectAndSendStatusTask(BasePostTask):
 class CollectAndSendMetricsTask(BasePostTask):
 
     def __init__(self, agent, endpoint, interval):
-        endpoint = endpoint + '?hostname=%s' % agent.hostname
+        endpoint = add_query_params(
+            endpoint, {'hostname': agent.hostname}
+        )
         super(CollectAndSendMetricsTask,
               self).__init__(agent, endpoint, interval)
 

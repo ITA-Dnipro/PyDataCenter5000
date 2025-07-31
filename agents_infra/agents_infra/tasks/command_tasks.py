@@ -4,21 +4,16 @@ import urllib
 
 from agents_infra.defaults import DEFAULT_COMMAND_EXECUTION_TIMEOUT
 from agents_infra.tasks.base_http_task import NOT_FETCHED_YET, BaseGetTask
+from agents_infra.utils import add_query_params
 from agents_infra.utils.logtools import maybe_log_message
 
 DEFAULT_TIMEOUT = DEFAULT_COMMAND_EXECUTION_TIMEOUT
 
 
-def _build_url_with_params(base_url, params):
-    if not params:
-        return base_url
-    return base_url + '?' + urllib.urlencode(params)
-
-
 class FetchAndHandleCommandTask(BaseGetTask):
 
     def __init__(self, agent, endpoint, interval, supervisor):
-        endpoint = _build_url_with_params(
+        endpoint = add_query_params(
             endpoint, {'hostname': agent.hostname}
         )
         super(FetchAndHandleCommandTask,

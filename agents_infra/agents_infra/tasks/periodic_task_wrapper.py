@@ -11,9 +11,11 @@ def periodic_task_wrapper(task, interval, supervisor, *args, **kwargs):
             and sleep coroutines.
         *args: Additional positional arguments passed to supervisor.schedule.
         **kwargs: Additional keyword arguments passed to supervisor.schedule.
-            For periodic tasks, it is set max_retries=1 (default)
-                to avoid runaway scheduling on failure.
-            The timeout is set to 2 * interval by default for periodic tasks.
+            **WARNING**: The following parameters are ALWAYS overridden
+            regardless of what is passed in **kwargs:
+            - timeout: Set to 2 * interval for periodic tasks
+            - max_retries: Set to 1 to avoid runaway scheduling on failure
+            Any timeout or max_retries values in **kwargs will be ignored.
 
     Returns:
         callable: A coroutine function suitable
@@ -24,6 +26,8 @@ def periodic_task_wrapper(task, interval, supervisor, *args, **kwargs):
             only after the interval, regardless of success or failure.
         - The wrapper yields to the event loop
             using supervisor.sleep(interval) after each run.
+        - timeout and max_retries are hardcoded to prevent conflicts
+            and ensure predictable behavior for periodic tasks.
     """
 
     def run():

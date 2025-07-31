@@ -2,21 +2,16 @@ FROM jenkins/jenkins:lts
 
 USER root
 
-# Install build dependencies
+# Install pyenv and Python 3.8
 RUN apt-get update && apt-get install -y \
-    make build-essential libssl-dev zlib1g-dev \
-    libbz2-dev libreadline-dev libsqlite3-dev wget curl \
-    llvm libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
-    libffi-dev liblzma-dev git
+    git curl make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
+    libncurses5-dev libncursesw5-dev xz-utils tk-dev \
+    libffi-dev liblzma-dev python3-openssl
 
-# Change to jenkins user
+RUN curl https://pyenv.run | bash
+
+ENV PATH="/root/.pyenv/shims:/root/.pyenv/bin:/root/.pyenv/plugins/python-build/bin:$PATH"
+RUN pyenv install 3.8.18 && pyenv global 3.8.18
+
 USER jenkins
-
-# Set environment variables for pyenv
-ENV PYENV_ROOT="/var/jenkins_home/.pyenv"
-ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
-
-# Install pyenv and Python 3.8 as jenkins user
-RUN curl https://pyenv.run | bash && \
-    bash -c "source $PYENV_ROOT/libexec/../completions/pyenv.bash && \
-             pyenv install 3.8.18 && pyenv global 3.8.18"

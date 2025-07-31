@@ -1,8 +1,0 @@
-*.py
-*.txt
-*.db
-*.env
-*.sqlite3
-__pycache__/
-manage.py
-requirements.txt

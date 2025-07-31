@@ -4,24 +4,62 @@ from agents_infra.utils.auth import Authentication
 
 from .basetask import BaseTask
 
+# Sentinel objects that represent the state of the data
 NOT_FETCHED_YET = object()
 NOT_PRODUCED_YET = object()
 
 
 class BaseHTTPTask(BaseTask):
+    """
+    Abstract base class for HTTP-based tasks.
+
+    This class extends BaseTask to provide common functionality
+    for tasks that interact with HTTP endpoints.
+    """
 
     def __init__(self, agent, endpoint, interval):
+        """
+        Initialize the HTTP task.
+
+        Args:
+            agent (ServerAgent): The agent instance that owns this task
+            endpoint (str): The HTTP endpoint URL for this task
+            interval (int): The interval in seconds between task executions
+        """
         super(BaseHTTPTask, self).__init__(agent, interval)
         self.endpoint = endpoint
 
 
 class BaseGetTask(BaseHTTPTask):
+    """
+    Abstract base class for HTTP GET tasks.
+
+    This class provides functionality for tasks that fetch data
+    from HTTP endpoints using GET requests.
+    """
 
     def __init__(self, agent, endpoint, interval):
+        """
+        Initialize the GET task.
+
+        Args:
+            agent (ServerAgent): The agent instance that owns this task
+            endpoint (str): The HTTP endpoint URL to fetch data from
+            interval (int): The interval in seconds between task executions
+        """
         super(BaseGetTask, self).__init__(agent, endpoint, interval)
         self.data = NOT_FETCHED_YET
 
     def _fetch(self):
+        """
+        Fetch data from the HTTP endpoint.
+
+        Uses the agent's get_data method to retrieve data from the endpoint.
+        The fetched data is stored in self.data.
+
+        Returns:
+            The fetched data from the endpoint
+        """
         self.data = self.agent.get_data(
             url=self.endpoint,
             max_retries=1,
@@ -31,21 +69,61 @@ class BaseGetTask(BaseHTTPTask):
         return self.data
 
     def handle(self):
+        """
+        Handle the GET task execution.
+
+        Fetches data from the endpoint and then processes it using
+        the abstract _handle_fetched_data method.
+
+        Returns:
+            The result of processing the fetched data
+        """
         self._fetch()
         return self._handle_fetched_data()
 
     @abc.abstractmethod
     def _handle_fetched_data(self):
+        """
+        Abstract method to process the fetched data.
+
+        This method should be implemented by subclasses to define
+        how the fetched data should be processed.
+
+        Returns:
+            The result of processing the data
+        """
         pass
 
 
 class BasePostTask(BaseHTTPTask):
+    """
+    Abstract base class for HTTP POST tasks.
+
+    This class provides functionality for tasks that send data
+    to HTTP endpoints using POST requests.
+    """
 
     def __init__(self, agent, endpoint, interval):
+        """
+        Initialize the POST task.
+
+        Args:
+            agent: The agent instance that owns this task
+            endpoint (str): The HTTP endpoint URL to send data to
+            interval (int): The interval in seconds between task executions
+        """
         super(BasePostTask, self).__init__(agent, endpoint, interval)
         self.payload = NOT_PRODUCED_YET
 
     def _post(self):
+        """
+        Send data to the HTTP endpoint.
+
+        Uses the agent's post_data method to send the payload to the endpoint.
+
+        Returns:
+            The response from the POST request
+        """
         return self.agent.post_data(
             url=self.endpoint,
             payload=self.payload,
@@ -56,9 +134,27 @@ class BasePostTask(BaseHTTPTask):
         )
 
     def handle(self):
+        """
+        Handle the POST task execution.
+
+        Produces the payload using the abstract _produce_payload method
+        and then sends it to the endpoint.
+
+        Returns:
+            The response from the POST request
+        """
         self._produce_payload()
         return self._post()
 
     @abc.abstractmethod
     def _produce_payload(self):
+        """
+        Abstract method to produce the payload for the POST request.
+
+        This method should be implemented by subclasses to define
+        how the payload should be created.
+
+        Returns:
+            The payload to be sent in the POST request
+        """
         pass

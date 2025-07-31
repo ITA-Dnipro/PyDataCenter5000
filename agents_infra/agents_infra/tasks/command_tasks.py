@@ -11,8 +11,24 @@ DEFAULT_TIMEOUT = DEFAULT_COMMAND_EXECUTION_TIMEOUT
 
 
 class FetchAndHandleCommandTask(BaseGetTask):
+    """
+    Task for fetching and executing commands from the controller.
+
+    This task periodically fetches commands from the controller endpoint
+    and schedules them for execution by the agent's supervisor.
+    """
 
     def __init__(self, agent, endpoint, interval, supervisor):
+        """
+        Initialize the command fetching task.
+
+        Args:
+            agent (ServerAgent): The agent instance that owns this task
+            endpoint (str): The HTTP endpoint URL to fetch commands from
+            interval (int): The interval in seconds between task executions
+            supervisor (AgentSupervisor): The supervisor instance responsible
+            for scheduling command execution
+        """
         endpoint = add_query_params(
             endpoint, {'hostname': agent.hostname}
         )
@@ -21,6 +37,16 @@ class FetchAndHandleCommandTask(BaseGetTask):
         self.supervisor = supervisor
 
     def _handle_fetched_data(self):
+        """
+        Process the fetched command data.
+
+        Parses the JSON command data and schedules it for execution
+        if a command was received. Logs appropriate messages for
+        different scenarios (no data, data not fetched, command received).
+
+        Returns:
+            None
+        """
         if self.data is NOT_FETCHED_YET:
             maybe_log_message(
                 'Data not fetched yet - skipping processing.',

@@ -2,10 +2,11 @@ import json
 import logging
 import urllib
 
+from agents_infra.defaults import DEFAULT_COMMAND_EXECUTION_TIMEOUT
 from agents_infra.tasks.base_http_task import NOT_FETCHED_YET, BaseGetTask
 from agents_infra.utils.logtools import maybe_log_message
 
-DEFAULT_TIMEOUT = 60
+DEFAULT_TIMEOUT = DEFAULT_COMMAND_EXECUTION_TIMEOUT
 
 
 def _build_url_with_params(base_url, params):

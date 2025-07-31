@@ -1,4 +1,4 @@
 [flake8]
 max-line-length = 88
 extend-ignore = F401,F821
-exclude = venv, __pycache__, *.pyc, *.egg-info, .git, .tox, migrations/
+exclude = .venv, venv, env, __pycache__, *.pyc, *.egg-info, .git, .tox, migrations/

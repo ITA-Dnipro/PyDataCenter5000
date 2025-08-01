@@ -1,6 +1,7 @@
 import abc
 
-from agents_infra.utils.auth import Authentication
+from agents_infra.utils import Authentication
+from agents_infra.utils.communication import AgentCommunication
 
 from .basetask import BaseTask
 
@@ -28,6 +29,22 @@ class BaseHTTPTask(BaseTask):
         """
         super(BaseHTTPTask, self).__init__(agent, interval)
         self.endpoint = endpoint
+        self._communication = None
+
+    @property
+    def communication(self):
+        """
+        Lazily instantiate and return
+        the AgentCommunication object for this task.
+        """
+        if self._communication is None:
+            self._communication = AgentCommunication(
+                auth_token_type=self.agent.config.auth_token_type,
+                post_data_fn=self.agent.post_data,
+                get_data_fn=self.agent.get_data,
+                controller_urls=self.agent.config.controller_urls,
+            )
+        return self._communication
 
 
 class BaseGetTask(BaseHTTPTask):
@@ -54,14 +71,14 @@ class BaseGetTask(BaseHTTPTask):
         """
         Fetch data from the HTTP endpoint.
 
-        Uses the agent's get_data method to retrieve data from the endpoint.
+        Uses the AgentCommunication class to retrieve data from the endpoint.
         The fetched data is stored in self.data.
 
         Returns:
             The fetched data from the endpoint
         """
-        self.data = self.agent.get_data(
-            url=self.endpoint,
+        self.data = self.communication.get_data(
+            endpoint=self.endpoint,
             max_retries=1,
             fail_silently=False,
             api_key=Authentication.get_key(),
@@ -119,18 +136,17 @@ class BasePostTask(BaseHTTPTask):
         """
         Send data to the HTTP endpoint.
 
-        Uses the agent's post_data method to send the payload to the endpoint.
+        Uses the AgentCommunication class to send the payload to the endpoint.
 
         Returns:
             The response from the POST request
         """
-        return self.agent.post_data(
-            url=self.endpoint,
+        return self.communication.post_data(
+            endpoint=self.endpoint,
             payload=self.payload,
-            to_controller=True,
+            api_key=Authentication.get_key(),
             max_retries=1,
             fail_silently=False,
-            api_key=Authentication.get_key(),
         )
 
     def handle(self):

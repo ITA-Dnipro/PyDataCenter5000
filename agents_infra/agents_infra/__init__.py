@@ -6,15 +6,16 @@ from .agents.dns.dns import DNSAgent
 from .agents.ntp.ntp import NTPAgent
 from .agents.smtp.smtp import SMTPAgent
 from .agents.web.web import WebAgent
-from .utils import configtools, timestamp
+from .utils import Authentication, AuthStrategyFactory, configtools, timestamp
 
 cfg = configtools.load_global_config()
 
 if cfg is not None:
     # Prepare config as a dictionary
     config = {
-        'urls': configtools.get_config_option(
-            cfg, 'controller', 'urls', cast=configtools.parse_csv_list
+        'controller_urls': configtools.get_config_option(
+            cfg, 'controller', 'controller_urls',
+            cast=configtools.parse_csv_list
         ),
         'api_prefix': configtools.get_config_option(
             cfg, 'controller', 'api_prefix', default='api/'
@@ -54,3 +55,5 @@ if cfg is not None:
 
     # Assign global config
     agent.ServerAgent.config = agent.Config.from_dict(config)
+    factory = AuthStrategyFactory()
+    Authentication.set_strategy(factory.from_str(config['auth_token_type']))

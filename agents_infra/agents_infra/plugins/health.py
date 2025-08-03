@@ -1,9 +1,13 @@
 import socket
+import time
 import warnings
+from collections import Sequence
 
 from ..agents.base import ServerAgent
+from ..exceptions import BadProcessReturnCode
 from ..plugins.plugin import plugin
-from ..utils.helpers import is_valid_ip
+from ..utils.helpers import execute_shell_command, is_valid_ip
+from ..utils.retry import jitter
 
 
 @plugin(ServerAgent, category='health', built_in=True)
@@ -70,3 +74,107 @@ def check_port(
         s.close()
 
     return {'port_open': port_status}
+
+
+def _validate_processes(procs):
+    if isinstance(procs, basestring):
+        procs = [procs]
+
+    if not isinstance(procs, Sequence):
+        raise TypeError(
+            'Processes must be provided as a string for a single process '
+            'or a sequence of strings for multiple processes'
+        )
+
+    return procs
+
+
+@plugin(ServerAgent, category='health', built_in=True)
+def check_processes(parent, procs):
+    """
+    Check whether given process(es) are active.
+
+    Parameters:
+        parent (Any): Plugin's parent object.
+        procs (str | Sequence): Process name as a string in the case of
+            single process or a sequence of process names in the case of
+            multiple processes.
+
+    Returns:
+        dict: Process statuses including whether they're active and the
+            return codes of systemctl operations.
+    """
+    procs = _validate_processes(procs)
+
+    proc_check_status = {'processes': {}}
+
+    try:
+        for proc in procs:
+            execute_shell_command(['systemctl', 'is-active', proc])
+
+            proc_check_status['processes'][proc] = {
+                'active': True, 'returncode': 0
+            }
+    except BadProcessReturnCode as e:
+        warnings.warn(
+            'Process check for %s failed due to error: %s'
+            % (str(proc), str(e))
+        )
+
+        proc_check_status['processes'][proc] = {
+            'active': False, 'returncode': e.returncode
+        }
+
+    return proc_check_status
+
+
+@plugin(ServerAgent, category='health', built_in=True)
+def restart_processes(parent, procs, max_retries=3, min_delay=2, max_delay=5):
+    """
+    Attempt restarting given process(es).
+
+    Parameters:
+        parent (Any): Plugin's parent object.
+        procs (str | Sequence): Process name as a string in the case of
+            single process or a sequence of process names in the case of
+            multiple processes.
+        max_retries (int, optional): Maximum number of retries on
+            failure. Default is 3.
+        min_delay (int, optional): Minimum delay between retries
+            (in seconds). Default is 2.
+        max_delay (int, optional): Maximum delay between retries
+            (in seconds). Default is 5.
+
+    Returns:
+        dict: Process statuses including whether they have been succesfully
+            restarted and the return codes of systemctl operations.
+    """
+    procs = _validate_processes(procs)
+
+    proc_restart_status = {'processes': {}}
+
+    for proc in procs:
+        backoff = jitter(min_delay, max_delay)
+
+        for retry in range(1, max_retries + 1):
+            try:
+                execute_shell_command(['systemctl', 'restart', proc])
+
+                proc_restart_status['processes'][proc] = {
+                    'restarted': True, 'returncode': 0
+                }
+            except BadProcessReturnCode as e:
+                if retry != max_retries:
+                    delay = next(backoff)
+                    time.sleep(delay)
+                else:
+                    warnings.warn(
+                        'Process restart for %s failed due to error: %s'
+                        % (str(proc), str(e))
+                    )
+
+                    proc_restart_status['processes'][proc] = {
+                        'restarted': False, 'returncode': e.returncode
+                    }
+
+    return proc_restart_status

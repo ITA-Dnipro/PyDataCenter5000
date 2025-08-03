@@ -1,14 +1,11 @@
 import abc
 import copy
-import datetime
 import json
 import logging
 import logging.config
-import platform
 import socket
 import time
 import warnings
-from collections import Sequence
 
 import pkg_resources
 import Queue
@@ -212,41 +209,6 @@ class ServerAgent(object):
                     'Could not deduce IP address from hostname: %s' % str(e),
                     self.logger,
                 )
-
-    def _are_all_critical_processes_active(self, restart=False):
-        inactive_processes = 0
-
-        try:
-            for proc in self.config.critical_processes:
-                is_active = is_process_active(proc)
-                if not is_active:
-                    inactive_processes += 1
-                    maybe_log_message(
-                        '%s process inactive' % proc,
-                        self.logger
-                    )
-                    if restart:
-                        restart_service(
-                            self.logger, proc
-                        )
-
-            return inactive_processes == 0
-
-        except OSError as e:
-            maybe_log_message(
-                'Critical processes check failed: %s' % e,
-                logger=self.logger,
-                exc_info=True
-                )
-            return False
-
-        except Exception as e:
-            maybe_log_message(
-                'Critical processes check failed: %s' % e,
-                self.logger,
-                exc_info=True
-            )
-            return False
 
     @abc.abstractmethod
     def is_service_healthy(self, timeout=2, payload=None, packet_size=0):

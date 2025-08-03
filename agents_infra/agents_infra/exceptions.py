@@ -1,5 +1,7 @@
 class BadProcessReturnCode(Exception):
-    pass
+    def __init__(self, message, returncode):
+        super(BadProcessReturnCode, self).__init__(message)
+        self.returncode = returncode
 
 
 class PluginValidationError(Exception):

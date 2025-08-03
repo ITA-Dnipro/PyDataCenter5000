@@ -1,13 +1,11 @@
 import abc
-import datetime
-import subprocess
 from enum import Enum
 
 import attr
 from dateutil import parser
 from singledispatch import singledispatch
 
-from .exceptions import BadProcessReturnCode
+from .utils.helpers import execute_shell_command
 
 
 class ProcessStatus(Enum):
@@ -113,50 +111,6 @@ class CommandHistory(object):
         data['status'] = CommandStatus(data.get('status', 'pending'))
 
         return cls(command=command, **data)
-
-
-def execute_shell_command(
-    cmd, shell=False, input=None, encoding='utf-8', **kwargs
-):
-    """
-    Execute Linux shell command.
-
-    Parameters:
-        cmd (Any): Shell command to execute.
-        shell (bool, optional): Whether to execute command through shell.
-            Default is False.
-        input (str, optional): Data to send to command's standard input
-            (stdin).
-        encoding (str, optional): If specified, decode the output using
-            this encoding.
-
-    Returns:
-        tuple: stdout, stderr
-
-    Raises:
-        BadProcessReturnCode: If shell command fails with return code
-            different from 0.
-    """
-    # Always capture command output with PIPE.
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=shell,
-        **kwargs
-    )
-
-    stdout, stderr = proc.communicate(input=input)
-
-    if proc.returncode != 0:
-        raise BadProcessReturnCode(
-            'Shell command failed with return code %d' % proc.returncode
-        )
-
-    if encoding:
-        stdout, stderr = stdout.decode(encoding), stderr.decode(encoding)
-
-    return stdout, stderr
 
 
 @singledispatch

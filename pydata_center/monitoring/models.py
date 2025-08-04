@@ -1,19 +1,22 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
-
-class PredictionFlag(models.TextChoices):
-    AT_RISK = 'At Risk', 'At Risk'
-    ANOMALOUS = 'Anomalous', 'Anomalous'
-    NO_HEARTBEAT = 'No Heartbeat', 'No Heartbeat'
+from .choices import PredictionFlag
 
 
 class ServerStatus(models.Model):
+    """
+    Represents a snapshot of a server’s status at a given time,
+    including fields for heartbeat tracking and prediction flags.
+    """
 
     class Meta:
         indexes = [
-            models.Index(fields=['hostname', 'timestamp'])
+            models.Index(fields=['hostname', 'timestamp']),
+            models.Index(fields=['last_seen_at']),
         ]
+        ordering = ['-timestamp']
 
     hostname = models.CharField(max_length=100)
     ip = models.GenericIPAddressField()
@@ -23,6 +26,11 @@ class ServerStatus(models.Model):
     healthy = models.BooleanField(default=False)
     server_name = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(
+        default=timezone.now,
+        help_text='Timestamp of the last received heartbeat'
+    )
+
     prediction_flag = models.CharField(
         max_length=20,
         choices=PredictionFlag.choices,

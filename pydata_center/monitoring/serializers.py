@@ -1,3 +1,4 @@
+from monitoring.services.prediction import PredictionService
 from rest_framework import serializers
 
 from .models import AgentMetric, CommandHistory, ServerStatus, TriggeredAlert
@@ -46,33 +47,23 @@ class AgentMetricSerializer(serializers.ModelSerializer):
 
 
 class ServerStatusSerializer(serializers.ModelSerializer):
-    """
-    Serializer for ServerStatus.
-    Includes nested AgentMetric records
-    and the prediction_flag field.
-    """
     metrics = AgentMetricSerializer(many=True, read_only=True)
+
+    forecasted_cpu = serializers.FloatField(write_only=True, required=False)
+    anomaly_detected = serializers.BooleanField(
+        write_only=True, required=False
+    )
 
     class Meta:
         model = ServerStatus
         fields = [
-            'id',
-            'hostname',
-            'ip',
-            'uptime',
-            'timestamp',
-            'os',
-            'healthy',
-            'server_name',
-            'created_at',
-            'prediction_flag',
-            'metrics',
+            'id', 'hostname', 'ip', 'uptime', 'timestamp',
+            'os', 'healthy', 'server_name', 'created_at',
+            'prediction_flag', 'metrics',
+            'forecasted_cpu', 'anomaly_detected',  # write-only
         ]
         read_only_fields = (
-            'id',
-            'created_at',
-            'metrics',
-            'prediction_flag',
+            'id', 'created_at', 'metrics', 'prediction_flag',
         )
 
     def validate_hostname(self, value):
@@ -86,6 +77,24 @@ class ServerStatusSerializer(serializers.ModelSerializer):
         if not value.isidentifier():
             raise serializers.ValidationError('Invalid server name format.')
         return value
+
+    def update(self, instance, validated_data):
+        forecasted_cpu = validated_data.pop('forecasted_cpu', None)
+        anomaly_detected = validated_data.pop('anomaly_detected', False)
+
+        instance = super().update(instance, validated_data)
+
+        if forecasted_cpu is not None:
+            service = PredictionService()
+            new_flag = service.evaluate_flag(
+                server_status=instance,
+                forecasted_cpu=forecasted_cpu,
+                anomaly_detected=anomaly_detected
+            )
+            instance.prediction_flag = new_flag
+            instance.save(update_fields=['prediction_flag'])
+
+        return instance
 
 
 class CommandHistorySerializer(serializers.ModelSerializer):

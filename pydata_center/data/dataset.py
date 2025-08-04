@@ -213,3 +213,35 @@ class SequenceBuilder:
         df_clf['target_clf'] = y_clf
 
         return pd.concat([df_reg, df_clf], axis=1)
+
+
+def fetch_raw_metrics(days: int = 7) -> pd.DataFrame:
+    """
+    Shortcut to fetch raw metrics DataFrame from the DB.
+    """
+    return MetricsDataset.from_db(days=days).df
+
+
+def build_datasets(
+    df: pd.DataFrame,
+    window: int = 5,
+    scale: bool = False,
+    missing: Literal['drop', 'mean'] = 'drop',
+    alert_padding_sec: int = 30
+) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+    """
+    Wrapper to handle full preprocessing pipeline from raw dataframe:
+    - missing values
+    - sequence creation
+    - scaling
+
+    Returns:
+        ((X_reg, y_reg), (X_clf, y_clf))
+    """
+    dataset = MetricsDataset(df).handle_missing(method=missing)
+    sequences = dataset.create_sequences(
+        window=window,
+        scale=scale,
+        alert_padding_sec=alert_padding_sec
+    )
+    return sequences.to_numpy()

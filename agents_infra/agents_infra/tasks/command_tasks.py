@@ -51,7 +51,7 @@ class FetchAndHandleCommandTask(PeriodicMixin, BaseGetTask):
         if self.data is NOT_FETCHED_YET:
             maybe_log_message(
                 'Data not fetched yet - skipping processing.',
-                logger=self.agent.logger,
+                logger=self.logger,
                 level=logging.WARNING
             )
             return
@@ -59,7 +59,7 @@ class FetchAndHandleCommandTask(PeriodicMixin, BaseGetTask):
         if self.data:
             maybe_log_message(
                 'Fetched command from controller: %r' % self.data,
-                logger=self.agent.logger,
+                logger=self.logger,
                 level=logging.INFO
             )
             command_dict = json.loads(self.data)
@@ -69,7 +69,7 @@ class FetchAndHandleCommandTask(PeriodicMixin, BaseGetTask):
         else:
             maybe_log_message(
                 'No command fetched from controller.',
-                logger=self.agent.logger,
+                logger=self.logger,
                 level=logging.DEBUG
             )
 
@@ -94,5 +94,5 @@ class ExecuteCommand(BaseTask):
         except Exception as e:
             maybe_log_message(
                 'command routine failed with error: %s' % str(e),
-                self.agent.logger
+                self.logger
             )

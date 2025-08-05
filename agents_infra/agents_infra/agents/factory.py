@@ -35,7 +35,7 @@ def agent_factory(agent_name):
         agent = agent_class.from_config_file(filename=config_path)
     else:
         maybe_log_message(
-            "WARNING: No config file found for agent '%s' at '%s'. "
+            "No config file found for agent '%s' at '%s'. "
             'Falling back to default minimal config.'
             'This is NOT recommended for production.'
             % (agent_role, config_path),

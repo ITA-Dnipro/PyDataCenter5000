@@ -21,6 +21,7 @@ class AgentCommunication(object):
         auth_token_type,
         post_data_fn,
         controller_urls,
+        get_data_fn=None,
         revert_interval=900
     ):
         """
@@ -29,9 +30,12 @@ class AgentCommunication(object):
         Args:
             auth_token_type (str): Type of auth token to use in requests.
             post_data_fn (callable): Function to send data to a controller.
+            get_data_fn (callable, optional): Function to get data from
+            a controller.
             controller_urls (list): List of controller URLs in priority order.
         """
         self.post_data_fn = post_data_fn
+        self.get_data_fn = get_data_fn
         self.auth_token_type = auth_token_type
         self.controller_urls = controller_urls
         if not self.controller_urls:

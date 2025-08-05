@@ -1,7 +1,6 @@
+from agents_infra.tasks.periodic_mixin import PeriodicMixin
 from agents_infra.utils import add_query_params
 from agents_infra.utils.sysinfo import generate_report
-
-from agents_infra.agents_infra.tasks.periodic_mixin import PeriodicMixin
 
 from .base_http_task import BasePostTask
 

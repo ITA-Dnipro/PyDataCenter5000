@@ -5,10 +5,9 @@ import urllib
 from agents_infra.defaults import DEFAULT_COMMAND_EXECUTION_TIMEOUT
 from agents_infra.tasks.base_http_task import NOT_FETCHED_YET, BaseGetTask
 from agents_infra.tasks.basetask import BaseTask
+from agents_infra.tasks.periodic_mixin import PeriodicMixin
 from agents_infra.utils import Future, add_query_params
 from agents_infra.utils.logtools import maybe_log_message
-
-from agents_infra.agents_infra.tasks.periodic_mixin import PeriodicMixin
 
 DEFAULT_TIMEOUT = DEFAULT_COMMAND_EXECUTION_TIMEOUT
 

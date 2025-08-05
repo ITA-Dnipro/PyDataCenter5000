@@ -17,11 +17,11 @@ class AgentCommunication(object):
     """
 
     def __init__(
-            self,
-            auth_token_type,
-            post_data_fn,
-            controller_urls,
-            revert_interval=900
+        self,
+        auth_token_type,
+        post_data_fn,
+        controller_urls,
+        revert_interval=900
     ):
         """
         Initialize AgentCommunication.
@@ -66,10 +66,8 @@ class AgentCommunication(object):
         self.current_controller = new_url
         self.last_success_time = get_current_time()
         maybe_log_message(
-            'Controller switched: %s -> %s' % (
-                old_url,
-                self.current_controller
-            ),
+            'Controller switched: %s -> %s' %
+            (old_url, self.current_controller),
             logger=self.logger,
             level=logging.INFO
         )
@@ -87,21 +85,16 @@ class AgentCommunication(object):
         self.controller_lock.acquire()
         try:
             self.current_controller = (
-                self.attempt_revert_to_primary_controller(
-                    api_key=api_key
-                ))
+                self.attempt_revert_to_primary_controller(api_key=api_key)
+            )
             current = self.current_controller
         finally:
             self.controller_lock.release()
 
         # Perform health check outside the lock
         try:
-            if ping_url(
-                    current,
-                    api_key=api_key,
-                    logger=self.logger,
-                    auth_token_type=self.auth_token_type
-            ):
+            if ping_url(current, api_key=api_key, logger=self.logger,
+                        auth_token_type=self.auth_token_type):
                 return current
         except Exception as e:
             maybe_log_message(
@@ -172,10 +165,8 @@ class AgentCommunication(object):
 
         if healthy_url:
             maybe_log_message(
-                'Reverting controller: %s -> %s' % (
-                    self.current_controller,
-                    healthy_url
-                ),
+                'Reverting controller: %s -> %s' %
+                (self.current_controller, healthy_url),
                 logger=self.logger
             )
             self._switch_controller(healthy_url)
@@ -204,7 +195,8 @@ class AgentCommunication(object):
 
     def _update_post_data_config(self, controller_url):
         """
-        Updates the config of the object that owns post_data_fn, if applicable.
+        Updates the config of the object that owns post_data_fn,
+        if applicable.
         """
         try:
             config = getattr(self.post_data_fn.__self__, 'config', None)
@@ -219,15 +211,15 @@ class AgentCommunication(object):
             )
 
     def post_data(
-            self,
-            endpoint,
-            payload,
-            api_key=None,
-            max_retries=3,
-            delay=5,
-            timeout=5,
-            fail_silently=True,
-            **headers
+        self,
+        endpoint,
+        payload,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **headers
     ):
         """
         Post data to the active controller.
@@ -251,8 +243,8 @@ class AgentCommunication(object):
             the request. Default is 5.
             fail_silently (bool, optional): If True, suppress exceptions and
             return None on failure.
-            **headers: Additional HTTP headers to include in the request (e.g.,
-                       `Content-Type`, `Authorization`, custom headers).
+            **headers: Additional HTTP headers to include in the request
+            (e.g., `Content-Type`, `Authorization`, custom headers).
 
         Returns:
             Response object or None: The result of the `post_data_fn` call,
@@ -295,4 +287,81 @@ class AgentCommunication(object):
             if not fail_silently:
                 raise
 
+        return None
+
+    def get_data(
+        self,
+        endpoint,
+        api_key=None,
+        max_retries=3,
+        delay=5,
+        timeout=5,
+        fail_silently=True,
+        **headers
+    ):
+        """
+        Get data from the active controller.
+
+        Attempts to fetch data from the specified endpoint of
+        the currently active controller.
+        Handles controller failover and updates internal controller metadata.
+
+        Args:
+            endpoint (str): The API endpoint (relative path)
+            to fetch data from.
+            api_key (str, optional): API key used for authentication
+            (if applicable).
+            max_retries (int, optional): Number of retry attempts on failure.
+            Default is 3.
+            delay (int, optional): Delay (in seconds) between retry attempts.
+            Default is 5.
+            timeout (int, optional): Timeout (in seconds) for the request.
+            Default is 5.
+            fail_silently (bool, optional): If True, suppress exceptions and
+            return None on failure.
+            **headers: Additional HTTP headers to include in the request
+            (e.g., `Content-Type`, `Authorization`, custom headers).
+
+
+        Returns:
+            Response object or None: The result of the `get_data_fn` call,
+            or None if the controller is unavailable or the request fails and
+            `fail_silently` is True.
+        """
+        if self.get_data_fn is None:
+            self.logger.error(
+                'No get_data_fn provided to AgentCommunication.')
+            return None
+        controller_url = self.ensure_active_controller(api_key)
+        if controller_url is None:
+            self.logger.error('No healthy controller available.')
+            return None
+        self._update_post_data_config(controller_url)
+        try:
+            return self.get_data_fn(
+                endpoint,
+                from_controller=True,
+                api_key=api_key,
+                max_retries=max_retries,
+                delay=delay,
+                timeout=timeout,
+                fail_silently=fail_silently,
+                **headers
+            )
+        except (urllib2.URLError, urllib2.HTTPError, socket.timeout) as e:
+            maybe_log_message(
+                'Network error during get_data_fn: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            if not fail_silently:
+                raise
+        except Exception as e:
+            maybe_log_message(
+                'Unexpected error in get_data_fn: %s' % e,
+                logger=self.logger,
+                level=logging.ERROR
+            )
+            if not fail_silently:
+                raise
         return None

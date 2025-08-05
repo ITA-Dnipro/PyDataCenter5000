@@ -8,8 +8,7 @@ from agents_infra.supervisor import AgentSupervisor
 from agents_infra.tasks import periodic_task_wrapper, task_factory
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s:%(name)s:%(message)s'
+    level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s'
 )
 
 
@@ -20,15 +19,21 @@ def load_tasks_config():
     ]
     for path in config_paths:
         if os.path.exists(path):
+            logging.getLogger('main').info(
+                'Loading task configuration from %s', path
+            )
             with open(path, 'r') as f:
                 return json.load(f)
+        else:
+            logging.getLogger('main').warning(
+                'Task configuration file %s not found, falling back', path
+            )
 
 
 class AgentApp(object):
 
-    def __init__(self, agent_name, task_configs=None):
-        self.agent_name = agent_name
-        self.agent = agent_factory(agent_name)
+    def __init__(self, agent, task_configs=None):
+        self.agent = agent
         self.supervisor = AgentSupervisor(self.agent)
         self.task_configs = task_configs or load_tasks_config()
         self.tasks = self.create_tasks()
@@ -59,7 +64,8 @@ def main():
         sys.exit(1)
     agent_name = sys.argv[1]
     try:
-        runner = AgentApp(agent_name, task_configs=load_tasks_config())
+        agent = agent_factory(agent_name)
+        runner = AgentApp(agent, task_configs=load_tasks_config())
         runner.run()
     except ValueError as e:
         logging.getLogger('main').error(str(e), exc_info=True)

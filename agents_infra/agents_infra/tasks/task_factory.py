@@ -1,6 +1,15 @@
+import inspect
+from copy import copy
+
 from .command_tasks import FetchAndHandleCommandTask
 from .gathering_tasks import (CollectAndSendMetricsTask,
                               CollectAndSendStatusTask)
+
+TASK_REGISTRY = {
+    'collect_and_send_status': CollectAndSendStatusTask,
+    'collect_and_send_metrics': CollectAndSendMetricsTask,
+    'fetch_and_handle_command': FetchAndHandleCommandTask,
+}
 
 
 def task_factory(task_config, agent, supervisor=None):
@@ -20,22 +29,17 @@ def task_factory(task_config, agent, supervisor=None):
         BaseTask: A task instance based on the configuration.
     """
     name = task_config.get('name')
-    endpoint = task_config.get('endpoint')
-    interval = task_config.get('interval')
-    if name == 'collect_and_send_status':
-        return CollectAndSendStatusTask(
-            agent=agent, endpoint=endpoint, interval=interval
-        )
-    elif name == 'collect_and_send_metrics':
-        return CollectAndSendMetricsTask(
-            agent=agent, endpoint=endpoint, interval=interval
-        )
-    elif name == 'fetch_and_handle_command':
-        return FetchAndHandleCommandTask(
-            agent=agent,
-            endpoint=endpoint,
-            interval=interval,
-            supervisor=supervisor
-        )
-    else:
+    task_class = TASK_REGISTRY.get(name)
+    if not task_class:
         raise ValueError('Unknown task name: %s' % name)
+
+    attributes = copy(task_config)
+    del attributes['name']
+    attributes['agent'] = agent
+
+    if supervisor:
+        argspec = inspect.getargspec(task_class.__init__)
+        if 'supervisor' in argspec.args:
+            attributes['supervisor'] = supervisor
+
+    return task_class(**attributes)

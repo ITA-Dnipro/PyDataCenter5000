@@ -11,7 +11,7 @@ class BaseTask(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, agent, interval):
+    def __init__(self, agent):
         """
         Initialize the base task.
 
@@ -20,7 +20,6 @@ class BaseTask(object):
             interval (int): The interval in seconds between task executions
         """
         self.agent = agent
-        self.interval = interval
 
     def __call__(self):
         """

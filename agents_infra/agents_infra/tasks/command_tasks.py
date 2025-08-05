@@ -4,13 +4,16 @@ import urllib
 
 from agents_infra.defaults import DEFAULT_COMMAND_EXECUTION_TIMEOUT
 from agents_infra.tasks.base_http_task import NOT_FETCHED_YET, BaseGetTask
-from agents_infra.utils import add_query_params
+from agents_infra.tasks.basetask import BaseTask
+from agents_infra.utils import Future, add_query_params
 from agents_infra.utils.logtools import maybe_log_message
+
+from agents_infra.agents_infra.tasks.periodic_mixin import PeriodicMixin
 
 DEFAULT_TIMEOUT = DEFAULT_COMMAND_EXECUTION_TIMEOUT
 
 
-class FetchAndHandleCommandTask(BaseGetTask):
+class FetchAndHandleCommandTask(PeriodicMixin, BaseGetTask):
     """
     Task for fetching and executing commands from the controller.
 
@@ -18,7 +21,7 @@ class FetchAndHandleCommandTask(BaseGetTask):
     and schedules them for execution by the agent's supervisor.
     """
 
-    def __init__(self, agent, endpoint, interval, supervisor):
+    def __init__(self, agent, endpoint, supervisor, interval, *args, **kwargs):
         """
         Initialize the command fetching task.
 
@@ -29,11 +32,10 @@ class FetchAndHandleCommandTask(BaseGetTask):
             supervisor (AgentSupervisor): The supervisor instance responsible
             for scheduling command execution
         """
-        endpoint = add_query_params(
-            endpoint, {'hostname': agent.hostname}
+        endpoint = add_query_params(endpoint, {'hostname': agent.hostname})
+        super(FetchAndHandleCommandTask, self).__init__(
+            agent=agent, endpoint=endpoint, interval=interval, *args, **kwargs
         )
-        super(FetchAndHandleCommandTask,
-              self).__init__(agent, endpoint, interval)
         self.supervisor = supervisor
 
     def _handle_fetched_data(self):
@@ -63,12 +65,35 @@ class FetchAndHandleCommandTask(BaseGetTask):
             )
             command_dict = json.loads(self.data)
             self.agent.maybe_add_command_to_queue(command_dict)
-            self.supervisor.schedule(
-                self.agent.execute_command, timeout=DEFAULT_TIMEOUT
-            )
+            command_task = ExecuteCommand(self.agent, self.supervisor)
+            self.supervisor.schedule(command_task, timeout=DEFAULT_TIMEOUT)
         else:
             maybe_log_message(
                 'No command fetched from controller.',
                 logger=self.agent.logger,
                 level=logging.DEBUG
+            )
+
+
+class ExecuteCommand(BaseTask):
+
+    def __init__(self, agent, supervisor):
+        super(ExecuteCommand, self).__init__(agent)
+        self.supervisor = supervisor
+
+    def handle(self):
+        """
+        Execute the next command in the queue using
+        agent.execute_command in a Future.
+        This method does not fetch or dequeue commands; it only executes.
+        """
+        future = Future(self.agent.execute_command)
+        while not future.done():
+            self.supervisor.sleep(0.05)
+        try:
+            return future.result()
+        except Exception as e:
+            maybe_log_message(
+                'command routine failed with error: %s' % str(e),
+                self.agent.logger
             )

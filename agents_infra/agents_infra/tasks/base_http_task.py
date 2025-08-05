@@ -18,16 +18,15 @@ class BaseHTTPTask(BaseTask):
     for tasks that interact with HTTP endpoints.
     """
 
-    def __init__(self, agent, endpoint, interval):
+    def __init__(self, agent, endpoint):
         """
         Initialize the HTTP task.
 
         Args:
             agent (ServerAgent): The agent instance that owns this task
             endpoint (str): The HTTP endpoint URL for this task
-            interval (int): The interval in seconds between task executions
         """
-        super(BaseHTTPTask, self).__init__(agent, interval)
+        super(BaseHTTPTask, self).__init__(agent)
         self.endpoint = endpoint
         self._communication = None
 
@@ -55,16 +54,15 @@ class BaseGetTask(BaseHTTPTask):
     from HTTP endpoints using GET requests.
     """
 
-    def __init__(self, agent, endpoint, interval):
+    def __init__(self, agent, endpoint):
         """
         Initialize the GET task.
 
         Args:
             agent (ServerAgent): The agent instance that owns this task
             endpoint (str): The HTTP endpoint URL to fetch data from
-            interval (int): The interval in seconds between task executions
         """
-        super(BaseGetTask, self).__init__(agent, endpoint, interval)
+        super(BaseGetTask, self).__init__(agent, endpoint)
         self.data = NOT_FETCHED_YET
 
     def _fetch(self):
@@ -120,16 +118,15 @@ class BasePostTask(BaseHTTPTask):
     to HTTP endpoints using POST requests.
     """
 
-    def __init__(self, agent, endpoint, interval):
+    def __init__(self, agent, endpoint):
         """
         Initialize the POST task.
 
         Args:
             agent: The agent instance that owns this task
             endpoint (str): The HTTP endpoint URL to send data to
-            interval (int): The interval in seconds between task executions
         """
-        super(BasePostTask, self).__init__(agent, endpoint, interval)
+        super(BasePostTask, self).__init__(agent, endpoint)
         self.payload = NOT_PRODUCED_YET
 
     def _post(self):

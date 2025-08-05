@@ -1,4 +1,6 @@
 import abc
+import logging
+import re
 
 
 class BaseTask(object):
@@ -20,6 +22,7 @@ class BaseTask(object):
             interval (int): The interval in seconds between task executions
         """
         self.agent = agent
+        self._logger = None
 
     def __call__(self):
         """
@@ -42,3 +45,24 @@ class BaseTask(object):
             The result of the task execution
         """
         pass
+
+    @property
+    def logger(self):
+        """
+        Returns the logger instance associated with the agent.
+
+        This logger is used for logging messages related to the task.
+        """
+        if not self._logger:
+            name_part = []
+            name_part.append(self.agent.config.name)
+            class_name = self.__class__.__name__
+            task_name = re.sub(r'(?<!^)(?=[A-Z])', '_', class_name).lower()
+            name_part.append(task_name)
+            logger_name = '-'.join(name_part)
+
+            self._logger = logging.getLogger(logger_name)
+            self._logger.setLevel(logging.INFO)
+            for handler in self.agent.logger.handlers:
+                self._logger.addHandler(handler)
+        return self._logger

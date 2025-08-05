@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
+from typing import Optional
 
+from django.utils import timezone
 from monitoring.models import PredictionFlag
 
 
@@ -24,7 +26,7 @@ class StatusEvaluator:
         forecasted_cpu: float,
         anomaly_detected: bool,
         last_seen_at: datetime,
-    ) -> str:
+    ) -> Optional[str]:
         """
         Return one of PredictionFlag values based on inputs.
         Order of precedence: heartbeat → CPU forecast → anomaly.
@@ -38,7 +40,7 @@ class StatusEvaluator:
         Returns:
             A member of PredictionFlag.choices
         """
-        now = datetime.utcnow()
+        now = timezone.now()
         # 1. Heartbeat missing
         if not last_seen_at or (now - last_seen_at) > self.heartbeat_timeout:
             return PredictionFlag.NO_HEARTBEAT

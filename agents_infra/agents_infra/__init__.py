@@ -17,8 +17,8 @@ cfg = configtools.load_global_config()
 if cfg is not None:
     # Prepare config as a dictionary
     config = {
-        'controller_urls': configtools.get_config_option(
-            cfg, 'controller', 'controller_urls',
+        'urls': configtools.get_config_option(
+            cfg, 'controller', 'urls',
             cast=configtools.parse_csv_list
         ),
         'api_prefix': configtools.get_config_option(

@@ -29,6 +29,8 @@ def task_factory(task_config, agent, supervisor=None):
         BaseTask: A task instance based on the configuration.
     """
     name = task_config.get('name')
+    if not name:
+        raise ValueError('Task configuration must have a "name" field.')
     task_class = TASK_REGISTRY.get(name)
     if not task_class:
         raise ValueError('Unknown task name: %s' % name)

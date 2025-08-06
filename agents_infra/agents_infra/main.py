@@ -7,10 +7,6 @@ from agents_infra.agents import agent_factory
 from agents_infra.supervisor import AgentSupervisor
 from agents_infra.tasks import periodic_task_wrapper, task_factory
 
-logging.basicConfig(
-    level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s'
-)
-
 
 def load_tasks_config():
     config_paths = [

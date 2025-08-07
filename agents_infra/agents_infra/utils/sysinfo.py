@@ -57,7 +57,7 @@ def get_ram_usage(logger):
         return -1.0
 
 
-def get_cpu_usage(logger, interval=60):
+def get_cpu_usage(logger, interval=0):
     """
     Get the average CPU usage percentage over the last minute.
     """

@@ -1,0 +1,48 @@
+---
+- name: Build agents-infra
+  hosts: all
+  become: yes
+  vars_files:
+    - vars/common.yaml
+
+  tasks:
+    - name: Setup directory
+      file:
+        path: /opt/agents_infra
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy source code
+      synchronize:
+        src: "{{ proj_root }}/{{ item }}"
+        dest: /opt/agents_infra/
+        recursive: yes
+        owner: yes
+        group: yes
+        mode: push
+      loop:
+        - agents_infra/
+        - scripts/
+        - main.py
+
+    - name: Install dependencies
+      script: "{{ proj_root }}/scripts/install-dependencies.sh"
+      environment: "{{ proj_env }}"
+      register: result
+      ignore_errors: yes
+
+    - name: Fail if dependencies are missing
+      fail:
+        msg: "Found {{ result.rc }} missing dependencies"
+      when: result.rc != 0 and (fail_if_dep_missing | default(false))
+
+    - name: Run tests
+      command: >
+        ${PYTHON_DIR}/bin/python -m pytest
+        -m 'not integration' agents_infra
+      environment: "{{ proj_env }}"
+      args:
+        chdir: "{{ proj_root }}"
+      when: run_tests | default(false)

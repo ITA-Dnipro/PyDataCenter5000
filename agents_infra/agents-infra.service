@@ -1,0 +1,11 @@
+[Unit]
+Description=Agents Infra Service
+After=network.target
+
+[Service]
+Environment=PYTHONPATH=/opt/agents_infra
+ExecStart=python /opt/agents_infra/main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

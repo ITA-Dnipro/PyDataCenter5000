@@ -1,0 +1,15 @@
+#!/bin/bash
+echo "[INFO] Configuring environment..."
+
+read -p "Provide Python 2.6 path [/opt/python2.6]: " PYTHON_DIR
+PYTHON_DIR=${PYTHON_DIR:-/opt/python2.6}
+
+read -p "Run tests? (true/false) [false]: " RUN_TESTS
+RUN_TESTS=${RUN_TESTS:-false}
+
+cat > .env.sh <<EOF
+export PYTHON_DIR="${PYTHON_DIR}"
+export RUN_TESTS="${RUN_TESTS}"
+EOF
+
+echo "[INFO ] Configuration saved."

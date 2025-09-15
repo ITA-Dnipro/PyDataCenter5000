@@ -1,0 +1,40 @@
+---
+- name: Package agents-infra
+  hosts: all
+  become: yes
+  vars_files:
+    - vars/common.yaml
+
+  tasks:
+    - name: Initialize dist directory
+      file:
+        path: "{{ proj_root }}/dist"
+        state: directory
+        mode: '0755'
+
+    - name: Get package version
+      slurp:
+        src: "{{ proj_root }}/VERSION"
+      register: version_file
+
+    - set_fact:
+        agents_infra_version: "{{ version_file.content | b64decode | trim }}"
+
+    - name: Build package files
+      command: >
+        fpm -s dir
+        -t {{ 'deb' if ansible_facts['os_family'] == 'Debian' else 'rpm' }}
+        -n agents-infra
+        -v {{ agents_infra_version }}
+        -C /opt/agents_infra
+        --prefix /opt/agents_infra
+        .
+      args:
+        chdir: "{{ proj_root }}/dist"
+
+    - name: Build .zip artifact
+      archive:
+        path:
+          - /opt/agents_infra
+        dest: "{{ proj_root }}/dist/agents-infra.zip"
+        format: zip

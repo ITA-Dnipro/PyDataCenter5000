@@ -1,0 +1,33 @@
+name: Agents Ansible Build and Tests
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  push:
+    branches:
+      - main
+      - develop
+      - 156-build-package-installer-for-agent
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: agents_infra
+
+env:
+  PYTHON_DIR: /opt/python2.6
+
+jobs:
+  agents-ansible-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build --platform linux/amd64 \
+            -t agents-infra-ansible-build \
+            -f Dockerfile .

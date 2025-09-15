@@ -1,0 +1,32 @@
+---
+- name: Start service
+  hosts: all
+  become: yes
+  vars_files:
+    - vars/common.yaml
+
+  tasks:
+    - name: Check for systemctl availability
+      command: which systemctl
+      register: systemctl_status
+      ignore_errors: yes
+
+    - name: Copy systemd service file
+      copy:
+        src: "{{ proj_root }}/agents-infra.service"
+        dest: /etc/systemd/system/agents-infra.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+      when: systemctl_status.rc == 0
+
+    - name: Enable agents-infra service
+      systemd:
+        name: agents-infra
+        enabled: yes
+        state: started
+      when: systemctl_status.rc == 0

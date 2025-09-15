@@ -1,0 +1,9 @@
+proj_root: "{{ playbook_dir }}/.."
+proj_env:
+      DEBIAN_FRONTEND: >-
+        {{ lookup('env', 'DEBIAN_FRONTEND')
+          | default('noninteractive', true) }}
+      PYTHON_DIR: >-
+        {{ lookup('env', 'PYTHON_DIR') | default('/opt/python2.6', true) }}
+      INSTALL_CORO: >-
+        {{ lookup('env', 'INSTALL_CORO') | default('true', true) }}
